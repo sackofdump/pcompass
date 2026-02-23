@@ -194,18 +194,6 @@ function googleSignInRedirect() {
   window.location.href = url;
 }
 
-// Check for Google OAuth redirect on page load
-(function checkGoogleRedirect() {
-  const hash = window.location.hash;
-  if (hash && hash.includes('id_token')) {
-    const params = new URLSearchParams(hash.substring(1));
-    const idToken = params.get('id_token');
-    if (idToken) {
-      history.replaceState(null, '', window.location.pathname);
-      handleGoogleResponse({ credential: idToken });
-    }
-  }
-})();
 
 function openGoogleOAuthPopup() {
   const popup = window.open(

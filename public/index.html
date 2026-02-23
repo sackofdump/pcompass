@@ -339,6 +339,33 @@
 </div>
 
 <script src="/data.js"></script>
+<script>
+// Handle Google OAuth redirect before any other scripts load
+(function() {
+  var hash = window.location.hash;
+  if (hash && hash.indexOf('id_token') !== -1) {
+    var params = new URLSearchParams(hash.substring(1));
+    var idToken = params.get('id_token');
+    if (idToken) {
+      history.replaceState(null, '', window.location.pathname);
+      fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: idToken })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success && data.user) {
+          localStorage.setItem('pc_user', JSON.stringify(data.user));
+          localStorage.setItem('pc_pro_email', data.user.email);
+          window.location.reload();
+        }
+      })
+      .catch(function(err) { console.error('Google redirect auth failed:', err); });
+    }
+  }
+})();
+</script>
 <script src="/app.js"></script>
 <script src="/patches.js"></script>
 </body>
