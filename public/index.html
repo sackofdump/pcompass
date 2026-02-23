@@ -904,7 +904,7 @@
   }
 
 </style>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Google Sign-In loaded lazily in showAuthModalOptimized() -->
 </head>
 <body>
 
@@ -922,7 +922,7 @@
       ✦ Pro
     </button>
     <!-- Logged out: show sign in button -->
-    <button id="btnSignIn" onclick="showAuthModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;position:relative;" onmouseenter="document.getElementById('signinPerks').style.display='block'" onmouseleave="document.getElementById('signinPerks').style.display='none'">
+    <button id="btnSignIn" onclick="showAuthModalOptimized()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;position:relative;" onmouseenter="document.getElementById('signinPerks').style.display='block'" onmouseleave="document.getElementById('signinPerks').style.display='none'">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" fill="currentColor"/></svg>
       Sign In
       <!-- Perks tooltip -->
@@ -1056,7 +1056,7 @@
         </div>
       </div>
 
-      <button class="btn-analyze" id="analyzeBtn" onclick="analyze()" disabled>
+      <button class="btn-analyze" id="analyzeBtn" onclick="analyzeDebounced()" disabled>
         Analyze &amp; Recommend
       </button>
     </div>
@@ -2108,30 +2108,12 @@ function analyze() {
     if (stickyBtn) stickyBtn.classList.remove('visible');
   }, 150);
 
-  // Fetch ALL tickers in one batch request — Yahoo Finance handles it instantly
-  (async function fetchMarketData() {
-    try {
-      const res = await fetch('/api/market-data?tickers=' + tickersToFetch.join(','));
-      const raw = await res.json();
-      const marketData = {};
-      for (const [ticker, val] of Object.entries(raw)) {
-        if (!val) { marketData[ticker] = null; continue; }
-        marketData[ticker] = {
-          price: Number(val.price) || 0,
-          changePct: val.changePct != null ? Number(val.changePct) : (val.change != null ? Number(val.change) : 0),
-          momentum: val.momentum != null ? val.momentum : 50 + Math.min(15, Math.max(-15, (Number(val.changePct || val.change || 0)) * 5)),
-          marketState: val.marketState || 'REGULAR',
-          name: val.name || ticker
-        };
-      }
-      console.log('[market-data] status:', res.status, 'keys:', Object.keys(marketData));
-      lastMarketFetch = Date.now();
-      lastMarketDataCache = marketData;
-      renderResultsPanel(Object.keys(marketData).length > 0 ? marketData : null);
-    } catch(e) {
-      console.warn('[market-data] fetch failed:', e.message);
-      renderResultsPanel(null);
-    }
+  // Fetch market data — checks localStorage cache first (1hr TTL) before hitting API
+  (async function fetchMarketDataCachedCall() {
+    const marketData = await fetchMarketDataCached(tickersToFetch);
+    lastMarketFetch = Date.now();
+    lastMarketDataCache = marketData;
+    renderResultsPanel(marketData);
     updateRefreshBtn();
   })();
 }
@@ -2257,6 +2239,7 @@ function refreshMarketData() {
   // Re-run analyze() which will re-render and re-stream fresh badge data
   const btn = document.getElementById('refreshMarketBtn');
   if (btn) btn.classList.add('spinning');
+  clearMarketCache(); // clear localStorage so fresh data is fetched
   analyze();
 }
 
@@ -2288,18 +2271,10 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
 
   textEl.innerHTML = '<div class="etf-drawer-loading"><div class="mini-spinner"></div> Analyzing your portfolio...</div>';
   try {
-    const res = await fetch('/api/claude', {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'X-User-Id': currentUser?.id || '',
-        'X-Pro-Token': localStorage.getItem('pc_pro_token') || '',
-      },
-      body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:180,
-        messages:[{role:'user',content:'Portfolio: ' + holdingSummary + '. Sector exposure: ' + sectorSummary + '.\n\nWhy would ' + ticker + ' (' + name + ' — ' + desc + ') be a great ' + (isStock ? 'individual stock pick' : 'ETF') + ' to complement THIS specific portfolio? Reference their actual holdings and what sector gap it fills. Be direct, specific, 2-3 sentences, under 55 words. No bullet points.'}]
-      })
+    const res = await callClaudeAPI({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:180,
+      messages:[{role:'user',content:'Portfolio: ' + holdingSummary + '. Sector exposure: ' + sectorSummary + '.\n\nWhy would ' + ticker + ' (' + name + ' — ' + desc + ') be a great ' + (isStock ? 'individual stock pick' : 'ETF') + ' to complement THIS specific portfolio? Reference their actual holdings and what sector gap it fills. Be direct, specific, 2-3 sentences, under 55 words. No bullet points.'}]
     });
     if (res.status === 429) {
       const errData = await res.json();
@@ -2423,21 +2398,13 @@ async function handleScreenshot(event) {
 async function processImageFile(file) {
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/png';
-  const response = await fetch('/api/claude', {
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'X-User-Id': currentUser?.id || '',
-      'X-Pro-Token': localStorage.getItem('pc_pro_token') || '',
-    },
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:1000,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
-        {type:'text',text:'This is a screenshot from a stock brokerage app (likely Robinhood). It shows stock holdings with share counts.\n\nRead EVERY ticker and its EXACT share count as shown on screen. Be precise with decimal shares (e.g. 0.811746, 0.098814, 51.58).\n\nRespond ONLY with JSON, no other text:\n{\"holdings\":[{\"ticker\":\"HOOD\",\"shares\":51.58,\"name\":\"Robinhood Markets\"},{\"ticker\":\"QQQ\",\"shares\":1.40,\"name\":\"Invesco QQQ\"}]}\n\nRules:\n- ticker = uppercase symbol exactly as shown\n- shares = exact number shown (keep all decimals)\n- name = company name if you know it, otherwise ticker\n- Skip cash, buying power, or any non-stock items\n- If nothing detected: {\"holdings\":[],\"error\":\"Could not detect holdings\"}'}
-      ]}]
-    })
+  const response = await callClaudeAPI({
+    model:'claude-sonnet-4-20250514',
+    max_tokens:1000,
+    messages:[{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
+      {type:'text',text:'This is a screenshot from a stock brokerage app (likely Robinhood). It shows stock holdings with share counts.\n\nRead EVERY ticker and its EXACT share count as shown on screen. Be precise with decimal shares (e.g. 0.811746, 0.098814, 51.58).\n\nRespond ONLY with JSON, no other text:\n{\"holdings\":[{\"ticker\":\"HOOD\",\"shares\":51.58,\"name\":\"Robinhood Markets\"},{\"ticker\":\"QQQ\",\"shares\":1.40,\"name\":\"Invesco QQQ\"}]}\n\nRules:\n- ticker = uppercase symbol exactly as shown\n- shares = exact number shown (keep all decimals)\n- name = company name if you know it, otherwise ticker\n- Skip cash, buying power, or any non-stock items\n- If nothing detected: {\"holdings\":[],\"error\":\"Could not detect holdings\"}'}
+    ]}]
   });
   if (response.status === 429) {
     const errData = await response.json();
@@ -2651,10 +2618,12 @@ function runWhatIf() {
 }
 
 (function() {
+  let whatifTimer = null;
+  function debouncedWhatIf() { clearTimeout(whatifTimer); whatifTimer = setTimeout(runWhatIf, 300); }
   const wt = document.getElementById('whatifTicker');
   const wp = document.getElementById('whatifPct');
-  if (wt) wt.addEventListener('input', runWhatIf);
-  if (wp) wp.addEventListener('input', runWhatIf);
+  if (wt) wt.addEventListener('input', debouncedWhatIf);
+  if (wp) wp.addEventListener('input', debouncedWhatIf);
 })();
 
 // ── PORTFOLIO SAVE/LOAD ───────────────────────────────────
@@ -3247,7 +3216,7 @@ async function verifyProAccess(email) {
   const sticky = document.createElement('button');
   sticky.className = 'btn-analyze-sticky';
   sticky.textContent = 'Analyze & Recommend';
-  sticky.onclick = function() { analyze(); };
+  sticky.onclick = function() { analyzeDebounced(); };
   document.body.appendChild(sticky);
 
   function checkSticky() {
@@ -3623,6 +3592,101 @@ window.savePortfolio = function() {
     }
   }
 })();
+
+// ── PATCH 1: MARKET DATA localStorage CACHE ──────────────────
+async function fetchMarketDataCached(tickersToFetch) {
+  const CACHE_KEY = 'pc_market_' + tickersToFetch.slice().sort().join(',');
+  const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { data, ts } = JSON.parse(cached);
+      if (Date.now() - ts < CACHE_TTL) {
+        console.log('[market-data] serving from localStorage cache');
+        return data;
+      }
+    }
+  } catch(e) { /* ignore stale/corrupt cache */ }
+  try {
+    const res = await fetch('/api/market-data?tickers=' + tickersToFetch.join(','));
+    const raw = await res.json();
+    const marketData = {};
+    for (const [ticker, val] of Object.entries(raw)) {
+      if (!val) { marketData[ticker] = null; continue; }
+      marketData[ticker] = {
+        price:       Number(val.price) || 0,
+        changePct:   val.changePct != null ? Number(val.changePct) : (val.change != null ? Number(val.change) : 0),
+        momentum:    val.momentum != null ? val.momentum : 50 + Math.min(15, Math.max(-15, Number(val.changePct || val.change || 0) * 5)),
+        marketState: val.marketState || 'REGULAR',
+        name:        val.name || ticker,
+      };
+    }
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ data: marketData, ts: Date.now() }));
+    } catch(e) { /* localStorage quota exceeded — skip cache write */ }
+    return Object.keys(marketData).length > 0 ? marketData : null;
+  } catch(e) {
+    console.warn('[market-data] fetch failed:', e.message);
+    return null;
+  }
+}
+
+// ── PATCH 2: ANALYZE DEBOUNCE ─────────────────────────────────
+let analyzeDebounceTimer = null;
+function analyzeDebounced() {
+  clearTimeout(analyzeDebounceTimer);
+  analyzeDebounceTimer = setTimeout(() => analyze(), 300);
+}
+
+// ── PATCH 4: LAZY GOOGLE SIGN-IN ─────────────────────────────
+function loadGoogleSignInScript() {
+  if (window._googleScriptLoaded) return Promise.resolve();
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      window._googleScriptLoaded = true;
+      if (typeof initGoogleSignIn === 'function') initGoogleSignIn();
+      resolve();
+    };
+    document.head.appendChild(script);
+  });
+}
+function showAuthModalOptimized() {
+  if (typeof showAuthModal === 'function') showAuthModal();
+  loadGoogleSignInScript(); // load Google script lazily alongside
+}
+
+// ── PATCH 5: UNIFIED CLAUDE API CALL (sends email+ts for server-side pro verify) ─
+async function callClaudeAPI(body) {
+  const proToken = localStorage.getItem('pc_pro_token') || '';
+  const proEmail = localStorage.getItem('pc_pro_email') || '';
+  const proTs    = localStorage.getItem('pc_pro_ts')    || '';
+  return fetch('/api/claude', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id':    currentUser?.id || '',
+      'X-Pro-Token':  proToken,
+      'X-Pro-Email':  proEmail,
+      'X-Pro-Ts':     proTs,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+// ── PATCH 6: CLEAR MARKET CACHE (called before manual refresh) ─
+function clearMarketCache() {
+  const keysToDelete = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('pc_market_')) keysToDelete.push(key);
+  }
+  keysToDelete.forEach(k => localStorage.removeItem(k));
+  console.log('[market-data] localStorage cache cleared');
+}
 </script>
 </body>
 </html>
