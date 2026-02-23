@@ -185,6 +185,17 @@ function initGoogleSignIn() {
     callback: handleGoogleResponse,
     auto_select: false,
   });
+  // Render Google's official button in the login gate
+  const gateBtn = document.getElementById('gateGoogleBtn');
+  if (gateBtn) {
+    google.accounts.id.renderButton(gateBtn, {
+      theme: 'filled_black',
+      size: 'large',
+      width: 280,
+      text: 'continue_with',
+      shape: 'pill',
+    });
+  }
 }
 initGoogleSignIn();
 
