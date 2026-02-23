@@ -60,8 +60,6 @@ async function verifyProAccess(email) {
       localStorage.setItem('pc_pro_token', data.token);
       localStorage.setItem('pc_pro_ts', String(data.timestamp));
       localStorage.setItem('pc_pro_plan', data.plan || 'pro');
-      localStorage.removeItem('pc_ai_uses');
-      localStorage.removeItem('pc_shot_uses');
       return true;
     } else {
       localStorage.removeItem('pc_pro_token');
@@ -88,11 +86,6 @@ async function verifyProAccess(email) {
     await verifyProAccess(email);
   }
 
-  // Clear usage limits for pro users
-  if (isProUser()) {
-    localStorage.removeItem('pc_ai_uses');
-    localStorage.removeItem('pc_shot_uses');
-  }
 })();
 
 // Sticky analyze button for mobile

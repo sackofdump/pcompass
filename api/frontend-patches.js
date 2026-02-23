@@ -140,7 +140,6 @@ async function callClaudeAPI(body) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-User-Id':    currentUser?.id || '',
       'X-Pro-Token':  proToken,
       'X-Pro-Email':  proEmail,
       'X-Pro-Ts':     proTs,

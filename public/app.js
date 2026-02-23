@@ -22,7 +22,6 @@ async function callClaudeAPI(body) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-User-Id':    (typeof currentUser !== 'undefined' && currentUser?.id) || '',
       'X-Pro-Token':  proToken,
       'X-Pro-Email':  proEmail,
       'X-Pro-Ts':     proTs,
@@ -766,15 +765,6 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
   const holdingSummary = holdings.map(h => h.ticker + ' (' + h.pct + '% — ' + h.sector + ')').join(', ');
   const profile = getPortfolioProfile();
   const sectorSummary = Object.entries(profile.sectors).sort((a,b) => b[1]-a[1]).map(([s,p]) => s + ': ' + p + '%').join(', ');
-  // Paywall check
-  const aiUses = parseInt(localStorage.getItem('pc_ai_uses') || '0');
-  const isPro = isProUser();
-  if (!isPro && aiUses >= 3) {
-    showPaywall('ai');
-    return;
-  }
-  localStorage.setItem('pc_ai_uses', aiUses + 1);
-
   textEl.innerHTML = '<div class="etf-drawer-loading"><div class="mini-spinner"></div> Analyzing your portfolio...</div>';
   try {
     const res = await callClaudeAPI({
@@ -783,6 +773,10 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
       messages:[{role:'user',content:'Portfolio: ' + holdingSummary + '. Sector exposure: ' + sectorSummary + '.\n\nWhy would ' + ticker + ' (' + name + ' — ' + desc + ') be a great ' + (isStock ? 'individual stock pick' : 'ETF') + ' to complement THIS specific portfolio? Reference their actual holdings and what sector gap it fills. Be direct, specific, 2-3 sentences, under 55 words. No bullet points.'}]
     });
     const rawText = await res.text();
+    if (res.status === 429) {
+      showPaywall('ai');
+      return;
+    }
     if (!res.ok) {
       console.error('[claude] HTTP ' + res.status + ':', rawText);
       textEl.textContent = 'Server error ' + res.status + ': ' + rawText.slice(0, 200);
@@ -791,10 +785,6 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
     let data;
     try { data = JSON.parse(rawText); }
     catch(e) { textEl.textContent = 'Bad response from server: ' + rawText.slice(0, 200); return; }
-    if (res.status === 429) {
-      textEl.textContent = data.message || 'Too many requests. Please wait before trying again.';
-      return;
-    }
     const text = (data.content||[]).map(b => b.text||'').join('').trim();
     if (!text) { textEl.textContent = 'Empty response from AI. Raw: ' + rawText.slice(0, 200); return; }
     drawerCache[cacheKey] = text;
@@ -819,15 +809,6 @@ uploadZone.addEventListener('drop', e => {
 async function handleScreenshot(event) {
   const files = Array.from(event.target.files);
   if (!files.length) return;
-
-  const shotUses = parseInt(localStorage.getItem('pc_shot_uses') || '0');
-  const isPro = isProUser();
-  // if (!isPro && shotUses >= 3) {
-  //   showPaywall('screenshot');
-  //   event.target.value = '';
-  //   return;
-  // }
-  localStorage.setItem('pc_shot_uses', shotUses + 1);
 
   const overlay = document.getElementById('scanningOverlay');
   const scanText = document.getElementById('scanText');

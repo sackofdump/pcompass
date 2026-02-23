@@ -2,6 +2,34 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://pcompass.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+];
+
+function getAllowedOrigin(req) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return null;
+}
+
+// ── NEON SQL HELPER ──────────────────────────────────────
+async function neonSQL(sql, params = []) {
+  const connStr = process.env.POSTGRES_URL;
+  if (!connStr) throw new Error('POSTGRES_URL not set');
+  const host = new URL(connStr).hostname;
+  const r = await fetch(`https://${host}/sql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
+    body: JSON.stringify({ query: sql, params }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const data = await r.json();
+  return data;
+}
+
 // ── PRO TOKEN VERIFICATION (server-side, not just trusting client header) ──
 async function verifyProToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
@@ -24,53 +52,48 @@ async function verifyProToken(email, token, timestamp) {
   return token === expected;
 }
 
-// ── IN-MEMORY RATE LIMITER ────────────────────────────────
-// Resets on cold start but reliably catches burst abuse
-const rateLimitMap = new Map();
-
+// ── DB-BACKED RATE LIMITER ───────────────────────────────
 const LIMITS = {
-  free:      { requests: 3,  windowMs: 60 * 60 * 1000 },  // 3/hr
-  pro:       { requests: 50, windowMs: 60 * 60 * 1000 },  // 50/hr
-  screenshot:{ requests: 3,  windowMs: 24 * 60 * 60 * 1000 }, // 3/day free
+  free:      { requests: 3,  windowMs: 60 * 60 * 1000 },       // 3/hr
+  pro:       { requests: 50, windowMs: 60 * 60 * 1000 },       // 50/hr
+  screenshot:{ requests: 3,  windowMs: 24 * 60 * 60 * 1000 },  // 3/day free
 };
 
-function getClientId(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  const ip = forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || 'unknown';
-  const userId = req.headers['x-user-id'] || null;
-  return userId ? `user:${userId}` : `ip:${ip}`;
-}
-
-function checkRateLimit(clientId, limitKey) {
+async function checkRateLimitDB(clientKey, endpoint, limitKey) {
   const limit = LIMITS[limitKey] || LIMITS.free;
-  const now = Date.now();
-  const mapKey = `${limitKey}:${clientId}`;
-  const record = rateLimitMap.get(mapKey);
+  const windowStart = new Date(Date.now() - limit.windowMs).toISOString();
 
-  if (!record || now - record.windowStart > limit.windowMs) {
-    rateLimitMap.set(mapKey, { count: 1, windowStart: now });
-    return { allowed: true, remaining: limit.requests - 1 };
+  // Count recent requests
+  const countResult = await neonSQL(
+    `SELECT COUNT(*)::int AS cnt FROM api_usage
+     WHERE client_key = $1 AND endpoint = $2 AND created_at > $3`,
+    [clientKey, endpoint, windowStart]
+  );
+  const count = countResult.rows?.[0]?.cnt || 0;
+
+  if (count >= limit.requests) {
+    return { allowed: false, remaining: 0, used: count };
   }
 
-  if (record.count >= limit.requests) {
-    const resetIn = Math.ceil((limit.windowMs - (now - record.windowStart)) / 1000 / 60);
-    return { allowed: false, resetInMinutes: resetIn };
+  // Record this request
+  await neonSQL(
+    `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+    [clientKey, endpoint]
+  );
+
+  // Lazy cleanup (1 in 50 chance) — delete rows older than 48 hours
+  if (Math.random() < 0.02) {
+    neonSQL(`DELETE FROM api_usage WHERE created_at < NOW() - INTERVAL '48 hours'`).catch(() => {});
   }
 
-  record.count++;
-  return { allowed: true, remaining: limit.requests - record.count };
+  return { allowed: true, remaining: limit.requests - count - 1, used: count + 1 };
 }
 
-// Cleanup old entries every 100 requests to prevent memory leak
-let cleanupCounter = 0;
-function maybeCleanup() {
-  if (++cleanupCounter % 100 !== 0) return;
-  const now = Date.now();
-  for (const [key, record] of rateLimitMap.entries()) {
-    if (now - record.windowStart > LIMITS.pro.windowMs * 2) {
-      rateLimitMap.delete(key);
-    }
-  }
+function getClientKey(req, isPro, proEmail) {
+  // Use verified Pro email when available, otherwise IP
+  if (isPro && proEmail) return `email:${proEmail.toLowerCase().trim()}`;
+  const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  return `ip:${ip}`;
 }
 
 // ── DETECT SCREENSHOT REQUESTS ────────────────────────────
@@ -83,10 +106,27 @@ function isScreenshotRequest(messages) {
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // ── CORS with origin allowlist ──
+  const origin = req.headers.origin || '';
+  const allowedOrigin = getAllowedOrigin(req);
+
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, X-Pro-Token, X-Pro-Email, X-Pro-Ts');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts');
+
+  if (req.method === 'OPTIONS') {
+    if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
+    return res.status(200).end();
+  }
+
+  // Block requests with an Origin header that isn't in the allowlist
+  if (origin && !allowedOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ── Verify Pro server-side (don't just trust the header) ──
@@ -94,9 +134,6 @@ export default async function handler(req, res) {
   const proEmail = req.headers['x-pro-email'] || '';
   const proTs    = req.headers['x-pro-ts']    || '';
   const isPro = await verifyProToken(proEmail, proToken, proTs);
-
-  const clientId = getClientId(req);
-  maybeCleanup();
 
   const { model, max_tokens, messages, system } = req.body;
   if (!messages || !Array.isArray(messages)) {
@@ -106,23 +143,35 @@ export default async function handler(req, res) {
   // Screenshot requests have their own stricter rate limit for free users
   const isScreenshot = isScreenshotRequest(messages);
   const limitKey = isPro ? 'pro' : isScreenshot ? 'screenshot' : 'free';
+  const endpoint = isScreenshot ? 'screenshot' : 'analysis';
 
-  const rateCheck = checkRateLimit(clientId, limitKey);
+  const clientKey = getClientKey(req, isPro, proEmail);
+
+  let rateCheck;
+  try {
+    rateCheck = await checkRateLimitDB(clientKey, endpoint, limitKey);
+  } catch (err) {
+    console.error('Rate limit DB error:', err.message);
+    // Fail open — don't block users if DB is down, but log it
+    rateCheck = { allowed: true, remaining: -1, used: -1 };
+  }
+
   if (!rateCheck.allowed) {
     return res.status(429).json({
       error: 'Rate limit exceeded',
-      message: `Too many requests. Try again in ${rateCheck.resetInMinutes} minute(s).`,
-      resetInMinutes: rateCheck.resetInMinutes,
+      message: 'Too many requests. Please try again later.',
+      remaining: rateCheck.remaining,
+      used: rateCheck.used,
     });
   }
 
   // Hard cap on tokens to prevent abuse
   const cappedTokens = Math.min(max_tokens || 180, isPro ? 500 : 200);
 
-  // Force cheaper model for free users on screenshot imports (vision is expensive)
-  const resolvedModel = isScreenshot && !isPro
-    ? 'claude-haiku-4-5-20251001'
-    : model || 'claude-haiku-4-5-20251001';
+  // Free users always get Haiku — don't let the client choose a more expensive model
+  const resolvedModel = isPro
+    ? (model || 'claude-sonnet-4-5-20250514')
+    : 'claude-haiku-4-5-20251001';
 
   try {
     const response = await client.messages.create({
@@ -133,6 +182,7 @@ export default async function handler(req, res) {
     });
 
     res.setHeader('X-RateLimit-Remaining', rateCheck.remaining ?? 0);
+    res.setHeader('X-RateLimit-Used', rateCheck.used ?? 0);
     return res.status(200).json(response);
 
   } catch (err) {
