@@ -3503,42 +3503,44 @@ function initGoogleSignIn() {
 }
 initGoogleSignIn();
 
-async function googleSignIn() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    showToast('Connecting to Google…');
-    await loadGoogleSignInScript();
-    if (typeof google === 'undefined' || !google.accounts) {
-      showToast('Could not load Google Sign-In. Please check your connection.');
-      return;
-    }
+function openGoogleOAuthPopup() {
+  const popup = window.open(
+    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
+    'google-signin',
+    'width=500,height=600,left=200,top=100'
+  );
+  if (!popup) { showToast('Popup blocked — please allow popups for this site.'); return; }
+  const checkPopup = setInterval(() => {
+    try {
+      if (popup.closed) { clearInterval(checkPopup); return; }
+      if (popup.location.origin === window.location.origin) {
+        const hash = popup.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const idToken = params.get('id_token');
+        popup.close();
+        clearInterval(checkPopup);
+        if (idToken) {
+          handleGoogleResponse({ credential: idToken });
+        }
+      }
+    } catch(e) { /* cross-origin, keep waiting */ }
+  }, 500);
+}
+
+function googleSignIn() {
+  // If Google SDK is loaded, try One Tap first, then fall back to popup
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        openGoogleOAuthPopup();
+      }
+    });
+    return;
   }
-  // Render a hidden div and trigger sign-in via prompt
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      // One Tap not available, fall back to popup
-      const popup = window.open(
-        `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
-        'google-signin',
-        'width=500,height=600,left=200,top=100'
-      );
-      // Listen for redirect back
-      const checkPopup = setInterval(() => {
-        try {
-          if (popup.closed) { clearInterval(checkPopup); return; }
-          if (popup.location.origin === window.location.origin) {
-            const hash = popup.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            const idToken = params.get('id_token');
-            popup.close();
-            clearInterval(checkPopup);
-            if (idToken) {
-              handleGoogleResponse({ credential: idToken });
-            }
-          }
-        } catch(e) { /* cross-origin, keep waiting */ }
-      }, 500);
-    }
-  });
+  // SDK not loaded yet — go straight to OAuth popup (works without SDK)
+  openGoogleOAuthPopup();
+  // Load SDK in background for next time
+  loadGoogleSignInScript();
 }
 
 async function handleGoogleResponse(response) {
