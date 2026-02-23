@@ -108,8 +108,21 @@
     padding:28px 5% 20px;
     display:flex; flex-direction:column; gap:6px;
     border-bottom:1px solid var(--border);
-    position:relative; z-index:10001;
+    position:sticky; top:0; z-index:10001;
+    background:var(--bg);
+    transition:padding 0.25s ease, gap 0.25s ease;
   }
+  header.header-compact {
+    padding:10px 5%;
+    gap:0;
+  }
+  header.header-compact .tagline { display:none; }
+  header.header-compact .logo-icon { width:28px; height:28px; }
+  header.header-compact .logo-icon::before { border-bottom-width:9px; top:2px; border-left-width:3px; border-right-width:3px; }
+  header.header-compact .logo-icon::after { border-top-width:9px; bottom:2px; border-left-width:3px; border-right-width:3px; }
+  header.header-compact .logo-icon-center { width:3px; height:3px; }
+  header.header-compact .logo h1 { font-size:22px; }
+  header.header-compact .logo { gap:8px; }
   .header-actions {
     position:absolute; right:calc(5% + 80px); top:50%; transform:translateY(-50%);
     display:flex; align-items:center; gap:8px;
@@ -608,6 +621,7 @@
       padding: 20px 20px 16px;
       flex-direction: row; flex-wrap: wrap; align-items: center;
     }
+    header.header-compact { padding: 10px 20px; }
     .logo { flex: 1; min-width: 0; }
     .tagline { width: 100%; margin-left: 48px; order: 1; }
     .header-actions {
@@ -628,6 +642,9 @@
       padding: 14px 16px 12px;
       gap: 6px;
     }
+    header.header-compact { padding: 8px 16px; }
+    header.header-compact .logo h1 { font-size: 15px; }
+    header.header-compact .logo-icon { width: 24px; height: 24px; }
     .logo h1 { font-size: 17px; }
     .logo-icon { width: 30px; height: 30px; }
     .tagline { font-size: 10px; margin-left: 42px; }
@@ -1093,6 +1110,19 @@
 </div>
 
 <script>
+// ── STICKY HEADER COMPACT ON SCROLL ──────────────────────────────────────────
+(function() {
+  const hdr = document.querySelector('header');
+  let compact = false;
+  window.addEventListener('scroll', () => {
+    const shouldCompact = window.scrollY > 60;
+    if (shouldCompact !== compact) {
+      compact = shouldCompact;
+      hdr.classList.toggle('header-compact', compact);
+    }
+  }, { passive: true });
+})();
+
 // ── CLAUDE API HELPER (defined first so all functions can use it) ─────────────
 // Sends pro token + email + timestamp so server can verify Pro server-side
 async function callClaudeAPI(body) {
