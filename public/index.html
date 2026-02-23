@@ -3196,13 +3196,54 @@ function goToPurchase(stripeUrl) {
 
 // ── GOOGLE SIGN-IN & CLOUD SYNC ─────────────────────────
 let currentUser = null;
+const GOOGLE_CLIENT_ID = '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
+
+// Initialize Google Sign-In on page load
+function initGoogleSignIn() {
+  if (typeof google === 'undefined' || !google.accounts) {
+    setTimeout(initGoogleSignIn, 500);
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleResponse,
+    auto_select: false,
+  });
+}
+initGoogleSignIn();
 
 function googleSignIn() {
-  google.accounts.id.initialize({
-    client_id: '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com',
-    callback: handleGoogleResponse,
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('Google Sign-In loading... try again in a moment.');
+    return;
+  }
+  // Render a hidden div and trigger sign-in via prompt
+  google.accounts.id.prompt((notification) => {
+    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+      // One Tap not available, fall back to popup
+      const popup = window.open(
+        `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
+        'google-signin',
+        'width=500,height=600,left=200,top=100'
+      );
+      // Listen for redirect back
+      const checkPopup = setInterval(() => {
+        try {
+          if (popup.closed) { clearInterval(checkPopup); return; }
+          if (popup.location.origin === window.location.origin) {
+            const hash = popup.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const idToken = params.get('id_token');
+            popup.close();
+            clearInterval(checkPopup);
+            if (idToken) {
+              handleGoogleResponse({ credential: idToken });
+            }
+          }
+        } catch(e) { /* cross-origin, keep waiting */ }
+      }, 500);
+    }
   });
-  google.accounts.id.prompt();
 }
 
 async function handleGoogleResponse(response) {
