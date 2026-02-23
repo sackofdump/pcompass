@@ -673,3 +673,29 @@ function clearMarketCache() {
   keysToDelete.forEach(k => localStorage.removeItem(k));
   console.log('[market-data] localStorage cache cleared');
 }
+
+// ── PATCH 7: INTERACTIVE PAYWALL TIER SELECTION ───────────────
+let selectedPaywallTier = 'monthly';
+
+const paywallTiers = {
+  monthly:  { url: 'https://buy.stripe.com/28E8wPb66b4Y4aj0M96AM03', label: 'Get Pro — $1.99/mo' },
+  annual:   { url: 'https://buy.stripe.com/28EdR94HIc926ir66t6AM05', label: 'Get Annual — $14.99/yr' },
+  lifetime: { url: 'https://buy.stripe.com/14AeVddeedd64aj3Yl6AM04', label: 'Get Lifetime — $19.99' },
+};
+
+function selectPaywallTier(tier) {
+  selectedPaywallTier = tier;
+  const ids = ['tier-monthly', 'tier-annual', 'tier-lifetime'];
+  const keys = ['monthly', 'annual', 'lifetime'];
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.borderColor = keys[i] === tier ? '#00e5a0' : '#1e2430';
+  });
+  const btn = document.getElementById('paywallConfirmBtn');
+  if (btn) {
+    const t = paywallTiers[tier];
+    btn.textContent = t.label;
+    btn.onclick = function() { goToPurchase(t.url); };
+  }
+}

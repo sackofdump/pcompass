@@ -315,21 +315,21 @@
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
-      <div style="border:1px solid #00e5a0;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div id="tier-monthly" onclick="selectPaywallTier('monthly')" style="border:2px solid #00e5a0;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;">
         <div>
           <div style="color:#e8ecf0;font-weight:600;font-size:14px;">Pro ✦</div>
           <div style="color:#8a9ab8;font-size:11px;">Unlimited AI · Screenshot import · PDF export</div>
         </div>
         <div style="color:#00e5a0;font-weight:700;font-size:16px;">$1.99<span style="font-size:11px;color:#8a9ab8;">/mo</span></div>
       </div>
-      <div style="border:1px solid #1e2430;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div id="tier-annual" onclick="selectPaywallTier('annual')" style="border:2px solid #1e2430;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;">
         <div>
           <div style="color:#e8ecf0;font-weight:600;font-size:14px;">Annual <span style="font-size:10px;color:#a78bfa;font-weight:400;">Save 37%</span></div>
           <div style="color:#8a9ab8;font-size:11px;">Everything in Pro · Billed yearly</div>
         </div>
         <div style="color:#a78bfa;font-weight:700;font-size:16px;">$14.99<span style="font-size:11px;color:#8a9ab8;">/yr</span></div>
       </div>
-      <div style="border:1px solid #1e2430;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div id="tier-lifetime" onclick="selectPaywallTier('lifetime')" style="border:2px solid #1e2430;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;">
         <div>
           <div style="color:#e8ecf0;font-weight:600;font-size:14px;">Lifetime</div>
           <div style="color:#8a9ab8;font-size:11px;">Pay once, own forever</div>
@@ -338,9 +338,7 @@
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">
-      <button onclick="goToPurchase('https://buy.stripe.com/28E8wPb66b4Y4aj0M96AM03')" style="background:linear-gradient(135deg,#00e5a0,#00b87a);color:#000;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Get Pro — $1.99/mo</button>
-      <button onclick="goToPurchase('https://buy.stripe.com/28EdR94HIc926ir66t6AM05')" style="background:none;color:#a78bfa;border:1px solid #2a2f3e;border-radius:10px;padding:9px;font-size:12px;cursor:pointer;width:100%;">Annual — $14.99/yr (save 37%)</button>
-      <button onclick="goToPurchase('https://buy.stripe.com/14AeVddeedd64aj3Yl6AM04')" style="background:none;color:#8a9ab8;border:1px solid #2a2f3e;border-radius:10px;padding:9px;font-size:11px;cursor:pointer;width:100%;">Lifetime — $19.99</button>
+      <button id="paywallConfirmBtn" onclick="goToPurchase('https://buy.stripe.com/28E8wPb66b4Y4aj0M96AM03')" style="background:linear-gradient(135deg,#00e5a0,#00b87a);color:#000;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Get Pro — $1.99/mo</button>
       <button onclick="restorePurchases()" style="background:none;color:#8a9ab8;border:none;padding:5px;font-size:10px;cursor:pointer;width:100%;font-family:'Space Mono',monospace;">Restore Purchases</button>
     </div>
   </div>
