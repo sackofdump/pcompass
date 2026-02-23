@@ -12,6 +12,13 @@ async function neonSQL(sql) {
 }
 
 export default async function handler(req, res) {
+  // ── Admin-only: require secret to run schema setup ──
+  const secret = process.env.DB_SETUP_SECRET;
+  const provided = req.headers['x-db-setup-secret'] || req.query?.secret;
+  if (!secret || provided !== secret) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const results = [];
 
   try {
