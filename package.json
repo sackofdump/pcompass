@@ -1,6 +1,7 @@
 {
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@clerk/nextjs": "^6.38.1",
     "@neondatabase/serverless": "^1.0.2",
     "@stripe/stripe-js": "^8.8.0",
