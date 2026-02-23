@@ -1,3 +1,21 @@
+// ── IN-MEMORY RATE LIMITER ────────────────────────────────
+// Prevents someone from hammering verify-pro to enumerate valid emails
+const verifyAttempts = new Map();
+const MAX_ATTEMPTS = 10; // per IP per hour
+const WINDOW_MS = 60 * 60 * 1000;
+
+function checkVerifyRateLimit(ip) {
+  const now = Date.now();
+  const record = verifyAttempts.get(ip);
+  if (!record || now - record.windowStart > WINDOW_MS) {
+    verifyAttempts.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (record.count >= MAX_ATTEMPTS) return false;
+  record.count++;
+  return true;
+}
+
 async function neonSQL(sql, params = []) {
   const connStr = process.env.POSTGRES_URL;
   const host = new URL(connStr).hostname;
@@ -12,12 +30,26 @@ async function neonSQL(sql, params = []) {
 }
 
 export default async function handler(req, res) {
-  const email = (req.query.email || '').toLowerCase().trim();
-  if (!email || !email.includes('@')) return res.status(400).json({ pro: false, error: 'Valid email required' });
+  // Allow both GET (restore purchases) and POST (checkout verification)
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ pro: false, error: 'Method not allowed' });
+  }
+
+  const email = ((req.query.email || req.body?.email) || '').toLowerCase().trim();
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ pro: false, error: 'Valid email required' });
+  }
+
+  // Rate limit by IP
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  if (!checkVerifyRateLimit(ip)) {
+    return res.status(429).json({ pro: false, error: 'Too many verification attempts' });
+  }
 
   try {
+    // Uses idx_pro_licenses_email index (created in db-setup.js)
     const rows = await neonSQL(
-      `SELECT active, plan FROM pro_licenses WHERE email = $1`,
+      `SELECT active, plan FROM pro_licenses WHERE email = $1 LIMIT 1`,
       [email]
     );
 
@@ -27,17 +59,29 @@ export default async function handler(req, res) {
 
     const license = rows[0];
 
-    // Generate signed token
+    // Generate signed HMAC token — expires in 24 hours
     const timestamp = Math.floor(Date.now() / 1000);
-    const secret = process.env.PRO_TOKEN_SECRET || 'fallback-secret';
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${email}:${timestamp}`));
-    const token = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    const secret = process.env.PRO_TOKEN_SECRET;
+    if (!secret) throw new Error('PRO_TOKEN_SECRET not configured');
 
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const sig = await crypto.subtle.sign(
+      'HMAC', key,
+      encoder.encode(`${email}:${timestamp}`)
+    );
+    const token = Array.from(new Uint8Array(sig))
+      .map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+
+    // Don't cache this — it contains a fresh signed token each time
+    res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ pro: true, plan: license.plan, token, timestamp, expiresIn: 86400 });
+
   } catch (err) {
-    console.error('verify-pro error:', err);
+    console.error('[verify-pro] error:', err.message);
     return res.status(500).json({ pro: false, error: 'Server error' });
   }
 }
