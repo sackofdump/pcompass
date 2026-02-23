@@ -175,7 +175,7 @@ export default async function handler(req, res) {
   }
 
   // Server decides model and tokens — client has no say
-  const resolvedModel = isPro ? 'claude-sonnet-4-5-20250514' : 'claude-haiku-4-5-20251001';
+  const resolvedModel = isPro ? 'claude-sonnet-4-5-20241022' : 'claude-haiku-4-5-20251001';
   const resolvedMaxTokens = isScreenshot ? 1000 : 200;
 
   try {
