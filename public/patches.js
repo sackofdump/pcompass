@@ -1,3 +1,7 @@
+document.getElementById('paywallModal').style.display='flex';
+document.getElementById('paywallModal').style.display='none';
+// re-close on load
+
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -26,14 +30,23 @@ function restorePurchases() {
 // ── PRO VERIFICATION SYSTEM ─────────────────────────────
 // Server-signed tokens prevent localStorage tampering
 function isProUser() {
+  // Check paid Pro token
   const token = localStorage.getItem('pc_pro_token');
   const timestamp = parseInt(localStorage.getItem('pc_pro_ts') || '0');
   const email = localStorage.getItem('pc_pro_email');
-  if (!token || !email || !timestamp) return false;
-  // Token expires after 24 hours — forces re-verification
-  const now = Math.floor(Date.now() / 1000);
-  if (now - timestamp > 86400) return false;
-  return true;
+  if (token && email && timestamp) {
+    const now = Math.floor(Date.now() / 1000);
+    if (now - timestamp <= 86400) return true;
+  }
+  // Check active free trial (7 days) — must be signed in
+  if (typeof currentUser !== 'undefined' && currentUser && currentUser.email) {
+    const trialStart = parseInt(localStorage.getItem('pc_trial_start') || '0');
+    if (trialStart > 0) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now - trialStart <= 604800) return true;
+    }
+  }
+  return false;
 }
 
 async function verifyProAccess(email) {
@@ -126,6 +139,105 @@ function goToPurchase(stripeUrl) {
   window.location.href = stripeUrl + separator + 'prefilled_email=' + encodeURIComponent(email);
 }
 
+// ── FREE TRIAL ──────────────────────────────────────────
+async function startFreeTrial() {
+  // Must be signed in so we can tie trial to an account
+  if (!currentUser || !currentUser.email) {
+    closePaywall();
+    showToast('Sign in first to start your free trial.');
+    setTimeout(() => showAuthModalOptimized(), 400);
+    return;
+  }
+  // Check if this user already used their trial
+  const existingTrial = localStorage.getItem('pc_trial_start');
+  if (existingTrial && parseInt(existingTrial) > 0) {
+    const elapsed = Math.floor(Date.now() / 1000) - parseInt(existingTrial);
+    if (elapsed > 604800) {
+      showToast('Your 7-day trial has ended. Subscribe to keep Pro features.');
+      return;
+    }
+    // Trial still active
+    closePaywall();
+    showToast('Your free trial is still active!');
+    return;
+  }
+  // Start trial — store server-side so user can't re-trial
+  try {
+    const res = await fetch('/api/start-trial', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentUser.email.toLowerCase().trim() })
+    });
+    const data = await res.json();
+    if (data.error === 'trial_used') {
+      showToast('You\u2019ve already used your free trial. Subscribe to unlock Pro.');
+      return;
+    }
+    if (data.success || data.trialStart) {
+      const trialStart = data.trialStart || Math.floor(Date.now() / 1000);
+      localStorage.setItem('pc_trial_start', String(trialStart));
+      localStorage.setItem('pc_pro_email', currentUser.email.toLowerCase().trim());
+      closePaywall();
+      showToast('\u2705 Pro trial activated! You have 7 days of full access.');
+      updateTrialUI();
+    } else {
+      showToast('Could not start trial. Please try again.');
+    }
+  } catch (err) {
+    // Fallback: start trial locally if API is not yet deployed
+    const trialStart = Math.floor(Date.now() / 1000);
+    localStorage.setItem('pc_trial_start', String(trialStart));
+    localStorage.setItem('pc_pro_email', currentUser.email.toLowerCase().trim());
+    closePaywall();
+    showToast('\u2705 Pro trial activated! You have 7 days of full access.');
+    updateTrialUI();
+  }
+}
+
+function getTrialDaysLeft() {
+  const trialStart = parseInt(localStorage.getItem('pc_trial_start') || '0');
+  if (!trialStart) return -1;
+  const elapsed = Math.floor(Date.now() / 1000) - trialStart;
+  const remaining = Math.ceil((604800 - elapsed) / 86400);
+  return Math.max(0, remaining);
+}
+
+function updateTrialUI() {
+  const daysLeft = getTrialDaysLeft();
+  const proBtn = document.getElementById('btnPro');
+  const trialCTA = document.getElementById('trialCTA');
+  const isSignedIn = typeof currentUser !== 'undefined' && currentUser && currentUser.email;
+  if (daysLeft > 0 && isSignedIn) {
+    // Show trial badge on Pro button
+    if (proBtn) proBtn.innerHTML = '\u2726 Trial \u00B7 ' + daysLeft + 'd left';
+    // Hide trial CTA in paywall since already trialing
+    if (trialCTA) trialCTA.style.display = 'none';
+  } else if (daysLeft === 0) {
+    // Trial expired
+    localStorage.removeItem('pc_trial_start');
+    if (proBtn) proBtn.innerHTML = '\u2726 Pro';
+    if (trialCTA) trialCTA.style.display = '';
+  }
+  // Update user menu pro status if it exists
+  const proStatus = document.getElementById('userMenuProStatus');
+  if (proStatus && daysLeft > 0) {
+    proStatus.innerHTML = '<span style="color:#00e5a0;">\u2726 Pro Trial</span> \u00B7 ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left';
+  }
+}
+
+// Check trial status on page load
+(function initTrialCheck() {
+  const trialStart = parseInt(localStorage.getItem('pc_trial_start') || '0');
+  if (trialStart > 0) {
+    const elapsed = Math.floor(Date.now() / 1000) - trialStart;
+    if (elapsed > 604800) {
+      // Trial expired — clean up
+      localStorage.removeItem('pc_trial_start');
+    }
+    // Don't update UI here — wait for updateUserUI() after auth restores currentUser
+  }
+})();
+
 // Check if returning from Stripe checkout
 (async function checkPostCheckout() {
   if (localStorage.getItem('pc_checkout_pending') === 'true') {
@@ -170,38 +282,44 @@ function initGoogleSignIn() {
 }
 initGoogleSignIn();
 
+function openGoogleOAuthPopup() {
+  const popup = window.open(
+    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
+    'google-signin',
+    'width=500,height=600,left=200,top=100'
+  );
+  if (!popup) { showToast('Popup blocked — please allow popups for this site.'); return; }
+  const checkPopup = setInterval(() => {
+    try {
+      if (popup.closed) { clearInterval(checkPopup); return; }
+      if (popup.location.origin === window.location.origin) {
+        const hash = popup.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const idToken = params.get('id_token');
+        popup.close();
+        clearInterval(checkPopup);
+        if (idToken) {
+          handleGoogleResponse({ credential: idToken });
+        }
+      }
+    } catch(e) { /* cross-origin, keep waiting */ }
+  }, 500);
+}
+
 function googleSignIn() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    showToast('Google Sign-In loading... try again in a moment.');
+  // If Google SDK is loaded, try One Tap first, then fall back to popup
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        openGoogleOAuthPopup();
+      }
+    });
     return;
   }
-  // Render a hidden div and trigger sign-in via prompt
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      // One Tap not available, fall back to popup
-      const popup = window.open(
-        `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
-        'google-signin',
-        'width=500,height=600,left=200,top=100'
-      );
-      // Listen for redirect back
-      const checkPopup = setInterval(() => {
-        try {
-          if (popup.closed) { clearInterval(checkPopup); return; }
-          if (popup.location.origin === window.location.origin) {
-            const hash = popup.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            const idToken = params.get('id_token');
-            popup.close();
-            clearInterval(checkPopup);
-            if (idToken) {
-              handleGoogleResponse({ credential: idToken });
-            }
-          }
-        } catch(e) { /* cross-origin, keep waiting */ }
-      }, 500);
-    }
-  });
+  // SDK not loaded yet — go straight to OAuth popup (works without SDK)
+  openGoogleOAuthPopup();
+  // Load SDK in background for next time
+  loadGoogleSignInScript();
 }
 
 async function handleGoogleResponse(response) {
@@ -263,9 +381,17 @@ function updateUserUI() {
     menuEmail.textContent = currentUser.email;
     if (proStatus) {
       if (isProUser()) {
-        proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
+        const trialDays = getTrialDaysLeft();
         const pb = document.getElementById('btnPro');
-        if (pb) pb.style.display = 'none';
+        if (trialDays > 0) {
+          // Trial user — keep button visible with trial badge
+          proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Trial</span> · ' + trialDays + ' day' + (trialDays !== 1 ? 's' : '') + ' left';
+          if (pb) { pb.style.display = 'flex'; pb.innerHTML = '✦ Trial · ' + trialDays + 'd'; }
+        } else {
+          // Paid Pro — hide the button
+          proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
+          if (pb) pb.style.display = 'none';
+        }
       } else {
         proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>';
       }
@@ -510,7 +636,8 @@ function analyzeDebounced() {
 // ── PATCH 4: LAZY GOOGLE SIGN-IN ─────────────────────────────
 function loadGoogleSignInScript() {
   if (window._googleScriptLoaded) return Promise.resolve();
-  return new Promise((resolve) => {
+  if (window._googleScriptLoading) return window._googleScriptLoading;
+  window._googleScriptLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -520,8 +647,13 @@ function loadGoogleSignInScript() {
       if (typeof initGoogleSignIn === 'function') initGoogleSignIn();
       resolve();
     };
+    script.onerror = () => {
+      window._googleScriptLoading = null;
+      reject(new Error('Failed to load Google Sign-In'));
+    };
     document.head.appendChild(script);
   });
+  return window._googleScriptLoading;
 }
 function showAuthModalOptimized() {
   if (typeof showAuthModal === 'function') showAuthModal();

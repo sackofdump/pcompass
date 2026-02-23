@@ -1,3 +1,17 @@
+// ── STICKY HEADER COMPACT ON SCROLL ──────────────────────────────────────────
+(function() {
+  const hdr = document.querySelector('header');
+  let compact = false;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    const shouldCompact = compact ? y > 20 : y > 80;
+    if (shouldCompact !== compact) {
+      compact = shouldCompact;
+      hdr.classList.toggle('header-compact', compact);
+    }
+  }, { passive: true });
+})();
+
 // ── CLAUDE API HELPER (defined first so all functions can use it) ─────────────
 // Sends pro token + email + timestamp so server can verify Pro server-side
 async function callClaudeAPI(body) {
@@ -16,6 +30,7 @@ async function callClaudeAPI(body) {
     body: JSON.stringify(body),
   });
 }
+
 
 // ── STATE ────────────────────────────────────────────────
 let holdings = [];
@@ -290,7 +305,7 @@ function analyze() {
         return {...p, score, isStock:true};
       })
       .sort((a,b) => b.score - a.score)
-      .slice(0,5);
+      .slice(0,8);
   }
 
   // ── Market data badge HTML helper ────────────────────────
@@ -347,20 +362,41 @@ function analyze() {
       return bS - aS;
     });
 
-    // Primary: top 3 ETFs + top 2 stocks
-    const primaryItems = [...sortedEtfs.slice(0,3), ...picks.slice(0,2)];
-    // Extra: next 3 ETFs + next 3 stocks
-    const extraItems   = [...sortedEtfs.slice(3,6), ...picks.slice(2,5)];
+    // All items combined: ETFs first, then stocks
+    const allItems = [...sortedEtfs.map(e => ({...e,isStock:false})), ...picks];
+
+    // Primary: first 5
+    const primaryItems = allItems.slice(0,5);
+    // Tier 1: next 3 (behind paywall)
+    const extraItems1  = allItems.slice(5,8);
+    // Tier 2: next 3 (behind second click)
+    const extraItems2  = allItems.slice(8,11);
 
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
-    const extraHTML   = extraItems.length > 0
-      ? '<div class="show-more-items" id="show-more-' + type + '">' +
-          extraItems.map(item => buildItemHTML(item, type, marketData)).join('') +
+
+    let extraHTML = '';
+    if (extraItems1.length > 0) {
+      extraHTML +=
+        '<div class="show-more-items" id="show-more-' + type + '">' +
+          extraItems1.map(item => buildItemHTML(item, type, marketData)).join('');
+
+      // Nest tier 2 inside tier 1 so it only appears after tier 1 is open
+      if (extraItems2.length > 0) {
+        extraHTML +=
+          '<div class="show-more-items" id="show-more-2-' + type + '">' +
+            extraItems2.map(item => buildItemHTML(item, type, marketData)).join('') +
+          '</div>' +
+          '<button class="btn-show-more" id="show-more-btn-2-' + type + '" onclick="toggleShowMore2(\'' + type + '\')">' +
+            '✦ Show ' + extraItems2.length + ' more picks' +
+          '</button>';
+      }
+
+      extraHTML +=
         '</div>' +
         '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-          '▸ Show ' + extraItems.length + ' more picks' +
-        '</button>'
-      : '';
+          '✦ Show ' + extraItems1.length + ' more picks' +
+        '</button>';
+    }
 
     return '<div class="strategy-card"><div class="strategy-header"><div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span></div>' +
@@ -865,7 +901,8 @@ async function handleScreenshot(event) {
   previewHoldings = holdingsWithValues.map(h => ({
     ticker: h.ticker,
     pct: totalValue > 0 ? Math.round((h.dollarValue / totalValue) * 100 * 10) / 10 : Math.round(100 / allHoldings.length * 10) / 10,
-    name: h.name || h.ticker
+    name: h.name || h.ticker,
+    shares: h.shares || 0
   })).sort((a, b) => b.pct - a.pct);
 
   renderPreview();
@@ -906,21 +943,6 @@ async function processImageFile(file) {
   })).filter(h => h.ticker.length >= 1 && h.ticker.length <= 6);
 }
 
-// Approximate prices for converting shares to dollar values
-const APPROX_PRICES = {
-  HOOD:45,QQQ:490,GLD:240,TSLA:320,AAPL:235,MSFT:415,NVDA:140,AMZN:230,META:680,
-  SPY:590,GOOG:190,AMD:160,SOFI:15,PLTR:95,COIN:260,LULU:380,BABA:145,VWO:44,
-  DKNG:45,CHWY:38,DUOL:380,SLV:30,MSTR:320,RKLB:28,GME:28,AMC:5,NIO:5,RIVN:14,
-  LCID:3,SNAP:12,UBER:75,LYFT:18,DIS:110,NFLX:950,BA:180,F:10,GM:52,T:28,VZ:45,
-  KO:62,PEP:145,JNJ:155,PFE:25,WMT:95,TGT:125,COST:950,V:325,MA:530,JPM:260,
-  BAC:42,WFC:75,GS:590,XOM:110,CVX:155,COP:105,NEE:78,ENPH:65,ARKK:55,VOO:540,
-  VTI:280,BND:70,SCHD:28,VEA:50,VXUS:58,IWM:220,DIA:430,AGG:98,TLT:88,GDX:42,
-  SQ:82,SHOP:110,ROKU:85,ABNB:145,CRWD:380,PANW:195,NET:115,DDOG:125,ZS:220,
-  SNOW:175,MDB:240,TTD:95,SE:115,MELI:1900,BIDU:95,JD:40,PDD:110,TSM:190,
-  ASML:700,AVGO:190,QCOM:170,MU:98,INTC:22,ON:48,SMCI:40,ARM:160,DELL:115,
-  IGV:95,RSP:175,TCEHY:60,AFRM:70,XLF:50,ITA:145,XLE:88,XLV:145,VNQ:88,XLU:78,
-  SEDG:18,BRK:480
-};
 
 function fileToBase64(file) {
   return new Promise((resolve,reject) => {
@@ -938,9 +960,10 @@ function renderPreview() {
   if (previewHoldings.length === 0) { preview.classList.remove('visible'); return; }
   const totalPct = previewHoldings.reduce((s,h) => s + h.pct, 0);
   container.innerHTML = previewHoldings.map((h,i) =>
-    '<div class="preview-item">' +
+    '<div class="preview-item" style="grid-template-columns:52px 1fr auto 70px 20px;">' +
     '<span class="preview-ticker">' + h.ticker + '</span>' +
     '<span class="preview-name">' + h.name + '</span>' +
+    '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);white-space:nowrap;">' + (h.shares ? h.shares.toLocaleString(undefined,{maximumFractionDigits:2}) + ' sh' : '') + '</span>' +
     '<div class="preview-pct-wrapper"><input class="preview-pct-input" type="number" value="' + h.pct + '" min="0.1" max="100" step="0.1" onchange="updatePreviewPct(' + i + ',this.value)" /><span class="preview-pct-symbol">%</span></div>' +
     '<button class="btn-preview-remove" onclick="removePreviewItem(' + i + ')">×</button>' +
     '</div>'
@@ -1021,17 +1044,6 @@ function updateRiskScore() {
   num.style.color = color;
 }
 
-// ── CORRELATION WARNINGS ──────────────────────────────────
-const CORRELATED_PAIRS = [
-  [['NVDA','AMD','INTC','MU','AVGO','QCOM'],['SMH','SOXX'],'Semiconductor overlap: {stocks} closely tracks {etf}'],
-  [['AAPL','MSFT','GOOGL','META','AMZN'],['QQQ','XLK'],'Mega-cap tech overlap: {stocks} highly correlated with {etf}'],
-  [['TSLA','RIVN','NIO','LCID'],['ARKK'],'EV exposure in {stocks} overlaps with {etf}'],
-  [['COIN','MSTR','MARA','RIOT'],['IBIT','BITO'],'Crypto double-up: {stocks} + {etf} move almost in lockstep'],
-  [['NVDA','PLTR','AI','SOUN'],['ARKK'],'AI holdings {stocks} are highly correlated with {etf}'],
-  [['JPM','BAC','GS','WFC','MS'],['XLF'],'Banking overlap: {stocks} tracks {etf} closely'],
-  [['LLY','UNH','JNJ','PFE'],['XLV'],'Healthcare overlap: {stocks} and {etf} track similarly'],
-  [['XOM','CVX','COP','OXY'],['XLE'],'Energy overlap: {stocks} closely tracks {etf}'],
-];
 
 function updateCorrelationWarnings() {
   const el = document.getElementById('corrWarnings');
@@ -1185,13 +1197,6 @@ function finishRenameSlot(i, newName) {
   renderPortfolioSlots();
 }
 
-// ── EXAMPLE PORTFOLIOS ────────────────────────────────────
-const EXAMPLE_PORTFOLIOS = {
-  tech:         [{ticker:'NVDA',pct:25},{ticker:'MSFT',pct:20},{ticker:'AAPL',pct:20},{ticker:'META',pct:15},{ticker:'PLTR',pct:10},{ticker:'AMD',pct:10}],
-  balanced:     [{ticker:'AAPL',pct:18},{ticker:'MSFT',pct:15},{ticker:'JPM',pct:12},{ticker:'JNJ',pct:10},{ticker:'XOM',pct:10},{ticker:'KO',pct:8},{ticker:'AMZN',pct:15},{ticker:'NEE',pct:12}],
-  conservative: [{ticker:'JNJ',pct:20},{ticker:'KO',pct:15},{ticker:'PG',pct:15},{ticker:'WMT',pct:15},{ticker:'UNH',pct:15},{ticker:'NEE',pct:10},{ticker:'LMT',pct:10}],
-  crypto:       [{ticker:'COIN',pct:25},{ticker:'MSTR',pct:20},{ticker:'HOOD',pct:15},{ticker:'NVDA',pct:20},{ticker:'MSFT',pct:20}]
-};
 
 function loadExample(key) {
   const example = EXAMPLE_PORTFOLIOS[key];
@@ -1351,6 +1356,24 @@ function toggleShowMore(type) {
   if (!panel || !btn) return;
   const open = panel.classList.toggle('open');
   btn.classList.toggle('open', open);
+  if (open) {
+    btn.innerHTML = '▾ Show fewer picks';
+  } else {
+    btn.innerHTML = '✦ Show ' + panel.querySelectorAll(':scope > .etf-item').length + ' more picks';
+    // Also close tier 2
+    const panel2 = document.getElementById('show-more-2-' + type);
+    const btn2   = document.getElementById('show-more-btn-2-' + type);
+    if (panel2) panel2.classList.remove('open');
+    if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '✦ Show ' + panel2.querySelectorAll('.etf-item').length + ' more picks'; }
+  }
+}
+
+function toggleShowMore2(type) {
+  const panel = document.getElementById('show-more-2-' + type);
+  const btn   = document.getElementById('show-more-btn-2-' + type);
+  if (!panel || !btn) return;
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
   btn.innerHTML = open
     ? '▾ Show fewer picks'
     : '✦ Show ' + panel.querySelectorAll('.etf-item').length + ' more picks';
@@ -1376,8 +1399,10 @@ function showPaywall(trigger) {
     msg.textContent = "PDF export is a Pro feature.";
   } else if (trigger === 'sync') {
     msg.textContent = "Cloud sync is a Pro feature. Upgrade to access your portfolios across all devices.";
+  } else if (trigger === 'showmore') {
+    msg.textContent = "Expanded stock \u0026 ETF picks are a Pro feature. Upgrade to see more personalized recommendations.";
   } else {
-    msg.textContent = "You’ve used your 3 free AI explanations.";
+    msg.textContent = "You\u2019ve used your 3 free AI explanations.";
   }
   modal.style.display = 'flex';
   modal.classList.add('open');
