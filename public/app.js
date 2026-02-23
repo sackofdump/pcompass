@@ -1366,21 +1366,9 @@ function showPaywall(trigger) {
     header:   'Upgrade to unlock all Pro features.',
     screenshot:'Screenshot import is a Pro feature.',
   };
-  const msgEl = document.getElementById('paywallMsg');
-  if (msgEl) msgEl.textContent = msgs[trigger] || 'Upgrade to unlock Pro features.';
-  const modal = document.getElementById('paywallModal');
-  const msg = document.getElementById('paywallMsg');
-  if (trigger === 'screenshot') {
-    msg.textContent = "You’ve used your 3 free screenshot imports.";
-  } else if (trigger === 'pdf') {
-    msg.textContent = "PDF export is a Pro feature.";
-  } else if (trigger === 'sync') {
-    msg.textContent = "Cloud sync is a Pro feature. Upgrade to access your portfolios across all devices.";
-  } else if (trigger === 'showmore') {
-    msg.textContent = "Expanded stock \u0026 ETF picks are a Pro feature. Upgrade to see more personalized recommendations.";
-  } else {
-    msg.textContent = "You\u2019ve used your 3 free AI explanations.";
-  }
+  const msgEl = document.getElementById(‘paywallMsg’);
+  if (msgEl) msgEl.textContent = ‘You must have Pro Access to access this.’;
+  const modal = document.getElementById(‘paywallModal’);
   modal.style.display = 'flex';
   modal.classList.add('open');
 }
