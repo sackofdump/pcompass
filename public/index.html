@@ -3243,11 +3243,13 @@ function isProUser() {
     const now = Math.floor(Date.now() / 1000);
     if (now - timestamp <= 86400) return true;
   }
-  // Check active free trial (7 days = 604800 seconds)
-  const trialStart = parseInt(localStorage.getItem('pc_trial_start') || '0');
-  if (trialStart > 0) {
-    const now = Math.floor(Date.now() / 1000);
-    if (now - trialStart <= 604800) return true;
+  // Check active free trial (7 days) — must be signed in
+  if (typeof currentUser !== 'undefined' && currentUser && currentUser.email) {
+    const trialStart = parseInt(localStorage.getItem('pc_trial_start') || '0');
+    if (trialStart > 0) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now - trialStart <= 604800) return true;
+    }
   }
   return false;
 }
