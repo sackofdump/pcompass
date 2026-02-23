@@ -135,9 +135,18 @@ export default async function handler(req, res) {
   const proTs    = req.headers['x-pro-ts']    || '';
   const isPro = await verifyProToken(proEmail, proToken, proTs);
 
-  const { model, max_tokens, messages, system } = req.body;
-  if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'messages array required' });
+  const { messages } = req.body;
+
+  // ── Message validation ──
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages must be a non-empty array' });
+  }
+  if (messages.length > 1) {
+    return res.status(400).json({ error: 'Only single-message requests are supported' });
+  }
+  const msg = messages[0];
+  if (!msg || (msg.role !== 'user' && msg.role !== 'assistant')) {
+    return res.status(400).json({ error: 'Each message must have role "user" or "assistant"' });
   }
 
   // Screenshot requests have their own stricter rate limit for free users
@@ -165,19 +174,14 @@ export default async function handler(req, res) {
     });
   }
 
-  // Hard cap on tokens to prevent abuse
-  const cappedTokens = Math.min(max_tokens || 180, isPro ? 500 : 200);
-
-  // Free users always get Haiku — don't let the client choose a more expensive model
-  const resolvedModel = isPro
-    ? (model || 'claude-sonnet-4-5-20250514')
-    : 'claude-haiku-4-5-20251001';
+  // Server decides model and tokens — client has no say
+  const resolvedModel = isPro ? 'claude-sonnet-4-5-20250514' : 'claude-haiku-4-5-20251001';
+  const resolvedMaxTokens = isScreenshot ? 1000 : 200;
 
   try {
     const response = await client.messages.create({
       model: resolvedModel,
-      max_tokens: cappedTokens,
-      ...(system ? { system } : {}),
+      max_tokens: resolvedMaxTokens,
       messages,
     });
 
