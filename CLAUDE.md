@@ -35,7 +35,6 @@ All API endpoints live in `api/` as individual JS files. Each exports a default 
 |----------|---------|
 | `api/claude.js` | Claude AI analysis & screenshot OCR (vision). Rate-limited. |
 | `api/auth.js` | Google OAuth token verification + user creation |
-| `api/email-auth.js` | Email/password signup & login (PBKDF2 hashing) |
 | `api/portfolios.js` | Cloud portfolio CRUD (Pro only) |
 | `api/verify-pro.js` | Pro subscription status check, issues HMAC tokens |
 | `api/market-data.js` | Stock prices via Yahoo Finance scraping |
@@ -45,7 +44,7 @@ All API endpoints live in `api/` as individual JS files. Each exports a default 
 
 ### Database
 
-Neon PostgreSQL accessed via direct HTTP API (not a driver library). Tables: `users`, `portfolios`, `pro_licenses`, `email_auth`.
+Neon PostgreSQL accessed via direct HTTP API (not a driver library). Tables: `users`, `portfolios`, `pro_licenses`.
 
 ### Authentication & Authorization
 
