@@ -1077,6 +1077,25 @@
 </div>
 
 <script>
+// ── CLAUDE API HELPER (defined first so all functions can use it) ─────────────
+// Sends pro token + email + timestamp so server can verify Pro server-side
+async function callClaudeAPI(body) {
+  const proToken = localStorage.getItem('pc_pro_token') || '';
+  const proEmail = localStorage.getItem('pc_pro_email') || '';
+  const proTs    = localStorage.getItem('pc_pro_ts')    || '';
+  return fetch('/api/claude', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id':    (typeof currentUser !== 'undefined' && currentUser?.id) || '',
+      'X-Pro-Token':  proToken,
+      'X-Pro-Email':  proEmail,
+      'X-Pro-Ts':     proTs,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 // ── DATA ─────────────────────────────────────────────────
 
 const SECTOR_COLORS = {
@@ -2286,7 +2305,8 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
     drawerCache[cacheKey] = text;
     textEl.textContent = text;
   } catch(e) {
-    textEl.textContent = 'AI explanation unavailable. Check server configuration.';
+    console.error('[claude] drawer error:', e);
+    textEl.textContent = 'Error: ' + (e.message || 'unknown — check browser console for details.');
   }
 }
 
@@ -3659,23 +3679,7 @@ function showAuthModalOptimized() {
   loadGoogleSignInScript(); // load Google script lazily alongside
 }
 
-// ── PATCH 5: UNIFIED CLAUDE API CALL (sends email+ts for server-side pro verify) ─
-async function callClaudeAPI(body) {
-  const proToken = localStorage.getItem('pc_pro_token') || '';
-  const proEmail = localStorage.getItem('pc_pro_email') || '';
-  const proTs    = localStorage.getItem('pc_pro_ts')    || '';
-  return fetch('/api/claude', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id':    currentUser?.id || '',
-      'X-Pro-Token':  proToken,
-      'X-Pro-Email':  proEmail,
-      'X-Pro-Ts':     proTs,
-    },
-    body: JSON.stringify(body),
-  });
-}
+// ── PATCH 5: callClaudeAPI is defined at the top of the main script block ────
 
 // ── PATCH 6: CLEAR MARKET CACHE (called before manual refresh) ─
 function clearMarketCache() {
