@@ -188,11 +188,6 @@ function initGoogleSignIn() {
 }
 initGoogleSignIn();
 
-// Redirect-based Google OAuth (no popup, works everywhere)
-function googleSignInRedirect() {
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}&prompt=select_account`;
-  window.location.href = url;
-}
 
 
 function openGoogleOAuthPopup() {
