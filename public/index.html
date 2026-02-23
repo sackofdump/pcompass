@@ -2268,13 +2268,22 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
   try {
     const res = await fetch('/api/claude', {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'X-User-Id': currentUser?.id || '',
+        'X-Pro-Token': localStorage.getItem('pc_pro_token') || '',
+      },
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-haiku-4-5-20251001',
         max_tokens:180,
         messages:[{role:'user',content:'Portfolio: ' + holdingSummary + '. Sector exposure: ' + sectorSummary + '.\n\nWhy would ' + ticker + ' (' + name + ' — ' + desc + ') be a great ' + (isStock ? 'individual stock pick' : 'ETF') + ' to complement THIS specific portfolio? Reference their actual holdings and what sector gap it fills. Be direct, specific, 2-3 sentences, under 55 words. No bullet points.'}]
       })
     });
+    if (res.status === 429) {
+      const errData = await res.json();
+      textEl.textContent = errData.message || 'Too many requests. Please wait before trying again.';
+      return;
+    }
     const data = await res.json();
     const text = (data.content||[]).map(b => b.text||'').join('').trim();
     drawerCache[cacheKey] = text;
@@ -2394,7 +2403,11 @@ async function processImageFile(file) {
   const mediaType = file.type || 'image/png';
   const response = await fetch('/api/claude', {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{
+      'Content-Type':'application/json',
+      'X-User-Id': currentUser?.id || '',
+      'X-Pro-Token': localStorage.getItem('pc_pro_token') || '',
+    },
     body:JSON.stringify({
       model:'claude-sonnet-4-20250514',
       max_tokens:1000,
@@ -2404,6 +2417,12 @@ async function processImageFile(file) {
       ]}]
     })
   });
+  if (response.status === 429) {
+    const errData = await response.json();
+    document.getElementById('scanningOverlay').style.display = 'none';
+    document.getElementById('errorMsg').textContent = errData.message || 'Too many requests. Please wait.';
+    return;
+  }
   const data = await response.json();
   const text = (data.content||[]).map(b => b.text||'').join('');
   // Extract JSON from response — model may include preamble text
