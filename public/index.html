@@ -922,9 +922,21 @@
       ✦ Pro
     </button>
     <!-- Logged out: show sign in button -->
-    <button id="btnSignIn" onclick="showAuthModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;">
+    <button id="btnSignIn" onclick="showAuthModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;position:relative;" onmouseenter="document.getElementById('signinPerks').style.display='block'" onmouseleave="document.getElementById('signinPerks').style.display='none'">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" fill="currentColor"/></svg>
       Sign In
+      <!-- Perks tooltip -->
+      <div id="signinPerks" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:210px;background:#0f1318;border:1px solid #1e2430;border-radius:10px;padding:12px 14px;z-index:99999;pointer-events:none;">
+        <div style="font-family:'Space Mono',monospace;font-size:8px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Sign in to unlock</div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#00e5a0;">✓</span> Save portfolios to cloud</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#00e5a0;">✓</span> Sync across devices</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">✦</span> Pro: Unlimited AI insights</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">✦</span> Pro: Screenshot import</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">✦</span> Pro: PDF export</div>
+        </div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e2430;font-family:'Space Mono',monospace;font-size:8px;color:#00e5a0;">Free to join · Pro from $1.99/mo</div>
+      </div>
     </button>
     <!-- Logged in: show avatar -->
     <div id="userAvatar" style="display:none;cursor:pointer;position:relative;" onclick="toggleUserMenu()">
@@ -2674,9 +2686,12 @@ function loadPortfolio(idx) {
 
 function deletePortfolio(idx) {
   const portfolios = getSavedPortfolios();
+  const name = portfolios[idx]?.name || 'this portfolio';
+  if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
   portfolios.splice(idx, 1);
   savePortfoliosLS(portfolios);
   renderPortfolioSlots();
+  showToast('Portfolio deleted.');
 }
 
 function renamePortfolio(idx, newName) {
