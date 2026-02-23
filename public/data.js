@@ -1,6 +1,5 @@
-// data.js — Portfolio Compass static data
-// Cache-Control: public, max-age=86400 (set this header in your server/vercel.json)
-// This file changes rarely — CDN will serve it to repeat visitors without a network request
+// ── DATA — Static databases and lookup tables ─────────────────────
+// Extracted from index.html to keep the main file lean
 
 const SECTOR_COLORS = {
   'Big Tech':'#4d9fff','Semiconductors':'#a855f7','AI & Robotics':'#ec4899',
@@ -15,7 +14,6 @@ const SECTOR_COLORS = {
   'Industrials':'#cbd5e1','Real Estate':'#f9a8d4','Utilities':'#86efac',
   'Materials':'#6ee7b7','Broad Market':'#64748b','Small-Caps':'#a78bfa',
   'Dividends':'#fca5a5','Bonds':'#93c5fd','Other':'#475569',
-  'Cybersecurity':'#38bdf8','Insurance':'#f9a8d4',
 };
 
 const STOCK_DB = {
@@ -40,7 +38,7 @@ const STOCK_DB = {
   NOW:{name:'ServiceNow',sector:'Software / SaaS',beta:1.3,cap:'large'},
   SNOW:{name:'Snowflake',sector:'Software / SaaS',beta:1.6,cap:'large'},
   PLTR:{name:'Palantir',sector:'AI & Robotics',beta:1.5,cap:'large'},
-  // Fintech / Social
+  // Social
   HOOD:{name:'Robinhood',sector:'Fintech',beta:1.8,cap:'mid'},
   SOFI:{name:'SoFi',sector:'Fintech',beta:1.9,cap:'mid'},
   COIN:{name:'Coinbase',sector:'Crypto / Bitcoin',beta:2.0,cap:'large'},
@@ -84,12 +82,14 @@ const STOCK_DB = {
   // International
   BABA:{name:'Alibaba',sector:'China / Emerging',beta:1.3,cap:'large'},
   BIDU:{name:'Baidu',sector:'China / Emerging',beta:1.2,cap:'large'},
-  // Misc
+  // Pets
   CHWY:{name:'Chewy',sector:'Pets & Specialty',beta:1.5,cap:'mid'},
+  // Misc
   AMC:{name:'AMC',sector:'Entertainment',beta:2.0,cap:'small'},
   GME:{name:'GameStop',sector:'Retail',beta:1.8,cap:'small'},
   // Education & Consumer Tech
   DUOL:{name:'Duolingo',sector:'Software / SaaS',beta:1.6,cap:'mid'},
+  HOOD:{name:'Robinhood',sector:'Fintech',beta:1.8,cap:'mid'},
   RBLX:{name:'Roblox',sector:'Entertainment',beta:1.7,cap:'mid'},
   U:{name:'Unity',sector:'Software / SaaS',beta:1.5,cap:'mid'},
   APP:{name:'AppLovin',sector:'Software / SaaS',beta:1.8,cap:'large'},
@@ -166,6 +166,7 @@ const STOCK_DB = {
   KKR:{name:'KKR',sector:'Banking',beta:1.4,cap:'large'},
   SCHW:{name:'Charles Schwab',sector:'Banking',beta:1.2,cap:'large'},
   MS:{name:'Morgan Stanley',sector:'Banking',beta:1.3,cap:'mega'},
+  // Insurance & Other Finance
   BRK:{name:'Berkshire Hathaway',sector:'Banking',beta:0.9,cap:'mega'},
   BRKB:{name:'Berkshire Hathaway B',sector:'Banking',beta:0.9,cap:'mega'},
   AXP:{name:'American Express',sector:'Banking',beta:1.2,cap:'mega'},
@@ -173,7 +174,7 @@ const STOCK_DB = {
   PEP:{name:'PepsiCo',sector:'Consumer Staples',beta:0.6,cap:'mega'},
   MDLZ:{name:'Mondelez',sector:'Consumer Staples',beta:0.7,cap:'large'},
   CL:{name:'Colgate-Palmolive',sector:'Consumer Staples',beta:0.6,cap:'large'},
-  // Software (extended)
+  // More Big Tech & Software
   IBM:{name:'IBM',sector:'Software / SaaS',beta:0.9,cap:'large'},
   ADBE:{name:'Adobe',sector:'Software / SaaS',beta:1.3,cap:'mega'},
   SAP:{name:'SAP',sector:'Software / SaaS',beta:1.0,cap:'mega'},
@@ -191,23 +192,27 @@ const STOCK_DB = {
   ACHR:{name:'Archer Aviation',sector:'AI & Robotics',beta:2.0,cap:'small'},
   JOBY:{name:'Joby Aviation',sector:'AI & Robotics',beta:1.9,cap:'small'},
   EXAI:{name:'Exscientia',sector:'AI & Robotics',beta:1.7,cap:'small'},
-  // Social & Consumer Tech (extended)
+  TSLA:{name:'Tesla',sector:'EVs & Autos',beta:2.0,cap:'mega'},
+  // More Social & Consumer Tech
+  GOOGL:{name:'Alphabet',sector:'Big Tech',beta:1.1,cap:'mega'},
   MTCH:{name:'Match Group',sector:'Social Media',beta:1.4,cap:'mid'},
   IAC:{name:'IAC',sector:'Social Media',beta:1.3,cap:'mid'},
   BMBL:{name:'Bumble',sector:'Social Media',beta:1.5,cap:'small'},
+  SPOT:{name:'Spotify',sector:'Entertainment',beta:1.4,cap:'large'},
   LYV:{name:'Live Nation',sector:'Entertainment',beta:1.3,cap:'large'},
   WBD:{name:'Warner Bros Discovery',sector:'Entertainment',beta:1.4,cap:'mid'},
   PARA:{name:'Paramount',sector:'Entertainment',beta:1.3,cap:'mid'},
+  NFLX:{name:'Netflix',sector:'Entertainment',beta:1.3,cap:'mega'},
   EA:{name:'Electronic Arts',sector:'Entertainment',beta:0.9,cap:'large'},
   TTWO:{name:'Take-Two Interactive',sector:'Entertainment',beta:1.2,cap:'large'},
   ATVI:{name:'Activision Blizzard',sector:'Entertainment',beta:0.8,cap:'large'},
-  // Fintech (extended)
+  // More Fintech
   FIS:{name:'Fidelity Natl Info',sector:'Fintech',beta:1.0,cap:'large'},
   FISV:{name:'Fiserv',sector:'Fintech',beta:1.0,cap:'large'},
   GPN:{name:'Global Payments',sector:'Fintech',beta:1.1,cap:'large'},
   ADYEN:{name:'Adyen',sector:'Fintech',beta:1.3,cap:'large'},
   SQ:{name:'Block (Square)',sector:'Fintech',beta:1.7,cap:'large'},
-  // Healthcare (extended)
+  // More Healthcare
   CVS:{name:'CVS Health',sector:'Healthcare',beta:0.7,cap:'large'},
   CI:{name:'Cigna',sector:'Healthcare',beta:0.8,cap:'large'},
   HCA:{name:'HCA Healthcare',sector:'Healthcare',beta:1.1,cap:'large'},
@@ -221,10 +226,11 @@ const STOCK_DB = {
   BIIB:{name:'Biogen',sector:'Biotech',beta:0.8,cap:'large'},
   GILD:{name:'Gilead Sciences',sector:'Biotech',beta:0.7,cap:'large'},
   ILMN:{name:'Illumina',sector:'Biotech',beta:1.1,cap:'large'},
-  // Retail (extended)
+  // More Consumer
   TGT:{name:'Target',sector:'Retail',beta:1.0,cap:'large'},
   HD:{name:'Home Depot',sector:'Retail',beta:1.0,cap:'mega'},
   LOW:{name:"Lowe's",sector:'Retail',beta:1.1,cap:'large'},
+  AMZN:{name:'Amazon',sector:'E-Commerce',beta:1.2,cap:'mega'},
   TJX:{name:'TJX Companies',sector:'Retail',beta:0.8,cap:'mega'},
   ULTA:{name:'Ulta Beauty',sector:'Retail',beta:1.1,cap:'large'},
   ROST:{name:"Ross Stores",sector:'Retail',beta:0.9,cap:'large'},
@@ -236,7 +242,7 @@ const STOCK_DB = {
   GIS:{name:'General Mills',sector:'Consumer Staples',beta:0.5,cap:'large'},
   K:{name:"Kellanova",sector:'Consumer Staples',beta:0.6,cap:'large'},
   EL:{name:'Estee Lauder',sector:'Consumer Staples',beta:1.1,cap:'large'},
-  // Energy (extended)
+  // More Energy
   PSX:{name:'Phillips 66',sector:'Oil & Gas',beta:1.0,cap:'large'},
   MPC:{name:'Marathon Petroleum',sector:'Oil & Gas',beta:1.1,cap:'large'},
   VLO:{name:'Valero Energy',sector:'Oil & Gas',beta:1.1,cap:'large'},
@@ -245,7 +251,7 @@ const STOCK_DB = {
   ENPH:{name:'Enphase Energy',sector:'Clean Energy',beta:1.5,cap:'mid'},
   SEDG:{name:'SolarEdge',sector:'Clean Energy',beta:1.6,cap:'mid'},
   RUN:{name:'Sunrun',sector:'Clean Energy',beta:1.7,cap:'small'},
-  // Industrials & Defense (extended)
+  // More Industrials & Defense
   HON:{name:'Honeywell',sector:'Industrials',beta:1.0,cap:'mega'},
   MMM:{name:'3M',sector:'Industrials',beta:0.9,cap:'large'},
   EMR:{name:'Emerson Electric',sector:'Industrials',beta:1.1,cap:'large'},
@@ -257,7 +263,7 @@ const STOCK_DB = {
   LDOS:{name:'Leidos',sector:'Defense',beta:0.8,cap:'large'},
   KTOS:{name:'Kratos Defense',sector:'Defense',beta:1.4,cap:'mid'},
   AXON:{name:'Axon Enterprise',sector:'Defense',beta:1.5,cap:'large'},
-  // Banking (extended)
+  // More Banking & Finance
   WFC:{name:'Wells Fargo',sector:'Banking',beta:1.2,cap:'mega'},
   C:{name:'Citigroup',sector:'Banking',beta:1.3,cap:'large'},
   USB:{name:'US Bancorp',sector:'Banking',beta:1.1,cap:'large'},
@@ -268,19 +274,19 @@ const STOCK_DB = {
   CME:{name:'CME Group',sector:'Banking',beta:0.8,cap:'large'},
   SPGI:{name:'S&P Global',sector:'Banking',beta:1.1,cap:'mega'},
   MCO:{name:"Moody's",sector:'Banking',beta:1.1,cap:'large'},
-  // Real Estate (extended)
+  // More Real Estate
   SPG:{name:'Simon Property Group',sector:'Real Estate',beta:1.2,cap:'large'},
   EQR:{name:'Equity Residential',sector:'Real Estate',beta:0.8,cap:'large'},
   AVB:{name:'AvalonBay',sector:'Real Estate',beta:0.9,cap:'large'},
   DLR:{name:'Digital Realty',sector:'Real Estate',beta:0.9,cap:'large'},
   EQIX:{name:'Equinix',sector:'Real Estate',beta:0.9,cap:'mega'},
-  // Utilities
+  // More Utilities
   DUK:{name:'Duke Energy',sector:'Utilities',beta:0.4,cap:'large'},
   SO:{name:'Southern Company',sector:'Utilities',beta:0.4,cap:'large'},
   AEP:{name:'American Electric Power',sector:'Utilities',beta:0.4,cap:'large'},
   EXC:{name:'Exelon',sector:'Utilities',beta:0.5,cap:'large'},
   PCG:{name:'PG&E',sector:'Utilities',beta:0.6,cap:'large'},
-  // Materials & Mining
+  // More Materials & Mining
   NUE:{name:'Nucor',sector:'Materials',beta:1.3,cap:'large'},
   X:{name:'US Steel',sector:'Materials',beta:1.5,cap:'mid'},
   CLF:{name:'Cleveland-Cliffs',sector:'Materials',beta:1.6,cap:'mid'},
@@ -291,7 +297,7 @@ const STOCK_DB = {
   PDD:{name:'PDD Holdings (Temu)',sector:'China / Emerging',beta:1.4,cap:'large'},
   JD:{name:'JD.com',sector:'China / Emerging',beta:1.3,cap:'large'},
   TCOM:{name:'Trip.com',sector:'China / Emerging',beta:1.2,cap:'large'},
-  // Crypto-adjacent
+  // More Crypto-adjacent
   HUT:{name:'Hut 8 Mining',sector:'Crypto / Bitcoin',beta:2.2,cap:'small'},
   CLSK:{name:'CleanSpark',sector:'Crypto / Bitcoin',beta:2.2,cap:'small'},
   // Insurance
@@ -304,7 +310,7 @@ const STOCK_DB = {
   TRV:{name:'Travelers',sector:'Insurance',beta:0.7,cap:'large'},
   AON:{name:'Aon',sector:'Insurance',beta:1.0,cap:'large'},
   MMC:{name:'Marsh & McLennan',sector:'Insurance',beta:0.9,cap:'mega'},
-  // Cybersecurity (extended)
+  // More Cybersecurity
   S:{name:'SentinelOne',sector:'Cybersecurity',beta:1.6,cap:'mid'},
   CYBR:{name:'CyberArk',sector:'Cybersecurity',beta:1.4,cap:'mid'},
   FTNT:{name:'Fortinet',sector:'Cybersecurity',beta:1.2,cap:'large'},
@@ -348,8 +354,6 @@ const STOCK_DB = {
   VNQ:{name:'Real Estate ETF',sector:'Real Estate',beta:0.9,cap:'etf'},
   VYM:{name:'High Dividend ETF',sector:'Dividends',beta:0.8,cap:'etf'},
   SCHD:{name:'Dividend ETF',sector:'Dividends',beta:0.8,cap:'etf'},
-  CIBR:{name:'Cybersecurity ETF',sector:'Cybersecurity',beta:1.3,cap:'etf'},
-  IAK:{name:'Insurance ETF',sector:'Insurance',beta:0.8,cap:'etf'},
 };
 
 const ETF_DB = {
@@ -463,22 +467,6 @@ const SECTOR_ICONS = {
   'Defense':'🛡️','Real Estate':'🏢','Utilities':'💡','Dividends':'💰',
   'Small-Caps':'📈','Industrials':'⚙️','Materials':'⛏️','Food & Beverage':'🍔',
   'Consumer Staples':'🛒','International':'🌍','Pets & Specialty':'🐾',
-  'Cybersecurity':'🔒','Insurance':'🏛️',
-};
-
-const APPROX_PRICES = {
-  HOOD:45,QQQ:490,GLD:240,TSLA:320,AAPL:235,MSFT:415,NVDA:140,AMZN:230,META:680,
-  SPY:590,GOOG:190,AMD:160,SOFI:15,PLTR:95,COIN:260,LULU:380,BABA:145,VWO:44,
-  DKNG:45,CHWY:38,DUOL:380,SLV:30,MSTR:320,RKLB:28,GME:28,AMC:5,NIO:5,RIVN:14,
-  LCID:3,SNAP:12,UBER:75,LYFT:18,DIS:110,NFLX:950,BA:180,F:10,GM:52,T:28,VZ:45,
-  KO:62,PEP:145,JNJ:155,PFE:25,WMT:95,TGT:125,COST:950,V:325,MA:530,JPM:260,
-  BAC:42,WFC:75,GS:590,XOM:110,CVX:155,COP:105,NEE:78,ENPH:65,ARKK:55,VOO:540,
-  VTI:280,BND:70,SCHD:28,VEA:50,VXUS:58,IWM:220,DIA:430,AGG:98,TLT:88,GDX:42,
-  SQ:82,SHOP:110,ROKU:85,ABNB:145,CRWD:380,PANW:195,NET:115,DDOG:125,ZS:220,
-  SNOW:175,MDB:240,TTD:95,SE:115,MELI:1900,BIDU:95,JD:40,PDD:110,TSM:190,
-  ASML:700,AVGO:190,QCOM:170,MU:98,INTC:22,ON:48,SMCI:40,ARM:160,DELL:115,
-  IGV:95,RSP:175,TCEHY:60,AFRM:70,XLF:50,ITA:145,XLE:88,XLV:145,VNQ:88,XLU:78,
-  SEDG:18,BRK:480,
 };
 
 const CORRELATED_PAIRS = [
@@ -496,5 +484,20 @@ const EXAMPLE_PORTFOLIOS = {
   tech:         [{ticker:'NVDA',pct:25},{ticker:'MSFT',pct:20},{ticker:'AAPL',pct:20},{ticker:'META',pct:15},{ticker:'PLTR',pct:10},{ticker:'AMD',pct:10}],
   balanced:     [{ticker:'AAPL',pct:18},{ticker:'MSFT',pct:15},{ticker:'JPM',pct:12},{ticker:'JNJ',pct:10},{ticker:'XOM',pct:10},{ticker:'KO',pct:8},{ticker:'AMZN',pct:15},{ticker:'NEE',pct:12}],
   conservative: [{ticker:'JNJ',pct:20},{ticker:'KO',pct:15},{ticker:'PG',pct:15},{ticker:'WMT',pct:15},{ticker:'UNH',pct:15},{ticker:'NEE',pct:10},{ticker:'LMT',pct:10}],
-  crypto:       [{ticker:'COIN',pct:25},{ticker:'MSTR',pct:20},{ticker:'HOOD',pct:15},{ticker:'NVDA',pct:20},{ticker:'MSFT',pct:20}],
+  crypto:       [{ticker:'COIN',pct:25},{ticker:'MSTR',pct:20},{ticker:'HOOD',pct:15},{ticker:'NVDA',pct:20},{ticker:'MSFT',pct:20}]
+};
+
+const APPROX_PRICES = {
+  HOOD:45,QQQ:490,GLD:240,TSLA:320,AAPL:235,MSFT:415,NVDA:140,AMZN:230,META:680,
+  SPY:590,GOOG:190,AMD:160,SOFI:15,PLTR:95,COIN:260,LULU:380,BABA:145,VWO:44,
+  DKNG:45,CHWY:38,DUOL:380,SLV:30,MSTR:320,RKLB:28,GME:28,AMC:5,NIO:5,RIVN:14,
+  LCID:3,SNAP:12,UBER:75,LYFT:18,DIS:110,NFLX:950,BA:180,F:10,GM:52,T:28,VZ:45,
+  KO:62,PEP:145,JNJ:155,PFE:25,WMT:95,TGT:125,COST:950,V:325,MA:530,JPM:260,
+  BAC:42,WFC:75,GS:590,XOM:110,CVX:155,COP:105,NEE:78,ENPH:65,ARKK:55,VOO:540,
+  VTI:280,BND:70,SCHD:28,VEA:50,VXUS:58,IWM:220,DIA:430,AGG:98,TLT:88,GDX:42,
+  SQ:82,SHOP:110,ROKU:85,ABNB:145,CRWD:380,PANW:195,NET:115,DDOG:125,ZS:220,
+  SNOW:175,MDB:240,TTD:95,SE:115,MELI:1900,BIDU:95,JD:40,PDD:110,TSM:190,
+  ASML:700,AVGO:190,QCOM:170,MU:98,INTC:22,ON:48,SMCI:40,ARM:160,DELL:115,
+  IGV:95,RSP:175,TCEHY:60,AFRM:70,XLF:50,ITA:145,XLE:88,XLV:145,VNQ:88,XLU:78,
+  SEDG:18,BRK:480
 };
