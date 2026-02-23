@@ -1,3 +1,20 @@
+// ── IN-MEMORY RATE LIMITER ────────────────────────────────
+const rateLimitMap = new Map();
+const RL_MAX_REQUESTS = 30; // per IP per hour
+const RL_WINDOW_MS = 60 * 60 * 1000;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+  if (!record || now - record.windowStart > RL_WINDOW_MS) {
+    rateLimitMap.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (record.count >= RL_MAX_REQUESTS) return false;
+  record.count++;
+  return true;
+}
+
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
 // Serverless functions share memory within the same instance.
 // Vercel edge cache (vercel.json) handles cross-instance caching.
@@ -61,6 +78,12 @@ async function fetchTicker(ticker) {
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
+  // Rate limit by IP
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+  }
+
   const { tickers } = req.query;
   if (!tickers) return res.status(400).json({ error: 'No tickers provided' });
 

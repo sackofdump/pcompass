@@ -1,3 +1,32 @@
+// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://pcompass.vercel.app',
+];
+
+function getAllowedOrigin(req) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return null;
+}
+
+// ── IN-MEMORY RATE LIMITER ────────────────────────────────
+const authAttempts = new Map();
+const MAX_ATTEMPTS = 10; // per IP per hour
+const WINDOW_MS = 60 * 60 * 1000;
+
+function checkAuthRateLimit(ip) {
+  const now = Date.now();
+  const record = authAttempts.get(ip);
+  if (!record || now - record.windowStart > WINDOW_MS) {
+    authAttempts.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (record.count >= MAX_ATTEMPTS) return false;
+  record.count++;
+  return true;
+}
+
+// ── NEON SQL HELPER ──────────────────────────────────────
 async function neonSQL(sql, params = []) {
   const connStr = process.env.POSTGRES_URL;
   const host = new URL(connStr).hostname;
@@ -12,9 +41,35 @@ async function neonSQL(sql, params = []) {
 }
 
 export default async function handler(req, res) {
+  // ── CORS with origin allowlist ──
+  const origin = req.headers.origin || '';
+  const allowedOrigin = getAllowedOrigin(req);
+
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
+    return res.status(200).end();
+  }
+
+  if (origin && !allowedOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { credential, userInfo } = req.body;
+  // ── Rate limit by IP ──
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  if (!checkAuthRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many authentication attempts' });
+  }
+
+  const { credential } = req.body;
 
   let googleId, email, name, picture;
 
@@ -24,7 +79,7 @@ export default async function handler(req, res) {
       const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
       const payload = await verifyRes.json();
       if (payload.error) {
-        return res.status(401).json({ error: 'Invalid token: ' + (payload.error_description || payload.error) });
+        return res.status(401).json({ error: 'Invalid token' });
       }
       // Accept token if it has a valid sub (user ID) and email
       if (!payload.sub || !payload.email) {
@@ -34,16 +89,8 @@ export default async function handler(req, res) {
       email = payload.email;
       name = payload.name || payload.email;
       picture = payload.picture || '';
-    } else if (userInfo) {
-      if (!userInfo.id || !userInfo.email) {
-        return res.status(400).json({ error: 'Missing user info' });
-      }
-      googleId = userInfo.id;
-      email = userInfo.email;
-      name = userInfo.name || userInfo.email;
-      picture = userInfo.picture || '';
     } else {
-      return res.status(400).json({ error: 'No credential or userInfo' });
+      return res.status(400).json({ error: 'No credential provided' });
     }
 
     const users = await neonSQL(
@@ -58,6 +105,6 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, user: { id: user.id, email: user.email, name: user.name, picture: user.picture } });
   } catch (err) {
     console.error('Auth error:', err);
-    res.status(500).json({ error: 'Authentication failed: ' + err.message });
+    res.status(500).json({ error: 'Authentication failed' });
   }
 }

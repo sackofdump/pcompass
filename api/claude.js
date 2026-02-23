@@ -5,8 +5,6 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // ── CORS ORIGIN ALLOWLIST ────────────────────────────────
 const ALLOWED_ORIGINS = [
   'https://pcompass.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:3001',
 ];
 
 function getAllowedOrigin(req) {
@@ -182,6 +180,7 @@ export default async function handler(req, res) {
     const response = await client.messages.create({
       model: resolvedModel,
       max_tokens: resolvedMaxTokens,
+      system: 'You are a stock portfolio analysis assistant for Portfolio Compass. Only answer questions related to stock portfolio analysis, investment allocation, sector exposure, diversification, and market data. Refuse any requests unrelated to portfolio analysis.',
       messages,
     });
 
@@ -194,6 +193,6 @@ export default async function handler(req, res) {
     if (err.status === 429) {
       return res.status(429).json({ error: 'Anthropic rate limit hit. Try again shortly.' });
     }
-    return res.status(500).json({ error: 'Claude API error', detail: err.message });
+    return res.status(500).json({ error: 'Claude API error' });
   }
 }

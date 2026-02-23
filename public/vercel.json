@@ -4,7 +4,6 @@
     "api/claude.js": { "maxDuration": 30 },
     "api/auth.js": { "maxDuration": 10 },
     "api/verify-pro.js": { "maxDuration": 10 },
-    "api/validate-token.js": { "maxDuration": 10 },
     "api/portfolios.js": { "maxDuration": 10 },
     "api/stripe-webhook.js": { "maxDuration": 10 },
     "api/db-setup.js": { "maxDuration": 30 }
@@ -45,15 +44,6 @@
     },
     {
       "source": "/api/verify-pro",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "s-maxage=86400, stale-while-revalidate=3600"
-        }
-      ]
-    },
-    {
-      "source": "/api/validate-token",
       "headers": [
         {
           "key": "Cache-Control",
