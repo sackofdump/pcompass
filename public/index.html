@@ -1800,7 +1800,7 @@ function analyze() {
         return {...p, score, isStock:true};
       })
       .sort((a,b) => b.score - a.score)
-      .slice(0,5);
+      .slice(0,8);
   }
 
   // ── Market data badge HTML helper ────────────────────────
@@ -1859,10 +1859,10 @@ function analyze() {
 
     // Primary: top 3 ETFs + top 2 stocks
     const primaryItems = [...sortedEtfs.slice(0,3), ...picks.slice(0,2)];
-    // Extra batch 1: next 3 picks
-    const extraBatch1 = [...sortedEtfs.slice(3,5), ...picks.slice(2,3)];
-    // Extra batch 2: next 3 picks  
-    const extraBatch2 = [...sortedEtfs.slice(5,7), ...picks.slice(3,5)];
+    // Extra batch 1: 3 more stock picks (click 1)
+    const extraBatch1 = picks.slice(2,5);
+    // Extra batch 2: 3 more stock picks (click 2)
+    const extraBatch2 = picks.slice(5,8);
 
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
     
@@ -1875,12 +1875,12 @@ function analyze() {
           extraBatch2.map(item => buildItemHTML(item, type, marketData)).join('') +
           '</div>' +
           '<button class="btn-show-more" id="show-more-btn-2-' + type + '" onclick="toggleShowMore2(\'' + type + '\')" style="display:none;">' +
-            '▸ Show ' + extraBatch2.length + ' more picks' +
+            '▸ Show 3 more picks' +
           '</button>';
       }
       extraHTML += '</div>' +
         '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-          '▸ Show ' + extraBatch1.length + ' more picks' +
+          '▸ Show 3 more picks' +
         '</button>';
     }
 
