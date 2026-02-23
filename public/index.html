@@ -1839,7 +1839,7 @@ function analyze() {
         return {...p, score, isStock:true};
       })
       .sort((a,b) => b.score - a.score)
-      .slice(0,5);
+      .slice(0,8);
   }
 
   // ── Market data badge HTML helper ────────────────────────
@@ -1898,18 +1898,36 @@ function analyze() {
 
     // Primary: top 3 ETFs + top 2 stocks
     const primaryItems = [...sortedEtfs.slice(0,3), ...picks.slice(0,2)];
-    // Extra: next 3 ETFs + next 3 stocks
-    const extraItems   = [...sortedEtfs.slice(3,6), ...picks.slice(2,5)];
+    // Extra tier 1: next 2 ETFs + next 1 stock (first "show more")
+    const extraItems1  = [...sortedEtfs.slice(3,5), ...picks.slice(2,3)];
+    // Extra tier 2: next 1 ETF + next 2 stocks (second "show more")
+    const extraItems2  = [...sortedEtfs.slice(5,6), ...picks.slice(3,5)];
 
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
-    const extraHTML   = extraItems.length > 0
-      ? '<div class="show-more-items" id="show-more-' + type + '">' +
-          extraItems.map(item => buildItemHTML(item, type, marketData)).join('') +
+
+    let extraHTML = '';
+    if (extraItems1.length > 0) {
+      extraHTML +=
+        '<div class="show-more-items" id="show-more-' + type + '">' +
+          extraItems1.map(item => buildItemHTML(item, type, marketData)).join('');
+
+      // Nest tier 2 inside tier 1 so it only appears after tier 1 is open
+      if (extraItems2.length > 0) {
+        extraHTML +=
+          '<div class="show-more-items" id="show-more-2-' + type + '">' +
+            extraItems2.map(item => buildItemHTML(item, type, marketData)).join('') +
+          '</div>' +
+          '<button class="btn-show-more" id="show-more-btn-2-' + type + '" onclick="toggleShowMore2(\'' + type + '\')">' +
+            '✦ Show ' + extraItems2.length + ' more picks' +
+          '</button>';
+      }
+
+      extraHTML +=
         '</div>' +
         '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-          '▸ Show ' + extraItems.length + ' more picks' +
-        '</button>'
-      : '';
+          '✦ Show ' + (extraItems1.length + extraItems2.length) + ' more picks' +
+        '</button>';
+    }
 
     return '<div class="strategy-card"><div class="strategy-header"><div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span></div>' +
@@ -2900,6 +2918,29 @@ function toggleShowMore(type) {
   if (!panel || !btn) return;
   const open = panel.classList.toggle('open');
   btn.classList.toggle('open', open);
+  if (open) {
+    // Update button to reflect only tier-1 count (tier-2 has its own button)
+    const tier2 = document.getElementById('show-more-2-' + type);
+    const tier2Count = tier2 ? tier2.querySelectorAll('.etf-item').length : 0;
+    const tier1Count = panel.querySelectorAll(':scope > .etf-item').length;
+    btn.innerHTML = '▾ Show fewer picks';
+  } else {
+    const total = panel.querySelectorAll('.etf-item').length;
+    btn.innerHTML = '✦ Show ' + total + ' more picks';
+    // Also close tier 2 if open
+    const panel2 = document.getElementById('show-more-2-' + type);
+    const btn2   = document.getElementById('show-more-btn-2-' + type);
+    if (panel2) panel2.classList.remove('open');
+    if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '✦ Show ' + panel2.querySelectorAll('.etf-item').length + ' more picks'; }
+  }
+}
+
+function toggleShowMore2(type) {
+  const panel = document.getElementById('show-more-2-' + type);
+  const btn   = document.getElementById('show-more-btn-2-' + type);
+  if (!panel || !btn) return;
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
   btn.innerHTML = open
     ? '▾ Show fewer picks'
     : '✦ Show ' + panel.querySelectorAll('.etf-item').length + ' more picks';
@@ -2925,8 +2966,10 @@ function showPaywall(trigger) {
     msg.textContent = "PDF export is a Pro feature.";
   } else if (trigger === 'sync') {
     msg.textContent = "Cloud sync is a Pro feature. Upgrade to access your portfolios across all devices.";
+  } else if (trigger === 'showmore') {
+    msg.textContent = "Expanded stock \u0026 ETF picks are a Pro feature. Upgrade to see more personalized recommendations.";
   } else {
-    msg.textContent = "You’ve used your 3 free AI explanations.";
+    msg.textContent = "You\u2019ve used your 3 free AI explanations.";
   }
   modal.style.display = 'flex';
   modal.classList.add('open');
