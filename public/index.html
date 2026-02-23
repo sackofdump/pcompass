@@ -2295,18 +2295,26 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
       max_tokens:180,
       messages:[{role:'user',content:'Portfolio: ' + holdingSummary + '. Sector exposure: ' + sectorSummary + '.\n\nWhy would ' + ticker + ' (' + name + ' — ' + desc + ') be a great ' + (isStock ? 'individual stock pick' : 'ETF') + ' to complement THIS specific portfolio? Reference their actual holdings and what sector gap it fills. Be direct, specific, 2-3 sentences, under 55 words. No bullet points.'}]
     });
-    if (res.status === 429) {
-      const errData = await res.json();
-      textEl.textContent = errData.message || 'Too many requests. Please wait before trying again.';
+    const rawText = await res.text();
+    if (!res.ok) {
+      console.error('[claude] HTTP ' + res.status + ':', rawText);
+      textEl.textContent = 'Server error ' + res.status + ': ' + rawText.slice(0, 200);
       return;
     }
-    const data = await res.json();
+    let data;
+    try { data = JSON.parse(rawText); }
+    catch(e) { textEl.textContent = 'Bad response from server: ' + rawText.slice(0, 200); return; }
+    if (res.status === 429) {
+      textEl.textContent = data.message || 'Too many requests. Please wait before trying again.';
+      return;
+    }
     const text = (data.content||[]).map(b => b.text||'').join('').trim();
+    if (!text) { textEl.textContent = 'Empty response from AI. Raw: ' + rawText.slice(0, 200); return; }
     drawerCache[cacheKey] = text;
     textEl.textContent = text;
   } catch(e) {
     console.error('[claude] drawer error:', e);
-    textEl.textContent = 'Error: ' + (e.message || 'unknown — check browser console for details.');
+    textEl.textContent = 'Fetch failed: ' + (e.message || 'unknown');
   }
 }
 
