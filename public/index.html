@@ -3411,7 +3411,8 @@ function updateTrialUI() {
   const daysLeft = getTrialDaysLeft();
   const proBtn = document.getElementById('btnPro');
   const trialCTA = document.getElementById('trialCTA');
-  if (daysLeft > 0) {
+  const isSignedIn = typeof currentUser !== 'undefined' && currentUser && currentUser.email;
+  if (daysLeft > 0 && isSignedIn) {
     // Show trial badge on Pro button
     if (proBtn) proBtn.innerHTML = '\u2726 Trial \u00B7 ' + daysLeft + 'd left';
     // Hide trial CTA in paywall since already trialing
@@ -3437,9 +3438,8 @@ function updateTrialUI() {
     if (elapsed > 604800) {
       // Trial expired — clean up
       localStorage.removeItem('pc_trial_start');
-    } else {
-      updateTrialUI();
     }
+    // Don't update UI here — wait for updateUserUI() after auth restores currentUser
   }
 })();
 
