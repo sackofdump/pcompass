@@ -148,8 +148,8 @@
     z-index:2;
   }
 
-  .logo h1 { font-size:26px; font-weight:800; letter-spacing:-0.5px; color:var(--text); font-family:'DM Sans',sans-serif; }
-  .logo span { background:linear-gradient(135deg,#00e5a0,#00b87a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }
+  .logo h1 { font-size:20px; font-weight:700; letter-spacing:-0.3px; color:var(--text); font-family:'DM Sans',sans-serif; }
+  .logo span { color:var(--accent); }
   .tagline { color:var(--muted); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.3px; margin-left:48px; }
   .main-grid { display:grid; grid-template-columns:1fr 1.6fr; gap:24px; padding:28px 2%; position:relative; z-index:1; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
@@ -612,7 +612,7 @@
       padding: 14px 16px 12px;
       gap: 4px;
     }
-    .logo h1 { font-size: 20px; }
+    .logo h1 { font-size: 17px; }
     .logo-icon { width: 30px; height: 30px; }
     .tagline { font-size: 10px; margin-left: 42px; }
     .theme-toggle {
@@ -696,7 +696,7 @@
 
   /* Very small screens */
   @media (max-width: 360px) {
-    .logo h1 { font-size: 18px; }
+    .logo h1 { font-size: 15px; }
     .theme-toggle { display: none; }
     .sector-row { grid-template-columns: 78px 1fr 26px; }
     .input-row { grid-template-columns: 1fr 60px; }
@@ -746,11 +746,10 @@
   }
   .portfolio-slot:hover { border-color: var(--accent); }
   .portfolio-slot.active { border-color: var(--accent); background: rgba(0,229,160,0.06); }
-  .slot-name { font-family:'Space Mono',monospace; font-size:11px; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .slot-name { font-family:'Space Mono',monospace; font-size:11px; color:var(--text); flex:1; }
   .slot-name-input {
     font-family:'Space Mono',monospace; font-size:11px; color:var(--text);
-    background: var(--surface); border: 1px solid var(--accent); outline: none; flex:1; cursor:text;
-    border-radius:4px; padding:2px 4px;
+    background: none; border: none; outline: none; flex:1; cursor:text;
   }
   .slot-count { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); }
   .slot-actions { display:flex; gap:4px; }
@@ -918,8 +917,8 @@
   <div class="tagline">Portfolio Diversification &amp; Strategy Analyzer</div>
   <div style="position:absolute;right:calc(5% + 80px);top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px;">
     <!-- Logged out: show sign in button -->
-    <button id="btnSignIn" onclick="googleSignIn()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;">
-      <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+    <button id="btnSignIn" onclick="showAuthModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" fill="currentColor"/></svg>
       Sign In
     </button>
     <!-- Logged in: show avatar -->
@@ -949,9 +948,7 @@
     <div class="panel">
       <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
         <h2>Your Holdings</h2>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button class="slot-btn" onclick="savePortfolio()" title="Save portfolio" style="font-size:10px;padding:3px 8px;">💾 Save</button>
-          <button class="slot-btn" id="btnClearAll" onclick="clearAllHoldings()" title="Clear all" style="font-size:10px;padding:3px 8px;display:none;">✕ Clear</button>
+        <div style="display:flex;gap:6px;">
           <button class="slot-btn" onclick="sharePortfolio()" title="Share portfolio link">🔗</button>
           <button class="slot-btn" onclick="exportPDF()" title="Export PDF">⬇</button>
         </div>
@@ -968,9 +965,13 @@
         </div>
       </div>
 
-      <!-- Portfolio slots (saved portfolios) -->
+      <!-- Portfolio save/load -->
       <div class="portfolio-manager" id="portfolioManager">
         <div class="portfolio-slots" id="portfolioSlots"></div>
+        <div class="pm-actions">
+          <button class="btn-pm" onclick="savePortfolio()">＋ Save Portfolio</button>
+          <button class="btn-pm btn-pm-clear" id="btnClearAll" onclick="clearAllHoldings()" style="display:none;">✕ Clear All</button>
+        </div>
       </div>
 
       <!-- Screenshot upload -->
@@ -1030,10 +1031,7 @@
         </div>
         <div class="whatif-body" id="whatifBody">
           <div class="whatif-row">
-            <div class="autocomplete-wrapper" style="position:relative;flex:1;">
-              <input type="text" id="whatifTicker" placeholder="Add ticker..." maxlength="6" style="text-transform:uppercase" autocomplete="off" />
-              <div class="autocomplete-dropdown" id="whatifAutocompleteDropdown"></div>
-            </div>
+            <input type="text" id="whatifTicker" placeholder="Add ticker..." maxlength="6" style="text-transform:uppercase" />
             <input type="number" id="whatifPct" placeholder="%" min="0.1" max="100" step="0.1" />
           </div>
           <div class="whatif-result" id="whatifResult">Enter a ticker to preview its impact on your portfolio.</div>
@@ -1800,7 +1798,7 @@ function analyze() {
         return {...p, score, isStock:true};
       })
       .sort((a,b) => b.score - a.score)
-      .slice(0,8);
+      .slice(0,5);
   }
 
   // ── Market data badge HTML helper ────────────────────────
@@ -1859,30 +1857,18 @@ function analyze() {
 
     // Primary: top 3 ETFs + top 2 stocks
     const primaryItems = [...sortedEtfs.slice(0,3), ...picks.slice(0,2)];
-    // Extra batch 1: 3 more stock picks (click 1)
-    const extraBatch1 = picks.slice(2,5);
-    // Extra batch 2: 3 more stock picks (click 2)
-    const extraBatch2 = picks.slice(5,8);
+    // Extra: next 3 ETFs + next 3 stocks
+    const extraItems   = [...sortedEtfs.slice(3,6), ...picks.slice(2,5)];
 
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
-    
-    let extraHTML = '';
-    if (extraBatch1.length > 0) {
-      extraHTML += '<div class="show-more-items" id="show-more-' + type + '">' +
-          extraBatch1.map(item => buildItemHTML(item, type, marketData)).join('');
-      if (extraBatch2.length > 0) {
-        extraHTML += '<div class="show-more-items" id="show-more-2-' + type + '">' +
-          extraBatch2.map(item => buildItemHTML(item, type, marketData)).join('') +
-          '</div>' +
-          '<button class="btn-show-more" id="show-more-btn-2-' + type + '" onclick="toggleShowMore2(\'' + type + '\')" style="display:none;">' +
-            '▸ Show 3 more picks' +
-          '</button>';
-      }
-      extraHTML += '</div>' +
+    const extraHTML   = extraItems.length > 0
+      ? '<div class="show-more-items" id="show-more-' + type + '">' +
+          extraItems.map(item => buildItemHTML(item, type, marketData)).join('') +
+        '</div>' +
         '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-          '▸ Show 3 more picks' +
-        '</button>';
-    }
+          '▸ Show ' + extraItems.length + ' more picks' +
+        '</button>'
+      : '';
 
     return '<div class="strategy-card"><div class="strategy-header"><div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span></div>' +
@@ -2631,21 +2617,15 @@ function runWhatIf() {
 })();
 
 // ── PORTFOLIO SAVE/LOAD ───────────────────────────────────
-const MAX_SLOTS_FREE = 3;
-const MAX_SLOTS_PRO = 10;
+const MAX_SLOTS = 3;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
 function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
-  const maxSlots = isProUser() ? MAX_SLOTS_PRO : MAX_SLOTS_FREE;
-  if (portfolios.length >= maxSlots) {
-    if (isProUser()) {
-      showToast('Maximum 10 portfolios reached.');
-    } else {
-      showPaywall('portfolio');
-    }
+  if (portfolios.length >= MAX_SLOTS) {
+    showUpgradeModal();
     return;
   }
   const name = 'Portfolio ' + (portfolios.length + 1);
@@ -2665,12 +2645,9 @@ function loadPortfolio(idx) {
 
 function deletePortfolio(idx) {
   const portfolios = getSavedPortfolios();
-  const name = portfolios[idx]?.name || 'this portfolio';
-  if (!confirm('Are you sure you want to delete "' + name + '"?')) return;
   portfolios.splice(idx, 1);
   savePortfoliosLS(portfolios);
   renderPortfolioSlots();
-  showToast('Portfolio deleted.');
 }
 
 function renamePortfolio(idx, newName) {
@@ -2687,35 +2664,15 @@ function renderPortfolioSlots() {
   if (portfolios.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = portfolios.map((p, i) =>
     '<div class="portfolio-slot" onclick="loadPortfolio(' + i + ')">' +
-    '<span class="slot-name" id="slotName' + i + '">' + (p.name || 'Portfolio ' + (i+1)) + '</span>' +
-    '<input class="slot-name-input" id="slotInput' + i + '" value="' + (p.name || 'Portfolio ' + (i+1)) + '" maxlength="24" style="display:none;"' +
+    '<input class="slot-name-input" value="' + p.name + '" maxlength="24"' +
     ' onclick="event.stopPropagation()"' +
-    ' onblur="finishRename(' + i + ', this.value)"' +
-    ' onkeydown="if(event.key===&#39;Enter&#39;)this.blur();if(event.key===&#39;Escape&#39;){this.value=document.getElementById(&#39;slotName' + i + '&#39;).textContent;this.blur();}" />' +
+    ' onblur="renamePortfolio(' + i + ', this.value)"' +
+    ' onkeydown="if(event.key===&#39;Enter&#39;)this.blur()" />' +
     '<span class="slot-count">' + p.holdings.length + ' holdings</span>' +
     '<div class="slot-actions">' +
-    '<button class="slot-btn" onclick="event.stopPropagation();startRename(' + i + ')" title="Rename">✏️</button>' +
     '<button class="slot-btn danger" onclick="event.stopPropagation();deletePortfolio(' + i + ')" title="Delete">&times;</button>' +
     '</div></div>'
   ).join('');
-}
-
-function startRename(idx) {
-  const nameEl = document.getElementById('slotName' + idx);
-  const inputEl = document.getElementById('slotInput' + idx);
-  if (!nameEl || !inputEl) return;
-  nameEl.style.display = 'none';
-  inputEl.style.display = 'block';
-  inputEl.focus();
-  inputEl.select();
-}
-
-function finishRename(idx, newName) {
-  const nameEl = document.getElementById('slotName' + idx);
-  const inputEl = document.getElementById('slotInput' + idx);
-  if (nameEl) { nameEl.style.display = 'block'; nameEl.textContent = newName; }
-  if (inputEl) inputEl.style.display = 'none';
-  renamePortfolio(idx, newName);
 }
 
 // ── EXAMPLE PORTFOLIOS ────────────────────────────────────
@@ -2883,29 +2840,6 @@ function toggleShowMore(type) {
   if (!panel || !btn) return;
   const open = panel.classList.toggle('open');
   btn.classList.toggle('open', open);
-  if (open) {
-    btn.innerHTML = '▾ Show fewer picks';
-    // Show the second batch button if it exists
-    const btn2 = document.getElementById('show-more-btn-2-' + type);
-    if (btn2) btn2.style.display = 'block';
-  } else {
-    const batch1Count = panel.querySelectorAll(':scope > .etf-item').length;
-    btn.innerHTML = '▸ Show ' + batch1Count + ' more picks';
-    // Hide second batch and collapse it
-    const btn2 = document.getElementById('show-more-btn-2-' + type);
-    const panel2 = document.getElementById('show-more-2-' + type);
-    if (btn2) btn2.style.display = 'none';
-    if (panel2) { panel2.classList.remove('open'); }
-    if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '▸ Show more picks'; }
-  }
-}
-
-function toggleShowMore2(type) {
-  const panel = document.getElementById('show-more-2-' + type);
-  const btn   = document.getElementById('show-more-btn-2-' + type);
-  if (!panel || !btn) return;
-  const open = panel.classList.toggle('open');
-  btn.classList.toggle('open', open);
   btn.innerHTML = open
     ? '▾ Show fewer picks'
     : '▸ Show ' + panel.querySelectorAll('.etf-item').length + ' more picks';
@@ -2921,8 +2855,6 @@ function showPaywall(trigger) {
     msg.textContent = "PDF export is a Pro feature.";
   } else if (trigger === 'sync') {
     msg.textContent = "Cloud sync is a Pro feature. Upgrade to access your portfolios across all devices.";
-  } else if (trigger === 'portfolio') {
-    msg.textContent = "You've reached the free portfolio save limit. Upgrade for unlimited portfolios.";
   } else {
     msg.textContent = "You’ve used your 3 free AI explanations.";
   }
@@ -3010,57 +2942,6 @@ function selectAutocomplete(ticker) {
   document.getElementById('autocompleteDropdown').classList.remove('open');
   document.getElementById('pctInput').focus();
 }
-
-function selectWhatifAutocomplete(ticker) {
-  document.getElementById('whatifTicker').value = ticker;
-  document.getElementById('whatifAutocompleteDropdown').classList.remove('open');
-  document.getElementById('whatifPct').focus();
-  runWhatIf();
-}
-
-// What-If autocomplete
-(function initWhatifAutocomplete() {
-  const input = document.getElementById('whatifTicker');
-  const dd = document.getElementById('whatifAutocompleteDropdown');
-  if (!input || !dd) return;
-  const dbEntries = Object.entries(STOCK_DB);
-
-  input.addEventListener('input', function() {
-    const q = this.value.trim().toUpperCase();
-    if (q.length === 0) { dd.classList.remove('open'); return; }
-    const matches = dbEntries
-      .filter(([ticker, info]) => ticker.startsWith(q) || info.name.toUpperCase().includes(q))
-      .slice(0, 8);
-    if (matches.length === 0) { dd.classList.remove('open'); return; }
-    dd.innerHTML = matches.map(([ticker, info]) =>
-      '<div class="autocomplete-item" data-ticker="' + ticker + '" onclick="selectWhatifAutocomplete(\'' + ticker + '\')">' +
-      '<span class="autocomplete-item-ticker">' + ticker + '</span>' +
-      '<span class="autocomplete-item-name">' + info.name + '</span></div>'
-    ).join('');
-    dd.classList.add('open');
-  });
-
-  input.addEventListener('keydown', function(e) {
-    const items = dd.querySelectorAll('.autocomplete-item');
-    const selIdx = [...items].findIndex(i => i.classList.contains('selected'));
-    if (e.key === 'ArrowDown') {
-      e.preventDefault(); items.forEach(i => i.classList.remove('selected'));
-      const next = Math.min(selIdx + 1, items.length - 1);
-      if (items[next]) { items[next].classList.add('selected'); items[next].scrollIntoView({block:'nearest'}); }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault(); items.forEach(i => i.classList.remove('selected'));
-      const prev = Math.max(selIdx - 1, 0);
-      if (items[prev]) { items[prev].classList.add('selected'); items[prev].scrollIntoView({block:'nearest'}); }
-    } else if (e.key === 'Enter') {
-      const sel = dd.querySelector('.autocomplete-item.selected');
-      if (sel && dd.classList.contains('open')) { e.preventDefault(); selectWhatifAutocomplete(sel.dataset.ticker); }
-    } else if (e.key === 'Escape') { dd.classList.remove('open'); }
-  });
-
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('#whatifTicker') && !e.target.closest('#whatifAutocompleteDropdown')) dd.classList.remove('open');
-  });
-})();
 </script>
   <!-- Upgrade Modal -->
   <div class="upgrade-modal" id="upgradeModal" style="display:none!important">
@@ -3110,6 +2991,39 @@ function selectWhatifAutocomplete(ticker) {
   </div>
 
   <div class="share-toast" id="shareToast">🔗 Link copied to clipboard!</div>
+
+<!-- AUTH MODAL -->
+<div id="authModal" style="display:none;position:fixed;inset:0;z-index:99999;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);" onclick="if(event.target===this)closeAuthModal()">
+  <div style="background:#0f1318;border:1px solid #1e2430;border-radius:16px;padding:36px 32px;max-width:360px;width:90%;font-family:Inter,sans-serif;position:relative;">
+    <button onclick="closeAuthModal()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:#5a6478;font-size:18px;cursor:pointer;">×</button>
+    <div style="text-align:center;margin-bottom:20px;">
+      <h2 style="color:#e8ecf0;font-size:20px;font-weight:700;margin:0 0 6px;">Sign In</h2>
+      <p style="color:#5a6478;font-size:12px;margin:0;">Save portfolios & sync across devices</p>
+    </div>
+    <!-- Google Sign In -->
+    <button onclick="closeAuthModal();googleSignIn()" style="width:100%;padding:11px;border-radius:10px;border:1px solid #2a2f3e;background:#1a1f2e;color:#e8ecf0;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:Inter,sans-serif;">
+      <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
+    </button>
+    <div style="display:flex;align-items:center;gap:12px;margin:16px 0;">
+      <div style="flex:1;height:1px;background:#1e2430;"></div>
+      <span style="color:#5a6478;font-size:10px;font-family:'Space Mono',monospace;">OR</span>
+      <div style="flex:1;height:1px;background:#1e2430;"></div>
+    </div>
+    <!-- Email/Password Form -->
+    <div id="authFormFields">
+      <input type="email" id="authEmail" placeholder="Email address" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2a2f3e;background:#1a1f2e;color:#e8ecf0;font-size:13px;font-family:Inter,sans-serif;margin-bottom:8px;box-sizing:border-box;" />
+      <input type="password" id="authPassword" placeholder="Password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2a2f3e;background:#1a1f2e;color:#e8ecf0;font-size:13px;font-family:Inter,sans-serif;margin-bottom:8px;box-sizing:border-box;" />
+      <input type="password" id="authPasswordConfirm" placeholder="Confirm password" style="display:none;width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2a2f3e;background:#1a1f2e;color:#e8ecf0;font-size:13px;font-family:Inter,sans-serif;margin-bottom:8px;box-sizing:border-box;" />
+      <div id="authError" style="color:#ff4d6d;font-size:11px;font-family:'Space Mono',monospace;margin-bottom:8px;display:none;"></div>
+      <button id="authSubmitBtn" onclick="submitEmailAuth()" style="width:100%;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#00e5a0,#00b87a);color:#000;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;">Sign In</button>
+    </div>
+    <div style="text-align:center;margin-top:12px;">
+      <span id="authToggleText" style="color:#5a6478;font-size:11px;font-family:'Space Mono',monospace;">Don't have an account? </span>
+      <a href="#" id="authToggleLink" onclick="toggleAuthMode();return false;" style="color:#00e5a0;font-size:11px;font-family:'Space Mono',monospace;text-decoration:none;">Sign Up</a>
+    </div>
+  </div>
+</div>
 
 <!-- PAYWALL MODAL -->
 <div id="paywallModal" style="display:none;position:fixed;inset:0;z-index:99999;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);" onclick="if(event.target===this)closePaywall()">
@@ -3409,19 +3323,107 @@ function updateUserUI() {
   if (currentUser) {
     signInBtn.style.display = 'none';
     avatar.style.display = 'block';
-    avatarImg.src = currentUser.picture || '';
-    avatarImg.onerror = function() { this.style.display='none'; };
-    menuName.textContent = currentUser.name;
-    menuEmail.textContent = currentUser.email;
-    if (isProUser()) {
-      proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
+    if (currentUser.picture) {
+      avatarImg.src = currentUser.picture;
+      avatarImg.style.display = 'block';
     } else {
-      proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>';
+      // Show initials circle for email users
+      avatarImg.style.display = 'none';
+      const initials = (currentUser.name || currentUser.email || '?')[0].toUpperCase();
+      avatar.querySelector('.avatar-initials')?.remove();
+      const initialsEl = document.createElement('div');
+      initialsEl.className = 'avatar-initials';
+      initialsEl.textContent = initials;
+      initialsEl.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);background:var(--surface2);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:DM Sans,sans-serif;';
+      avatar.insertBefore(initialsEl, avatar.firstChild);
+    }
+    avatarImg.onerror = function() { this.style.display='none'; };
+    menuName.textContent = currentUser.name || currentUser.email.split('@')[0];
+    menuEmail.textContent = currentUser.email;
+    if (proStatus) {
+      if (isProUser()) {
+        proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
+      } else {
+        proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>';
+      }
     }
   } else {
     signInBtn.style.display = 'flex';
     avatar.style.display = 'none';
   }
+}
+
+// ── AUTH MODAL ──────────────────────────────────────────
+let authMode = 'login'; // 'login' or 'signup'
+
+function showAuthModal() {
+  authMode = 'login';
+  const modal = document.getElementById('authModal');
+  modal.style.display = 'flex';
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authPasswordConfirm').style.display = 'none';
+  document.getElementById('authError').style.display = 'none';
+  document.getElementById('authSubmitBtn').textContent = 'Sign In';
+  document.getElementById('authToggleText').textContent = "Don't have an account? ";
+  document.getElementById('authToggleLink').textContent = 'Sign Up';
+}
+
+function closeAuthModal() {
+  document.getElementById('authModal').style.display = 'none';
+}
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  document.getElementById('authPasswordConfirm').style.display = authMode === 'signup' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
+  document.getElementById('authToggleText').textContent = authMode === 'signup' ? 'Already have an account? ' : "Don't have an account? ";
+  document.getElementById('authToggleLink').textContent = authMode === 'signup' ? 'Sign In' : 'Sign Up';
+  document.getElementById('authError').style.display = 'none';
+}
+
+async function submitEmailAuth() {
+  const email = document.getElementById('authEmail').value.trim().toLowerCase();
+  const password = document.getElementById('authPassword').value;
+  const confirm = document.getElementById('authPasswordConfirm').value;
+  const errorEl = document.getElementById('authError');
+
+  if (!email || !email.includes('@')) { errorEl.textContent = 'Enter a valid email.'; errorEl.style.display = 'block'; return; }
+  if (password.length < 6) { errorEl.textContent = 'Password must be at least 6 characters.'; errorEl.style.display = 'block'; return; }
+  if (authMode === 'signup' && password !== confirm) { errorEl.textContent = 'Passwords do not match.'; errorEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = authMode === 'signup' ? 'Creating...' : 'Signing in...';
+
+  try {
+    const res = await fetch('/api/email-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, mode: authMode }),
+    });
+    const data = await res.json();
+
+    if (data.success && data.user) {
+      currentUser = data.user;
+      localStorage.setItem('pc_user', JSON.stringify(data.user));
+      localStorage.setItem('pc_pro_email', data.user.email);
+      updateUserUI();
+      closeAuthModal();
+      showToast('Signed in as ' + (data.user.name || data.user.email) + '!');
+      await syncPortfoliosFromCloud();
+    } else {
+      errorEl.textContent = data.error || 'Authentication failed.';
+      errorEl.style.display = 'block';
+    }
+  } catch (err) {
+    errorEl.textContent = 'Connection error. Try again.';
+    errorEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
 }
 
 function toggleUserMenu() {
