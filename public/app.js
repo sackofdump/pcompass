@@ -1374,9 +1374,9 @@ function showPaywall(trigger) {
     header:   'Upgrade to unlock all Pro features.',
     screenshot:'Screenshot import is a Pro feature.',
   };
-  const msgEl = document.getElementById(‘paywallMsg’);
-  if (msgEl) msgEl.textContent = ‘You must have Pro Access to access this.’;
-  const modal = document.getElementById(‘paywallModal’);
+  const msgEl = document.getElementById('paywallMsg');
+  if (msgEl) msgEl.textContent = 'You must have Pro Access to access this.';
+  const modal = document.getElementById('paywallModal');
   modal.style.display = 'flex';
   modal.classList.add('open');
 }
