@@ -746,10 +746,11 @@
   }
   .portfolio-slot:hover { border-color: var(--accent); }
   .portfolio-slot.active { border-color: var(--accent); background: rgba(0,229,160,0.06); }
-  .slot-name { font-family:'Space Mono',monospace; font-size:11px; color:var(--text); flex:1; }
+  .slot-name { font-family:'Space Mono',monospace; font-size:11px; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .slot-name-input {
     font-family:'Space Mono',monospace; font-size:11px; color:var(--text);
-    background: none; border: none; outline: none; flex:1; cursor:text;
+    background: var(--surface); border: 1px solid var(--accent); outline: none; flex:1; cursor:text;
+    border-radius:4px; padding:2px 4px;
   }
   .slot-count { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); }
   .slot-actions { display:flex; gap:4px; }
@@ -2686,15 +2687,35 @@ function renderPortfolioSlots() {
   if (portfolios.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = portfolios.map((p, i) =>
     '<div class="portfolio-slot" onclick="loadPortfolio(' + i + ')">' +
-    '<input class="slot-name-input" value="' + p.name + '" maxlength="24"' +
+    '<span class="slot-name" id="slotName' + i + '">' + (p.name || 'Portfolio ' + (i+1)) + '</span>' +
+    '<input class="slot-name-input" id="slotInput' + i + '" value="' + (p.name || 'Portfolio ' + (i+1)) + '" maxlength="24" style="display:none;"' +
     ' onclick="event.stopPropagation()"' +
-    ' onblur="renamePortfolio(' + i + ', this.value)"' +
-    ' onkeydown="if(event.key===&#39;Enter&#39;)this.blur()" />' +
+    ' onblur="finishRename(' + i + ', this.value)"' +
+    ' onkeydown="if(event.key===&#39;Enter&#39;)this.blur();if(event.key===&#39;Escape&#39;){this.value=document.getElementById(&#39;slotName' + i + '&#39;).textContent;this.blur();}" />' +
     '<span class="slot-count">' + p.holdings.length + ' holdings</span>' +
     '<div class="slot-actions">' +
+    '<button class="slot-btn" onclick="event.stopPropagation();startRename(' + i + ')" title="Rename">✏️</button>' +
     '<button class="slot-btn danger" onclick="event.stopPropagation();deletePortfolio(' + i + ')" title="Delete">&times;</button>' +
     '</div></div>'
   ).join('');
+}
+
+function startRename(idx) {
+  const nameEl = document.getElementById('slotName' + idx);
+  const inputEl = document.getElementById('slotInput' + idx);
+  if (!nameEl || !inputEl) return;
+  nameEl.style.display = 'none';
+  inputEl.style.display = 'block';
+  inputEl.focus();
+  inputEl.select();
+}
+
+function finishRename(idx, newName) {
+  const nameEl = document.getElementById('slotName' + idx);
+  const inputEl = document.getElementById('slotInput' + idx);
+  if (nameEl) { nameEl.style.display = 'block'; nameEl.textContent = newName; }
+  if (inputEl) inputEl.style.display = 'none';
+  renamePortfolio(idx, newName);
 }
 
 // ── EXAMPLE PORTFOLIOS ────────────────────────────────────
