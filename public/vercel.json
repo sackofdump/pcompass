@@ -3,7 +3,6 @@
     "api/market-data.js": { "maxDuration": 10 },
     "api/claude.js": { "maxDuration": 30 },
     "api/auth.js": { "maxDuration": 10 },
-    "api/email-auth.js": { "maxDuration": 10 },
     "api/verify-pro.js": { "maxDuration": 10 },
     "api/validate-token.js": { "maxDuration": 10 },
     "api/portfolios.js": { "maxDuration": 10 },

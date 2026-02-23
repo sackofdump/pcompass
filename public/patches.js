@@ -396,77 +396,8 @@ function updateUserUI() {
   }
 }
 
-// ── AUTH MODAL ──────────────────────────────────────────
-let authMode = 'login'; // 'login' or 'signup'
-
-function showAuthModal() {
-  authMode = 'login';
-  const modal = document.getElementById('authModal');
-  modal.style.display = 'flex';
-  document.getElementById('authEmail').value = '';
-  document.getElementById('authPassword').value = '';
-  document.getElementById('authPasswordConfirm').value = '';
-  document.getElementById('authPasswordConfirm').style.display = 'none';
-  document.getElementById('authError').style.display = 'none';
-  document.getElementById('authSubmitBtn').textContent = 'Sign In';
-  document.getElementById('authToggleText').textContent = "Don't have an account? ";
-  document.getElementById('authToggleLink').textContent = 'Sign Up';
-}
-
 function closeAuthModal() {
   document.getElementById('authModal').style.display = 'none';
-}
-
-function toggleAuthMode() {
-  authMode = authMode === 'login' ? 'signup' : 'login';
-  document.getElementById('authPasswordConfirm').style.display = authMode === 'signup' ? 'block' : 'none';
-  document.getElementById('authSubmitBtn').textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
-  document.getElementById('authToggleText').textContent = authMode === 'signup' ? 'Already have an account? ' : "Don't have an account? ";
-  document.getElementById('authToggleLink').textContent = authMode === 'signup' ? 'Sign In' : 'Sign Up';
-  document.getElementById('authError').style.display = 'none';
-}
-
-async function submitEmailAuth() {
-  const email = document.getElementById('authEmail').value.trim().toLowerCase();
-  const password = document.getElementById('authPassword').value;
-  const confirm = document.getElementById('authPasswordConfirm').value;
-  const errorEl = document.getElementById('authError');
-
-  if (!email || !email.includes('@')) { errorEl.textContent = 'Enter a valid email.'; errorEl.style.display = 'block'; return; }
-  if (password.length < 6) { errorEl.textContent = 'Password must be at least 6 characters.'; errorEl.style.display = 'block'; return; }
-  if (authMode === 'signup' && password !== confirm) { errorEl.textContent = 'Passwords do not match.'; errorEl.style.display = 'block'; return; }
-
-  const btn = document.getElementById('authSubmitBtn');
-  btn.disabled = true;
-  btn.textContent = authMode === 'signup' ? 'Creating...' : 'Signing in...';
-
-  try {
-    const res = await fetch('/api/email-auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, mode: authMode }),
-    });
-    const data = await res.json();
-
-    if (data.success && data.user) {
-      currentUser = data.user;
-      localStorage.setItem('pc_user', JSON.stringify(data.user));
-      localStorage.setItem('pc_pro_email', data.user.email);
-      updateUserUI();
-      closeAuthModal();
-      showToast('Signed in as ' + (data.user.name || data.user.email) + '!');
-      await syncPortfoliosFromCloud();
-    } else {
-      errorEl.textContent = data.error || 'Authentication failed.';
-      errorEl.style.display = 'block';
-    }
-  } catch (err) {
-    errorEl.textContent = 'Connection error. Try again.';
-    errorEl.style.display = 'block';
-  }
-
-  btn.disabled = false;
-  btn.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
 }
 
 function toggleUserMenu() {
@@ -650,8 +581,8 @@ function loadGoogleSignInScript() {
   return window._googleScriptLoading;
 }
 function showAuthModalOptimized() {
-  if (typeof showAuthModal === 'function') showAuthModal();
-  loadGoogleSignInScript(); // load Google script lazily alongside
+  document.getElementById('authModal').style.display = 'flex';
+  loadGoogleSignInScript();
 }
 
 // ── PATCH 5: callClaudeAPI is defined at the top of the main script block ────

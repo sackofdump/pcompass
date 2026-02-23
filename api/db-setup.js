@@ -59,16 +59,6 @@ export default async function handler(req, res) {
     )`);
     results.push('pro_licenses table ✓');
 
-    // ── EMAIL AUTH ──
-    await neonSQL(`CREATE TABLE IF NOT EXISTS email_auth (
-      id SERIAL PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(512) NOT NULL,
-      salt VARCHAR(64) NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`);
-    results.push('email_auth table ✓');
-
     // ── API USAGE (DB-backed rate limiting) ──
     await neonSQL(`CREATE TABLE IF NOT EXISTS api_usage (
       id SERIAL PRIMARY KEY,
@@ -90,9 +80,6 @@ export default async function handler(req, res) {
 
     // users.email — speeds up email auth login and portfolio auth check
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
-
-    // email_auth.email — speeds up login lookup
-    await neonSQL(`CREATE INDEX IF NOT EXISTS idx_email_auth_email ON email_auth(email)`);
 
     // api_usage — speeds up rate limit lookups
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_api_usage_lookup ON api_usage(client_key, endpoint, created_at)`);
