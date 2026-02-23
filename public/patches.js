@@ -188,6 +188,25 @@ function initGoogleSignIn() {
 }
 initGoogleSignIn();
 
+// Redirect-based Google OAuth (no popup, works everywhere)
+function googleSignInRedirect() {
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}&prompt=select_account`;
+  window.location.href = url;
+}
+
+// Check for Google OAuth redirect on page load
+(function checkGoogleRedirect() {
+  const hash = window.location.hash;
+  if (hash && hash.includes('id_token')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const idToken = params.get('id_token');
+    if (idToken) {
+      history.replaceState(null, '', window.location.pathname);
+      handleGoogleResponse({ credential: idToken });
+    }
+  }
+})();
+
 function openGoogleOAuthPopup() {
   const popup = window.open(
     `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
