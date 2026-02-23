@@ -459,7 +459,7 @@ function analyze() {
 
     const healthHTML =
       '<div class="health-panel">' +
-        '<div class="health-panel-header"><h2>Portfolio Health</h2></div>' +
+        '<div class="panel-header"><h2 class="section-title">Portfolio Health</h2></div>' +
         alertHTML +
         '<div class="health-cards">' +
           '<div class="health-card">' +
@@ -515,7 +515,7 @@ function analyze() {
       }).join('');
       rebalanceHTML =
         '<div class="rebalance-panel">' +
-          '<div class="rebalance-panel-header"><h2>Rebalancing Suggestions</h2></div>' +
+          '<div class="panel-header"><h2 class="section-title">Rebalancing Suggestions</h2></div>' +
           '<div class="rebalance-list">' + items + '</div>' +
         '</div>';
     }
@@ -523,7 +523,7 @@ function analyze() {
     // ── Position Sizing ──
     const positionHTML =
       '<div class="position-panel">' +
-        '<div class="position-panel-header"><h2>Position Sizing</h2></div>' +
+        '<div class="panel-header"><h2 class="section-title">Position Sizing</h2></div>' +
         '<div class="position-input-row">' +
           '<label>$</label>' +
           '<input type="number" id="positionAmountInput" value="" min="1" placeholder="Enter your budget">' +
@@ -542,7 +542,7 @@ function analyze() {
       '</div>' +
       '<div class="analysis-bar">' +
         '<div class="analysis-bar-header">' +
-          '<h3>Portfolio Breakdown &amp; Strategies</h3>' +
+          '<h3 class="section-title">Portfolio Breakdown &amp; Strategies</h3>' +
           '<div class="breakdown-legend">' +
             '<div class="legend-item"><div class="legend-dot legend-dot-current"></div>You Own</div>' +
             '<div class="legend-hint">&#8212; hover/click to show</div>' +
@@ -576,7 +576,7 @@ function analyze() {
         '</button>' +
       '</div>' +
       positionHTML +
-      '<div class="panel-header" style="border:none;padding:20px 0 8px;"><h2>Recommended Stocks</h2></div>' +
+      '<div class="panel-header" style="border:none;padding:20px 0 8px;"><h2 class="section-title">Recommended Stocks</h2></div>' +
       strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
       strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
       strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
