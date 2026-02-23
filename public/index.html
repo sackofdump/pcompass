@@ -110,6 +110,10 @@
     border-bottom:1px solid var(--border);
     position:relative; z-index:10001;
   }
+  .header-actions {
+    position:absolute; right:calc(5% + 80px); top:50%; transform:translateY(-50%);
+    display:flex; align-items:center; gap:8px;
+  }
   .logo { display:flex; align-items:center; gap:12px; }
   .logo-icon {
     width:42px; height:42px;
@@ -600,8 +604,20 @@
       gap: 20px;
     }
     .container { padding: 0 16px; }
-    header { padding: 20px 20px 16px; }
-    .tagline { margin-left: 48px; }
+    header {
+      padding: 20px 20px 16px;
+      flex-direction: row; flex-wrap: wrap; align-items: center;
+    }
+    .logo { flex: 1; min-width: 0; }
+    .tagline { width: 100%; margin-left: 48px; order: 1; }
+    .header-actions {
+      position: static; transform: none;
+      order: 0;
+    }
+    .theme-toggle {
+      position: static; transform: none;
+      order: 0;
+    }
     .sector-row { grid-template-columns: 110px 1fr 32px; }
     .strategy-desc { max-width: 160px; }
   }
@@ -610,13 +626,13 @@
   @media (max-width: 600px) {
     header {
       padding: 14px 16px 12px;
-      gap: 4px;
+      gap: 6px;
     }
     .logo h1 { font-size: 17px; }
     .logo-icon { width: 30px; height: 30px; }
     .tagline { font-size: 10px; margin-left: 42px; }
+    .header-actions { gap: 6px; }
     .theme-toggle {
-      right: 12px;
       padding: 4px 4px 4px 8px;
       font-size: 9px;
     }
@@ -916,7 +932,7 @@
     <h1>Portfolio <span>Compass</span></h1>
   </div>
   <div class="tagline">Portfolio Diversification &amp; Strategy Analyzer</div>
-  <div style="position:absolute;right:calc(5% + 80px);top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px;">
+  <div class="header-actions">
     <!-- Pro button - always visible -->
     <button onclick="showPaywall('header')" id="btnPro" style="background:linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06));border:1px solid rgba(0,229,160,0.3);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00e5a0;cursor:pointer;display:flex;align-items:center;gap:5px;transition:border-color 0.2s,background 0.2s;" onmouseover="this.style.background='rgba(0,229,160,0.18)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06))'">
       ✦ Pro
