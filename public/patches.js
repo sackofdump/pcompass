@@ -322,8 +322,6 @@ function updateUserUI() {
 
 function closeAuthModal() {
   document.getElementById('authModal').style.display = 'none';
-  // If still not signed in, keep the login gate visible
-  if (!currentUser) showLoginGate();
 }
 
 function toggleUserMenu() {
