@@ -34,7 +34,22 @@ export default async function handler(req, res) {
 
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id)`);
 
-    res.status(200).json({ success: true, message: 'Database tables created' });
+    await neonSQL(`CREATE TABLE IF NOT EXISTS pro_licenses (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      active BOOLEAN DEFAULT true,
+      plan VARCHAR(50) NOT NULL,
+      customer_id VARCHAR(255),
+      session_id VARCHAR(255),
+      purchased_at TIMESTAMP DEFAULT NOW(),
+      cancelled_at TIMESTAMP,
+      failed_at TIMESTAMP
+    )`);
+
+    await neonSQL(`CREATE INDEX IF NOT EXISTS idx_pro_licenses_email ON pro_licenses(email)`);
+    await neonSQL(`CREATE INDEX IF NOT EXISTS idx_pro_licenses_customer_id ON pro_licenses(customer_id)`);
+
+    res.status(200).json({ success: true, message: 'All database tables created' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

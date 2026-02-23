@@ -1,25 +1,14 @@
-async function kvSet(key, value) {
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
-  if (!kvUrl || !kvToken) return null;
-  const r = await fetch(`${kvUrl}`, {
+async function neonSQL(sql, params = []) {
+  const connStr = process.env.POSTGRES_URL;
+  const host = new URL(connStr).hostname;
+  const r = await fetch(`https://${host}/sql`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(['SET', key, JSON.stringify(value)]),
+    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
+    body: JSON.stringify({ query: sql, params }),
   });
-  return r.json();
-}
-
-async function kvGet(key) {
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
-  if (!kvUrl || !kvToken) return null;
-  const r = await fetch(`${kvUrl}/get/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${kvToken}` },
-  });
+  if (!r.ok) throw new Error(await r.text());
   const data = await r.json();
-  if (data.result === null || data.result === undefined) return null;
-  try { return JSON.parse(data.result); } catch { return data.result; }
+  return data.rows || [];
 }
 
 export const config = { api: { bodyParser: false } };
@@ -36,8 +25,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const rawBody = await getRawBody(req);
-  
-  // Simple webhook handling - for production, verify signature with Stripe
+
   let event;
   try {
     event = JSON.parse(rawBody.toString());
@@ -45,44 +33,45 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const email = session.customer_email || session.customer_details?.email;
-    const customerId = session.customer;
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const email = (session.customer_email || session.customer_details?.email || '').toLowerCase();
+      const customerId = session.customer || '';
+      const plan = session.mode === 'subscription' ? 'monthly' : 'lifetime';
 
-    if (email) {
-      await kvSet(`pro:${email.toLowerCase()}`, {
-        active: true,
-        plan: session.mode === 'subscription' ? 'monthly' : 'lifetime',
-        customerId,
-        purchasedAt: new Date().toISOString(),
-        sessionId: session.id,
-      });
-      if (customerId) await kvSet(`stripe:${customerId}`, email.toLowerCase());
-      console.log(`Pro activated for ${email}`);
-    }
-  }
-
-  if (event.type === 'customer.subscription.deleted') {
-    const customerId = event.data.object.customer;
-    const email = await kvGet(`stripe:${customerId}`);
-    if (email) {
-      const license = await kvGet(`pro:${email}`);
-      if (license && license.plan !== 'lifetime') {
-        await kvSet(`pro:${email}`, { ...license, active: false, cancelledAt: new Date().toISOString() });
+      if (email) {
+        await neonSQL(
+          `INSERT INTO pro_licenses (email, active, plan, customer_id, session_id, purchased_at)
+           VALUES ($1, true, $2, $3, $4, NOW())
+           ON CONFLICT (email) DO UPDATE SET active = true, plan = $2, customer_id = $3, session_id = $4, purchased_at = NOW(), cancelled_at = NULL, failed_at = NULL`,
+          [email, plan, customerId, session.id]
+        );
+        console.log('Pro activated for ' + email);
       }
     }
-  }
 
-  if (event.type === 'invoice.payment_failed') {
-    const customerId = event.data.object.customer;
-    const email = await kvGet(`stripe:${customerId}`);
-    if (email) {
-      const license = await kvGet(`pro:${email}`);
-      if (license && license.plan !== 'lifetime') {
-        await kvSet(`pro:${email}`, { ...license, active: false, failedAt: new Date().toISOString() });
+    if (event.type === 'customer.subscription.deleted') {
+      const customerId = event.data.object.customer;
+      if (customerId) {
+        await neonSQL(
+          `UPDATE pro_licenses SET active = false, cancelled_at = NOW() WHERE customer_id = $1 AND plan != 'lifetime'`,
+          [customerId]
+        );
       }
     }
+
+    if (event.type === 'invoice.payment_failed') {
+      const customerId = event.data.object.customer;
+      if (customerId) {
+        await neonSQL(
+          `UPDATE pro_licenses SET active = false, failed_at = NOW() WHERE customer_id = $1 AND plan != 'lifetime'`,
+          [customerId]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Webhook processing error:', err);
   }
 
   res.status(200).json({ received: true });
