@@ -1896,12 +1896,15 @@ function analyze() {
       return bS - aS;
     });
 
-    // Primary: top 3 ETFs + top 2 stocks
-    const primaryItems = [...sortedEtfs.slice(0,3), ...picks.slice(0,2)];
-    // Extra tier 1: next 2 ETFs + next 1 stock (first "show more")
-    const extraItems1  = [...sortedEtfs.slice(3,5), ...picks.slice(2,3)];
-    // Extra tier 2: next 1 ETF + next 2 stocks (second "show more")
-    const extraItems2  = [...sortedEtfs.slice(5,6), ...picks.slice(3,5)];
+    // All items combined: ETFs first, then stocks
+    const allItems = [...sortedEtfs.map(e => ({...e,isStock:false})), ...picks];
+
+    // Primary: first 5
+    const primaryItems = allItems.slice(0,5);
+    // Tier 1: next 3 (behind paywall)
+    const extraItems1  = allItems.slice(5,8);
+    // Tier 2: next 3 (behind second click)
+    const extraItems2  = allItems.slice(8,11);
 
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
 
@@ -1925,7 +1928,7 @@ function analyze() {
       extraHTML +=
         '</div>' +
         '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-          '✦ Show ' + (extraItems1.length + extraItems2.length) + ' more picks' +
+          '✦ Show ' + extraItems1.length + ' more picks' +
         '</button>';
     }
 
@@ -2919,15 +2922,10 @@ function toggleShowMore(type) {
   const open = panel.classList.toggle('open');
   btn.classList.toggle('open', open);
   if (open) {
-    // Update button to reflect only tier-1 count (tier-2 has its own button)
-    const tier2 = document.getElementById('show-more-2-' + type);
-    const tier2Count = tier2 ? tier2.querySelectorAll('.etf-item').length : 0;
-    const tier1Count = panel.querySelectorAll(':scope > .etf-item').length;
     btn.innerHTML = '▾ Show fewer picks';
   } else {
-    const total = panel.querySelectorAll('.etf-item').length;
-    btn.innerHTML = '✦ Show ' + total + ' more picks';
-    // Also close tier 2 if open
+    btn.innerHTML = '✦ Show ' + panel.querySelectorAll(':scope > .etf-item').length + ' more picks';
+    // Also close tier 2
     const panel2 = document.getElementById('show-more-2-' + type);
     const btn2   = document.getElementById('show-more-btn-2-' + type);
     if (panel2) panel2.classList.remove('open');
