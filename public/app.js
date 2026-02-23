@@ -17,25 +17,6 @@ async function callClaudeAPI(body) {
   });
 }
 
-// ── DATA ─────────────────────────────────────────────────
-
-const SECTOR_COLORS = {
-  'Big Tech':'#4d9fff','Semiconductors':'#a855f7','AI & Robotics':'#ec4899',
-  'Software / SaaS':'#3b82f6','Social Media':'#f97316','Fintech':'#00e5a0',
-  'Crypto / Bitcoin':'#f59e0b','Banking':'#6366f1','Healthcare':'#22c55e',
-  'Biotech':'#84cc16','E-Commerce':'#06b6d4','Retail':'#8b5cf6',
-  'Apparel':'#f43f5e','Food & Beverage':'#fb923c','Consumer Staples':'#a3e635',
-  'EVs & Autos':'#34d399','Entertainment':'#c084fc','Sports Betting':'#fb7185',
-  'Travel & Mobility':'#38bdf8','Pets & Specialty':'#fdba74',
-  'China / Emerging':'#f87171','International':'#60a5fa','Oil & Gas':'#fbbf24',
-  'Clean Energy':'#4ade80','Gold & Metals':'#fcd34d','Defense':'#94a3b8',
-  'Industrials':'#cbd5e1','Real Estate':'#f9a8d4','Utilities':'#86efac',
-  'Materials':'#6ee7b7','Broad Market':'#64748b','Small-Caps':'#a78bfa',
-  'Dividends':'#fca5a5','Bonds':'#93c5fd','Other':'#475569',
-};
-
-
-// ── STATE ────────────────────────────────────────────────
 // ── STATE ────────────────────────────────────────────────
 let holdings = [];
 let previewHoldings = [];
@@ -1299,20 +1280,20 @@ function exportPDF() {
 </style></head><body>
 <div class="header">
   <div class="logo">🧭 Portfolio <span>Compass</span></div>
-  <div class="date">\${date}</div>
+  <div class="date">${date}</div>
 </div>
 
 <div class="health-grid">
   <div class="health-stat">
-    <div class="value">\${holdings.length}</div>
+    <div class="value">${holdings.length}</div>
     <div class="label">Holdings</div>
   </div>
   <div class="health-stat">
-    <div class="value">\${Object.keys(sectors).filter(s => sectors[s] > 0).length}</div>
+    <div class="value">${Object.keys(sectors).filter(s => sectors[s] > 0).length}</div>
     <div class="label">Sectors</div>
   </div>
   <div class="health-stat">
-    <div class="value" style="color:\${riskNum >= 65 ? '#ff4d6d' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">\${riskLabel}</div>
+    <div class="value" style="color:${riskNum >= 65 ? '#ff4d6d' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskLabel}</div>
     <div class="label">Risk Level</div>
   </div>
 </div>
@@ -1320,16 +1301,16 @@ function exportPDF() {
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
     <span style="font-family:'Space Mono',monospace;font-size:10px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;">Portfolio Risk</span>
-    <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:\${riskNum >= 65 ? '#ff4d6d' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">\${riskNum}/100</span>
+    <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:${riskNum >= 65 ? '#ff4d6d' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskNum}/100</span>
   </div>
-  <div class="risk-bar"><div class="risk-fill" style="width:\${riskNum}%;background:linear-gradient(90deg,#06d6a0,#ffd166,#ff4d6d)"></div></div>
+  <div class="risk-bar"><div class="risk-fill" style="width:${riskNum}%;background:linear-gradient(90deg,#06d6a0,#ffd166,#ff4d6d)"></div></div>
 </div>
 
 <h2>Holdings</h2>
 <div class="card">
   <table>
     <tr><th>Ticker</th><th>Name</th><th>Sector</th><th style="text-align:right">Weight</th></tr>
-    \${holdingRows}
+    ${holdingRows}
   </table>
 </div>
 
@@ -1337,7 +1318,7 @@ function exportPDF() {
 <div class="card">
   <table>
     <tr><th>Sector</th><th style="text-align:right">Weight</th><th>Distribution</th></tr>
-    \${sectorRows}
+    ${sectorRows}
   </table>
 </div>
 
