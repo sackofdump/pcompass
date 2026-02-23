@@ -1115,7 +1115,8 @@
   const hdr = document.querySelector('header');
   let compact = false;
   window.addEventListener('scroll', () => {
-    const shouldCompact = window.scrollY > 60;
+    const y = window.scrollY;
+    const shouldCompact = compact ? y > 20 : y > 80;
     if (shouldCompact !== compact) {
       compact = shouldCompact;
       hdr.classList.toggle('header-compact', compact);
