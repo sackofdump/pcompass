@@ -408,6 +408,59 @@ window.savePortfolio = function() {
   }
 })();
 
+// ── APPLE SIGN-IN ────────────────────────────────────────
+const APPLE_CLIENT_ID = 'com.pcompass.signin';
+
+function loadAppleSignInScript() {
+  if (window._appleScriptLoaded) return Promise.resolve();
+  if (window._appleScriptLoading) return window._appleScriptLoading;
+  window._appleScriptLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
+    script.async = true;
+    script.onload = () => { window._appleScriptLoaded = true; resolve(); };
+    script.onerror = () => { window._appleScriptLoading = null; reject(new Error('Failed to load Apple Sign-In')); };
+    document.head.appendChild(script);
+  });
+  return window._appleScriptLoading;
+}
+
+async function appleSignIn() {
+  try {
+    await loadAppleSignInScript();
+    AppleID.auth.init({
+      clientId: APPLE_CLIENT_ID,
+      scope: 'name email',
+      redirectURI: window.location.origin,
+      usePopup: true,
+    });
+    const response = await AppleID.auth.signIn();
+    const body = { id_token: response.authorization.id_token };
+    // User info (name) is only sent on first sign-in
+    if (response.user) body.user = response.user;
+    const res = await fetch('/api/auth-apple', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success && data.user) {
+      currentUser = data.user;
+      localStorage.setItem('pc_user', JSON.stringify(data.user));
+      localStorage.setItem('pc_pro_email', data.user.email);
+      updateUserUI();
+      showToast('Signed in as ' + data.user.name + '!');
+      await syncPortfoliosFromCloud();
+    } else {
+      showToast('Sign in failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (err) {
+    if (err.error === 'popup_closed_by_user') return;
+    console.error('Apple Sign-In error:', err);
+    showToast('Apple Sign-In failed. Please try again.');
+  }
+}
+
 // ── PATCH 1: MARKET DATA localStorage CACHE ──────────────────
 async function fetchMarketDataCached(tickersToFetch) {
   const CACHE_KEY = 'pc_market_' + tickersToFetch.slice().sort().join(',');

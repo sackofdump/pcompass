@@ -25,7 +25,8 @@ export default async function handler(req, res) {
     // ── USERS ──
     await neonSQL(`CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
-      google_id VARCHAR(255) UNIQUE NOT NULL,
+      google_id VARCHAR(255) UNIQUE,
+      apple_id VARCHAR(255) UNIQUE,
       email VARCHAR(255) UNIQUE NOT NULL,
       name VARCHAR(255),
       picture VARCHAR(500),
@@ -33,6 +34,13 @@ export default async function handler(req, res) {
       last_login TIMESTAMP DEFAULT NOW()
     )`);
     results.push('users table ✓');
+
+    // ── MIGRATIONS (safe to re-run) ──
+    // Add apple_id column if missing (existing DBs)
+    await neonSQL(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id VARCHAR(255) UNIQUE`);
+    // Make google_id nullable (was NOT NULL, now optional since Apple users don't have one)
+    await neonSQL(`ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL`);
+    results.push('users migrations ✓');
 
     // ── PORTFOLIOS ──
     await neonSQL(`CREATE TABLE IF NOT EXISTS portfolios (
@@ -83,6 +91,9 @@ export default async function handler(req, res) {
 
     // api_usage — speeds up rate limit lookups
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_api_usage_lookup ON api_usage(client_key, endpoint, created_at)`);
+
+    // users.apple_id — speeds up Apple auth lookups
+    await neonSQL(`CREATE INDEX IF NOT EXISTS idx_users_apple_id ON users(apple_id)`);
 
     results.push('all indexes ✓');
 
