@@ -2851,6 +2851,8 @@ function showPaywall(trigger) {
     msg.textContent = "You’ve used your 3 free screenshot imports.";
   } else if (trigger === 'pdf') {
     msg.textContent = "PDF export is a Pro feature.";
+  } else if (trigger === 'sync') {
+    msg.textContent = "Cloud sync is a Pro feature. Upgrade to access your portfolios across all devices.";
   } else {
     msg.textContent = "You’ve used your 3 free AI explanations.";
   }
@@ -3317,7 +3319,7 @@ function signOut() {
 
 // ── CLOUD PORTFOLIO SYNC ────────────────────────────────
 async function savePortfolioToCloud(name, holdingsData) {
-  if (!currentUser) return null;
+  if (!currentUser || !isProUser()) return null;
   try {
     const res = await fetch('/api/portfolios', {
       method: 'POST',
@@ -3342,6 +3344,10 @@ async function savePortfolioToCloud(name, holdingsData) {
 async function syncPortfoliosFromCloud() {
   if (!currentUser) {
     showToast('Sign in to sync portfolios.');
+    return;
+  }
+  if (!isProUser()) {
+    showPaywall('sync');
     return;
   }
   try {
