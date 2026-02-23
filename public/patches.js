@@ -4,22 +4,11 @@ document.getElementById('paywallModal').style.display='none';
 
 let currentUser = null;
 
-// ── LOGIN GATE ──────────────────────────────────────────
-function hideLoginGate() {
-  const gate = document.getElementById('loginGate');
-  if (gate) {
-    gate.classList.add('hidden');
-    setTimeout(() => { gate.style.display = 'none'; }, 300);
-  }
-}
-function showLoginGate() {
-  const gate = document.getElementById('loginGate');
-  if (gate) {
-    gate.style.display = 'flex';
-    // Force reflow so the transition plays
-    gate.offsetHeight;
-    gate.classList.remove('hidden');
-  }
+// ── AUTH GUARD ──────────────────────────────────────────
+function requireAuth() {
+  if (currentUser) return true;
+  showAuthModalOptimized();
+  return false;
 }
 
 // Register service worker for PWA
@@ -185,17 +174,6 @@ function initGoogleSignIn() {
     callback: handleGoogleResponse,
     auto_select: false,
   });
-  // Render Google's official button in the login gate
-  const gateBtn = document.getElementById('gateGoogleBtn');
-  if (gateBtn) {
-    google.accounts.id.renderButton(gateBtn, {
-      theme: 'filled_black',
-      size: 'large',
-      width: 280,
-      text: 'continue_with',
-      shape: 'pill',
-    });
-  }
 }
 initGoogleSignIn();
 
@@ -257,7 +235,6 @@ async function handleGoogleResponse(response) {
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
       updateUserUI();
-      hideLoginGate();
       showToast('Signed in as ' + data.user.name + '!');
 
       // Auto-sync portfolios from cloud
@@ -335,7 +312,6 @@ function signOut() {
   currentUser = null;
   localStorage.removeItem('pc_user');
   updateUserUI();
-  showLoginGate();
   showToast('Signed out.');
 }
 
@@ -426,7 +402,6 @@ window.savePortfolio = function() {
     try {
       currentUser = JSON.parse(saved);
       updateUserUI();
-      hideLoginGate();
     } catch(e) {
       localStorage.removeItem('pc_user');
     }

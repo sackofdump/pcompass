@@ -41,6 +41,7 @@ function totalAllocation() {
 }
 
 function addStock() {
+  if (!requireAuth()) return;
   const ticker = document.getElementById('tickerInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
   const pct = parseFloat(document.getElementById('pctInput').value);
   const err = document.getElementById('errorMsg');
@@ -240,6 +241,7 @@ function matchLabel(score) {
 }
 
 function analyze() {
+  if (!requireAuth()) return;
   pinnedStrategy = null;
   document.querySelectorAll('.legend-item.hoverable').forEach(e => e.classList.remove('active','active-agg','active-mod','active-con'));
   const profile = getPortfolioProfile();
@@ -891,6 +893,7 @@ async function handleScreenshot(event) {
 }
 
 async function processImageFile(file) {
+  if (!requireAuth()) return;
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/png';
   const response = await callClaudeAPI({
@@ -961,6 +964,7 @@ function removePreviewItem(i) {
 }
 
 function importAll() {
+  if (!requireAuth()) return;
   // Clear existing holdings when importing a full portfolio from screenshots
   if (previewHoldings.length >= 3) {
     holdings.length = 0;
@@ -1100,6 +1104,7 @@ function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
 function savePortfolio() {
+  if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
   if (portfolios.length >= MAX_SLOTS) {
@@ -1176,6 +1181,7 @@ function finishRenameSlot(i, newName) {
 
 
 function loadExample(key) {
+  if (!requireAuth()) return;
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
   holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
@@ -1185,6 +1191,7 @@ function loadExample(key) {
 
 // ── SHARE PORTFOLIO ───────────────────────────────────────
 function sharePortfolio() {
+  if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const encoded = holdings.map(h => h.ticker + '-' + h.pct).join('_');
   const url = window.location.origin + window.location.pathname + '?p=' + encoded;
@@ -1214,6 +1221,7 @@ function showToast(msg) {
 
 // ── EXPORT PDF ────────────────────────────────────────────
 function exportPDF() {
+  if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
 
   const isPro = isProUser();
