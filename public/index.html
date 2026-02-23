@@ -3503,10 +3503,14 @@ function initGoogleSignIn() {
 }
 initGoogleSignIn();
 
-function googleSignIn() {
+async function googleSignIn() {
   if (typeof google === 'undefined' || !google.accounts) {
-    showToast('Connecting to Google — please try again in a moment.');
-    return;
+    showToast('Connecting to Google…');
+    await loadGoogleSignInScript();
+    if (typeof google === 'undefined' || !google.accounts) {
+      showToast('Could not load Google Sign-In. Please check your connection.');
+      return;
+    }
   }
   // Render a hidden div and trigger sign-in via prompt
   google.accounts.id.prompt((notification) => {
@@ -3851,7 +3855,8 @@ function analyzeDebounced() {
 // ── PATCH 4: LAZY GOOGLE SIGN-IN ─────────────────────────────
 function loadGoogleSignInScript() {
   if (window._googleScriptLoaded) return Promise.resolve();
-  return new Promise((resolve) => {
+  if (window._googleScriptLoading) return window._googleScriptLoading;
+  window._googleScriptLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -3861,8 +3866,13 @@ function loadGoogleSignInScript() {
       if (typeof initGoogleSignIn === 'function') initGoogleSignIn();
       resolve();
     };
+    script.onerror = () => {
+      window._googleScriptLoading = null;
+      reject(new Error('Failed to load Google Sign-In'));
+    };
     document.head.appendChild(script);
   });
+  return window._googleScriptLoading;
 }
 function showAuthModalOptimized() {
   if (typeof showAuthModal === 'function') showAuthModal();
