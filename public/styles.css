@@ -232,7 +232,7 @@
   .etf-item-header { padding:11px 14px; display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; }
   .ticker-name-group { display:flex; align-items:center; gap:10px; }
   .ticker-with-tag { display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:60px; }
-  .etf-ticker { font-family:'Space Mono',monospace; font-size:14px; font-weight:700; color:var(--text); }
+  .etf-ticker, .pick-ticker { font-family:'Space Mono',monospace; font-size:14px; font-weight:700; color:var(--text); }
     .item-type-tag { font-family:'Space Mono',monospace; font-size:8px; font-weight:700; letter-spacing:1px; padding:1px 5px; border-radius:3px; }
   .tag-etf { background:rgba(77,159,255,0.15); color:#4d9fff; border:1px solid rgba(77,159,255,0.3); }
   .tag-stock { background:rgba(255,77,109,0.12); color:var(--aggressive); border:1px solid rgba(255,77,109,0.25); }
@@ -247,13 +247,13 @@
   .pick-meta .pick-sector-tag { background:rgba(255,77,109,0.1); color:var(--aggressive); border:1px solid rgba(255,77,109,0.25); }
   
   /* Why hint */
-  .etf-hint {
+  .etf-hint, .pick-hint {
     padding:0 14px 9px; font-family:'Space Mono',monospace; font-size:10px;
     color:var(--accent); opacity:0.55; letter-spacing:0.5px;
     display:flex; align-items:center; gap:5px; transition:opacity 0.2s;
   }
-  .etf-item:hover .etf-hint { opacity:1; }
-  .etf-item.open .etf-hint { display:none; }
+  .etf-item:hover .etf-hint, .etf-item:hover .pick-hint { opacity:1; }
+  .etf-item.open .etf-hint, .etf-item.open .pick-hint { display:none; }
 
   /* Drawer */
   .etf-drawer,.pick-drawer { max-height:0; overflow:hidden; transition:max-height 0.35s cubic-bezier(0.4,0,0.2,1); }
@@ -664,7 +664,7 @@
     .strategy-desc { max-width: 100%; text-align: left; font-size: 10px; }
     .etf-list { padding: 10px 12px 14px; gap: 6px; }
     .etf-item-header { padding: 10px 12px; }
-    .etf-ticker { font-size: 13px; }
+    .etf-ticker, .pick-ticker { font-size: 13px; }
     .etf-details h4, .pick-details h4 { font-size: 11px; }
     .etf-details p, .pick-details p { font-size: 10px; }
 
