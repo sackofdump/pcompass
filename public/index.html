@@ -3578,9 +3578,17 @@ function updateUserUI() {
     menuEmail.textContent = currentUser.email;
     if (proStatus) {
       if (isProUser()) {
-        proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
+        const trialDays = getTrialDaysLeft();
         const pb = document.getElementById('btnPro');
-        if (pb) pb.style.display = 'none';
+        if (trialDays > 0) {
+          // Trial user — keep button visible with trial badge
+          proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Trial</span> · ' + trialDays + ' day' + (trialDays !== 1 ? 's' : '') + ' left';
+          if (pb) { pb.style.display = 'flex'; pb.innerHTML = '✦ Trial · ' + trialDays + 'd'; }
+        } else {
+          // Paid Pro — hide the button
+          proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
+          if (pb) pb.style.display = 'none';
+        }
       } else {
         proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>';
       }
