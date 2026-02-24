@@ -2,6 +2,42 @@ document.getElementById('paywallModal').style.display='flex';
 document.getElementById('paywallModal').style.display='none';
 // re-close on load
 
+// ── iOS APP DETECTION ─────────────────────────────────────
+// Detects if running inside a native iOS WebView (PWABuilder wrapper)
+// Used to hide Stripe payment links (Apple Guideline 3.1.1)
+function isIOSApp() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPhone|iPad|iPod/.test(ua);
+  const isStandalone = window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  // WKWebView doesn't have Safari in the UA string
+  const isWebView = isIOS && !(/Safari/.test(ua));
+  return isIOS && (isStandalone || isWebView);
+}
+
+const _isIOSApp = isIOSApp();
+
+// Hide Stripe purchase buttons inside iOS app on load
+if (_isIOSApp) {
+  document.addEventListener('DOMContentLoaded', function() {
+    // Hide upgrade modal Stripe buttons, replace with website message
+    var actions = document.querySelector('.upgrade-actions');
+    if (actions) {
+      actions.innerHTML =
+        '<div style="text-align:center;padding:12px 0;">' +
+          '<p style="color:#8a9ab8;font-size:12px;margin:0 0 10px;">To upgrade to Pro, visit our website:</p>' +
+          '<p style="color:#00e5a0;font-size:14px;font-weight:700;margin:0;">pcompass.vercel.app</p>' +
+          '<p style="color:#8a9ab8;font-size:10px;margin:6px 0 0;">Open in Safari, sign in, and purchase Pro there.</p>' +
+        '</div>';
+    }
+    // Hide the Pro upgrade button in header if it exists
+    var btnPro = document.getElementById('btnPro');
+    if (btnPro) {
+      btnPro.onclick = function() { showToast('Visit pcompass.vercel.app in your browser to upgrade.'); };
+    }
+  });
+}
+
 let currentUser = null;
 
 // ── AUTH GUARD ──────────────────────────────────────────
@@ -130,6 +166,10 @@ async function verifyProAccess(email) {
 
 // ── PURCHASE FLOW ────────────────────────────────────────
 function goToPurchase(stripeUrl) {
+  if (_isIOSApp) {
+    showToast('Visit pcompass.vercel.app in your browser to upgrade.');
+    return;
+  }
   const savedEmail = localStorage.getItem('pc_pro_email') || '';
   const email = prompt('Enter your email to activate Pro after purchase:', savedEmail);
   if (!email || !email.includes('@')) {

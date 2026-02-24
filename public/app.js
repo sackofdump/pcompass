@@ -1508,6 +1508,18 @@ function showPaywall(trigger) {
   const msgEl = document.getElementById('paywallMsg');
   if (msgEl) msgEl.textContent = 'You must have Pro Access to access this.';
   const modal = document.getElementById('paywallModal');
+
+  // Inside iOS app: hide Stripe buttons, show website redirect (Apple Guideline 3.1.1)
+  if (typeof _isIOSApp !== 'undefined' && _isIOSApp) {
+    const tiers = modal.querySelectorAll('[id^="tier-"]');
+    tiers.forEach(function(el) { el.style.display = 'none'; });
+    const confirmBtn = document.getElementById('paywallConfirmBtn');
+    if (confirmBtn) {
+      confirmBtn.textContent = 'Visit pcompass.vercel.app to upgrade';
+      confirmBtn.onclick = function() { closePaywall(); showToast('Visit pcompass.vercel.app in your browser to upgrade.'); };
+    }
+  }
+
   modal.style.display = 'flex';
   modal.classList.add('open');
 }
