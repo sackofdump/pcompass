@@ -27,7 +27,7 @@ if (_isIOSApp) {
     if (actions) {
       actions.innerHTML =
         '<div style="text-align:center;padding:12px 0;">' +
-          '<p style="color:#8a9ab8;font-size:12px;margin:0;">Manage your subscription at pcompass.vercel.app</p>' +
+          '<p style="color:#8a9ab8;font-size:12px;margin:0;">Subscription management is available on our website.</p>' +
         '</div>';
     }
     // Hide "Restore Purchases" in upgrade modal
@@ -36,7 +36,7 @@ if (_isIOSApp) {
     // Hide the Pro upgrade button in header if it exists
     var btnPro = document.getElementById('btnPro');
     if (btnPro) {
-      btnPro.onclick = function() { showToast('Manage your subscription at pcompass.vercel.app'); };
+      btnPro.onclick = function() { showToast('Subscription management is available on our website.'); };
     }
   });
 }
