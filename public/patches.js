@@ -59,6 +59,7 @@ async function verifyProAccess(email) {
       localStorage.setItem('pc_pro_token', data.token);
       localStorage.setItem('pc_pro_ts', String(data.timestamp));
       localStorage.setItem('pc_pro_plan', data.plan || 'pro');
+      updateUserUI();
       return true;
     } else {
       localStorage.removeItem('pc_pro_token');
