@@ -6,7 +6,9 @@
     "api/verify-pro.js": { "maxDuration": 10 },
     "api/portfolios.js": { "maxDuration": 10 },
     "api/stripe-webhook.js": { "maxDuration": 10 },
-    "api/db-setup.js": { "maxDuration": 30 }
+    "api/db-setup.js": { "maxDuration": 30 },
+    "api/check-feature.js": { "maxDuration": 10 },
+    "api/pro-picks.js": { "maxDuration": 10 }
   },
   "headers": [
     {
@@ -58,6 +60,14 @@
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
         }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     }
   ]

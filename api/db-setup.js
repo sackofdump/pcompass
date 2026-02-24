@@ -11,11 +11,27 @@ async function neonSQL(sql) {
   return r.json();
 }
 
+// ── TIMING-SAFE COMPARISON ──────────────────────────────
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  // Pad to equal lengths to avoid length-based timing leaks
+  const maxLen = Math.max(a.length, b.length);
+  const aPad = a.padEnd(maxLen, '\0');
+  const bPad = b.padEnd(maxLen, '\0');
+  let mismatch = a.length ^ b.length; // also check actual length
+  for (let i = 0; i < maxLen; i++) {
+    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   // ── Admin-only: require secret to run schema setup ──
   const secret = process.env.DB_SETUP_SECRET;
-  const provided = req.headers['x-db-setup-secret'] || req.query?.secret;
-  if (!secret || provided !== secret) {
+  const provided = req.headers['x-db-setup-secret'] || '';
+  if (!secret || !provided || !timingSafeEqual(provided, secret)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 

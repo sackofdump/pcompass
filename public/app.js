@@ -41,6 +41,69 @@ async function callClaudeAPI(body) {
 }
 
 
+// ── PRO FEATURE CHECK HELPER ─────────────────────────────
+// Calls /api/check-feature to verify Pro status server-side
+async function callCheckFeature(feature) {
+  const proToken  = localStorage.getItem('pc_pro_token')  || '';
+  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
+  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
+  const authToken = localStorage.getItem('pc_auth_token') || '';
+  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
+  try {
+    const res = await fetch('/api/check-feature', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Pro-Token':  proToken,
+        'X-Pro-Email':  proEmail,
+        'X-Pro-Ts':     proTs,
+        'X-Auth-Token': authToken,
+        'X-Auth-Email': proEmail,
+        'X-Auth-Ts':    authTs,
+      },
+      body: JSON.stringify({ feature }),
+    });
+    if (res.status === 401) return false;
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.allowed === true;
+  } catch (e) {
+    console.warn('[check-feature] request failed:', e.message);
+    return false; // fail closed
+  }
+}
+
+// ── PRO PICKS FETCH HELPER ──────────────────────────────
+// Fetches extended stock/ETF picks from /api/pro-picks (Pro only)
+let _proPicksCache = null;
+async function fetchProPicks() {
+  if (_proPicksCache) return _proPicksCache;
+  const proToken  = localStorage.getItem('pc_pro_token')  || '';
+  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
+  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
+  const authToken = localStorage.getItem('pc_auth_token') || '';
+  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
+  try {
+    const res = await fetch('/api/pro-picks', {
+      headers: {
+        'X-Pro-Token':  proToken,
+        'X-Pro-Email':  proEmail,
+        'X-Pro-Ts':     proTs,
+        'X-Auth-Token': authToken,
+        'X-Auth-Email': proEmail,
+        'X-Auth-Ts':    authTs,
+      },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    _proPicksCache = data;
+    return data;
+  } catch (e) {
+    console.warn('[pro-picks] fetch failed:', e.message);
+    return null;
+  }
+}
+
 // ── STATE ────────────────────────────────────────────────
 let holdings = [];
 let previewHoldings = [];
@@ -376,38 +439,20 @@ function analyze() {
     // All items combined: ETFs first, then stocks
     const allItems = [...sortedEtfs.map(e => ({...e,isStock:false})), ...picks];
 
-    // Primary: first 5
+    // Primary: first 5 (from truncated free data)
     const primaryItems = allItems.slice(0,5);
-    // Tier 1: next 3 (behind paywall)
-    const extraItems1  = allItems.slice(5,8);
-    // Tier 2: next 3 (behind second click)
-    const extraItems2  = allItems.slice(8,11);
-
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
 
-    let extraHTML = '';
-    if (extraItems1.length > 0) {
-      extraHTML +=
-        '<div class="show-more-items" id="show-more-' + type + '">' +
-          extraItems1.map(item => buildItemHTML(item, type, marketData)).join('');
+    // Expose buildItemHTML and marketData for dynamic pro pick rendering
+    _lastBuildItemHTML = buildItemHTML;
+    _lastMarketData = marketData;
 
-      // Nest tier 2 inside tier 1 so it only appears after tier 1 is open
-      if (extraItems2.length > 0) {
-        extraHTML +=
-          '<div class="show-more-items" id="show-more-2-' + type + '">' +
-            extraItems2.map(item => buildItemHTML(item, type, marketData)).join('') +
-          '</div>' +
-          '<button class="btn-show-more" id="show-more-btn-2-' + type + '" onclick="toggleShowMore2(\'' + type + '\')">' +
-            '✦ Show ' + extraItems2.length + ' more picks' +
-          '</button>';
-      }
-
-      extraHTML +=
-        '</div>' +
-        '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-          '✦ Show ' + extraItems1.length + ' more picks' +
-        '</button>';
-    }
+    // Empty show-more container — populated dynamically when Pro user clicks "Show more"
+    const extraHTML =
+      '<div class="show-more-items" id="show-more-' + type + '"></div>' +
+      '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
+        '✦ Show more picks' +
+      '</button>';
 
     return '<div class="strategy-card"><div class="strategy-header"><div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span></div>' +
@@ -773,7 +818,7 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
   if (isOpen) return;
   itemEl.classList.add('open');
   const cacheKey = id;
-  if (drawerCache[cacheKey]) { textEl.innerHTML = drawerCache[cacheKey]; return; }
+  if (drawerCache[cacheKey]) { textEl.textContent = drawerCache[cacheKey]; return; }
   const holdingSummary = holdings.map(h => h.ticker + ' (' + h.pct + '% — ' + h.sector + ')').join(', ');
   const profile = getPortfolioProfile();
   const sectorSummary = Object.entries(profile.sectors).sort((a,b) => b[1]-a[1]).map(([s,p]) => s + ': ' + p + '%').join(', ');
@@ -1113,13 +1158,16 @@ const MAX_SLOTS = 3;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
-function savePortfolio() {
+async function savePortfolio() {
   if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
   if (portfolios.length >= MAX_SLOTS) {
-    showUpgradeModal();
-    return;
+    const allowed = await callCheckFeature('slots');
+    if (!allowed) {
+      showUpgradeModal();
+      return;
+    }
   }
   const name = 'Portfolio ' + (portfolios.length + 1);
   portfolios.push({name, holdings: JSON.parse(JSON.stringify(holdings))});
@@ -1221,7 +1269,7 @@ function showToast(msg) {
   const p = new URLSearchParams(window.location.search).get('p');
   if (!p) return;
   try {
-    const parsed = p.split('_').map(s => { const [t,pct] = s.split('-'); return {ticker:(t||'').toUpperCase().replace(/[^A-Z0-9.]/g,''), pct:parseFloat(pct)}; }).filter(h=>h.ticker&&h.pct>0);
+    const parsed = p.split('_').map(s => { const [t,pct] = s.split('-'); return {ticker:(t||'').toUpperCase().replace(/[^A-Z0-9.]/g,''), pct:parseFloat(pct)}; }).filter(h=>h.ticker&&h.pct>0).slice(0, 50);
     if (!parsed.length) return;
     holdings = parsed.map(e => { const info = STOCK_DB[e.ticker]||{name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
     renderHoldings();
@@ -1230,12 +1278,12 @@ function showToast(msg) {
 })();
 
 // ── EXPORT PDF ────────────────────────────────────────────
-function exportPDF() {
+async function exportPDF() {
   if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
 
-  const isPro = isProUser();
-  if (!isPro) { showPaywall('pdf'); return; }
+  const allowed = await callCheckFeature('pdf');
+  if (!allowed) { showPaywall('pdf'); return; }
 
   const profile = getPortfolioProfile();
   const {sectors} = profile;
@@ -1344,23 +1392,46 @@ function exportPDF() {
 renderPortfolioSlots();
 
 // ── SHOW MORE TOGGLE ─────────────────────────────────────
-function toggleShowMore(type) {
-  if (!isProUser()) { showPaywall('showmore'); return; }
+async function toggleShowMore(type) {
   const panel = document.getElementById('show-more-' + type);
   const btn   = document.getElementById('show-more-btn-' + type);
   if (!panel || !btn) return;
-  const open = panel.classList.toggle('open');
-  btn.classList.toggle('open', open);
-  if (open) {
-    btn.innerHTML = '▾ Show fewer picks';
-  } else {
-    btn.innerHTML = '✦ Show ' + panel.querySelectorAll(':scope > .etf-item').length + ' more picks';
-    // Also close tier 2
+
+  // If already open, just close
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    btn.classList.remove('open');
+    btn.innerHTML = '✦ Show more picks';
     const panel2 = document.getElementById('show-more-2-' + type);
     const btn2   = document.getElementById('show-more-btn-2-' + type);
     if (panel2) panel2.classList.remove('open');
-    if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '✦ Show ' + panel2.querySelectorAll('.etf-item').length + ' more picks'; }
+    if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '✦ Show more picks'; }
+    return;
   }
+
+  // First expansion: verify Pro server-side
+  const allowed = await callCheckFeature('picks');
+  if (!allowed) { showPaywall('showmore'); return; }
+
+  // If panel is still empty, fetch pro picks and render them
+  if (panel.querySelectorAll(':scope > .etf-item').length === 0) {
+    btn.innerHTML = '<span class="mini-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle;"></span> Loading...';
+    const proData = await fetchProPicks();
+    if (!proData) {
+      btn.innerHTML = '✦ Show more picks';
+      showToast('Failed to load extra picks. Try again.');
+      return;
+    }
+    // Render extra items into the container
+    const extraHTML = _renderProPicksForStrategy(type, proData);
+    if (extraHTML) {
+      panel.insertAdjacentHTML('afterbegin', extraHTML);
+    }
+  }
+
+  panel.classList.add('open');
+  btn.classList.add('open');
+  btn.innerHTML = '▾ Show fewer picks';
 }
 
 function toggleShowMore2(type) {
@@ -1372,6 +1443,52 @@ function toggleShowMore2(type) {
   btn.innerHTML = open
     ? '▾ Show fewer picks'
     : '✦ Show ' + panel.querySelectorAll('.etf-item').length + ' more picks';
+}
+
+// ── RENDER PRO PICKS INTO SHOW-MORE CONTAINER ────────────
+// Called after fetching /api/pro-picks to dynamically render extra items
+// Reuses the buildItemHTML function from the analyze() closure via a global reference
+let _lastBuildItemHTML = null;
+let _lastMarketData = null;
+
+function _renderProPicksForStrategy(type, proData) {
+  if (!proData || !_lastBuildItemHTML) return '';
+  const ownedTickers = holdings.map(h => h.ticker);
+  const profile = getPortfolioProfile();
+  const ownedSectors = Object.keys(profile.sectors).filter(s => (profile.sectors[s]||0) > 5);
+
+  const riskAllowed = {
+    aggressive:['High','Very High','Medium'],
+    moderate:['Medium','Low','High'],
+    conservative:['Low','Medium'],
+  }[type] || ['Medium'];
+
+  // Score and filter pro stock picks
+  const picks = (proData.stocks || [])
+    .filter(p => !ownedTickers.includes(p.ticker) && !p.avoidIfHeld.some(t => ownedTickers.includes(t)) && riskAllowed.includes(p.risk))
+    .map(p => {
+      let score = 50;
+      if (!ownedSectors.includes(p.sector)) score += 28;
+      else if ((profile.sectors[p.sector]||0) < 10) score += 14;
+      if (p.risk === 'Low') score += 6;
+      if (p.risk === 'Very High') score -= 8;
+      const md = _lastMarketData && _lastMarketData[p.ticker];
+      if (md) score += Math.round((md.momentum - 50) * 0.3);
+      return {...p, score, isStock:true};
+    })
+    .sort((a,b) => b.score - a.score)
+    .slice(0,5);
+
+  // Score and filter pro ETFs for this strategy
+  const proEtfs = (proData.etfs && proData.etfs[type]) || [];
+  const etfs = proEtfs
+    .filter(e => !ownedTickers.includes(e.ticker))
+    .map(e => ({...e, score:70, isStock:false}));
+
+  const allExtra = [...etfs, ...picks];
+  if (allExtra.length === 0) return '';
+
+  return allExtra.map(item => _lastBuildItemHTML(item, type, _lastMarketData)).join('');
 }
 
 // ── UPGRADE MODAL ────────────────────────────────────────

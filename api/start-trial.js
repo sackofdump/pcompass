@@ -41,10 +41,12 @@ async function neonSQL(sql, params = []) {
 
 // ── TIMING-SAFE COMPARISON ──────────────────────────────
 function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const maxLen = Math.max(a.length, b.length);
+  const aPad = a.padEnd(maxLen, '\0');
+  const bPad = b.padEnd(maxLen, '\0');
+  let mismatch = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
   }
   return mismatch === 0;
 }

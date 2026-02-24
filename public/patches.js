@@ -335,12 +335,28 @@ function signOut() {
 }
 
 // ── CLOUD PORTFOLIO SYNC ────────────────────────────────
+function getAuthHeaders() {
+  const proToken  = localStorage.getItem('pc_pro_token')  || '';
+  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
+  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
+  const authToken = localStorage.getItem('pc_auth_token') || '';
+  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
+  return {
+    'X-Pro-Token':  proToken,
+    'X-Pro-Email':  proEmail,
+    'X-Pro-Ts':     proTs,
+    'X-Auth-Token': authToken,
+    'X-Auth-Email': proEmail,
+    'X-Auth-Ts':    authTs,
+  };
+}
+
 async function savePortfolioToCloud(name, holdingsData) {
   if (!currentUser || !isProUser()) return null;
   try {
     const res = await fetch('/api/portfolios', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify({
         userId: currentUser.id,
         name: name,
@@ -368,7 +384,9 @@ async function syncPortfoliosFromCloud() {
     return;
   }
   try {
-    const res = await fetch('/api/portfolios?userId=' + currentUser.id);
+    const res = await fetch('/api/portfolios?userId=' + currentUser.id, {
+      headers: getAuthHeaders(),
+    });
     const data = await res.json();
     if (data.portfolios && data.portfolios.length > 0) {
       // Merge cloud portfolios into local storage
@@ -401,9 +419,9 @@ async function syncPortfoliosFromCloud() {
 
 // Hook into the existing savePortfolio function to also save to cloud
 const origSavePortfolio = window.savePortfolio;
-window.savePortfolio = function() {
-  // Call original save (to localStorage)
-  if (typeof origSavePortfolio === 'function') origSavePortfolio();
+window.savePortfolio = async function() {
+  // Call original save (to localStorage) — it's async now
+  if (typeof origSavePortfolio === 'function') await origSavePortfolio();
 
   // Also save to cloud if signed in
   if (currentUser && holdings.length > 0) {

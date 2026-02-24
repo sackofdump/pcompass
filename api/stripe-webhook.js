@@ -26,9 +26,7 @@ async function getRawBody(req) {
 // and getting free Pro access. This is critical.
 async function verifyStripeSignature(rawBody, sigHeader, secret) {
   if (!sigHeader || !secret) {
-    // In dev without webhook secret, skip verification
-    if (process.env.NODE_ENV !== 'production') return true;
-    throw new Error('Missing Stripe webhook secret');
+    throw new Error('Missing Stripe webhook secret or signature header');
   }
 
   // Parse Stripe-Signature header: t=timestamp,v1=signature
@@ -82,7 +80,7 @@ export default async function handler(req, res) {
     await verifyStripeSignature(rawBody, sigHeader, webhookSecret);
   } catch (err) {
     console.error('Stripe signature verification failed:', err.message);
-    return res.status(400).json({ error: 'Webhook signature invalid: ' + err.message });
+    return res.status(400).json({ error: 'Webhook signature verification failed' });
   }
 
   let event;
@@ -156,7 +154,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('[stripe] Webhook processing error:', err);
-    // Still return 200 — Stripe will retry on non-2xx
+    return res.status(500).json({ error: 'Processing failed' });
   }
 
   return res.status(200).json({ received: true });

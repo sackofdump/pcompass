@@ -24,12 +24,58 @@ async function neonSQL(sql, params = []) {
 
 // ── TIMING-SAFE COMPARISON ──────────────────────────────
 function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const maxLen = Math.max(a.length, b.length);
+  const aPad = a.padEnd(maxLen, '\0');
+  const bPad = b.padEnd(maxLen, '\0');
+  let mismatch = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
   }
   return mismatch === 0;
+}
+
+// ── AUTH TOKEN VERIFICATION ──────────────────────────────
+async function verifyAuthToken(email, token, timestamp) {
+  if (!email || !token || !timestamp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  const ts = parseInt(timestamp);
+  if (isNaN(ts) || now - ts > 86400) return false;
+
+  const secret = process.env.PRO_TOKEN_SECRET;
+  if (!secret) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`auth:${email.toLowerCase().trim()}:${ts}`));
+  const expected = Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return timingSafeEqual(token, expected);
+}
+
+// ── PRO TOKEN VERIFICATION ──────────────────────────────
+async function verifyProToken(email, token, timestamp) {
+  if (!email || !token || !timestamp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  const ts = parseInt(timestamp);
+  if (isNaN(ts) || now - ts > 86400) return false;
+
+  const secret = process.env.PRO_TOKEN_SECRET;
+  if (!secret) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${email.toLowerCase().trim()}:${ts}`));
+  const expected = Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return timingSafeEqual(token, expected);
 }
 
 // ── VERIFY USER IS WHO THEY CLAIM ─────────────────────────
@@ -42,23 +88,7 @@ async function verifyUser(req, claimedUserId) {
   if (!proEmail || !proToken || !proTs) return false;
 
   // Verify the HMAC token matches the email
-  const secret = process.env.PRO_TOKEN_SECRET;
-  if (!secret) return false;
-
-  const now = Math.floor(Date.now() / 1000);
-  const ts = parseInt(proTs);
-  if (now - ts > 86400) return false;
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${proEmail.toLowerCase().trim()}:${ts}`));
-  const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
-
-  if (!timingSafeEqual(proToken, expected)) return false;
+  if (!await verifyProToken(proEmail, proToken, proTs)) return false;
 
   // Confirm this token's email matches the claimed userId
   const rows = await neonSQL(
@@ -78,7 +108,7 @@ export default async function handler(req, res) {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts, X-Auth-Token, X-Auth-Email, X-Auth-Ts');
 
   if (req.method === 'OPTIONS') {
     if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
@@ -86,6 +116,15 @@ export default async function handler(req, res) {
   }
   if (origin && !allowedOrigin) {
     return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
+  // ── Require valid auth token for all operations ──
+  const authToken = req.headers['x-auth-token'] || '';
+  const authEmail = req.headers['x-auth-email'] || '';
+  const authTs    = req.headers['x-auth-ts']    || '';
+  const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
+  if (!isAuthenticated) {
+    return res.status(401).json({ error: 'Authentication required' });
   }
 
   if (req.method === 'GET') {
@@ -117,9 +156,22 @@ export default async function handler(req, res) {
     const authorized = await verifyUser(req, userId);
     if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Validate holdings is an array, not arbitrary JSON
+    // Validate name length
+    if (typeof name !== 'string' || name.length > 100) {
+      return res.status(400).json({ error: 'Name must be a string under 100 characters' });
+    }
+
+    // Validate holdings is an array with proper structure
     if (!Array.isArray(holdings)) {
       return res.status(400).json({ error: 'holdings must be an array' });
+    }
+    if (holdings.length > 100) {
+      return res.status(400).json({ error: 'Too many holdings (max 100)' });
+    }
+    for (const h of holdings) {
+      if (!h || typeof h.ticker !== 'string' || h.ticker.length > 10 || typeof h.pct !== 'number') {
+        return res.status(400).json({ error: 'Each holding must have ticker (string) and pct (number)' });
+      }
     }
 
     try {
@@ -133,6 +185,23 @@ export default async function handler(req, res) {
         if (result.length === 0) return res.status(404).json({ error: 'Portfolio not found' });
         return res.status(200).json({ portfolio: result[0] });
       } else {
+        // ── Enforce portfolio count limit ──
+        const countRows = await neonSQL(
+          `SELECT COUNT(*)::int AS cnt FROM portfolios WHERE user_id = $1`,
+          [parseInt(userId)]
+        );
+        const currentCount = countRows[0]?.cnt || 0;
+
+        const proToken = req.headers['x-pro-token'] || '';
+        const proEmail = req.headers['x-pro-email'] || '';
+        const proTs    = req.headers['x-pro-ts']    || '';
+        const isPro = await verifyProToken(proEmail, proToken, proTs);
+
+        const maxPortfolios = isPro ? 50 : 3;
+        if (currentCount >= maxPortfolios) {
+          return res.status(403).json({ error: 'Portfolio limit reached' });
+        }
+
         const result = await neonSQL(
           `INSERT INTO portfolios (user_id, name, holdings)
            VALUES ($1, $2, $3)

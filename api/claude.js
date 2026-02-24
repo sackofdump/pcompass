@@ -30,10 +30,12 @@ async function neonSQL(sql, params = []) {
 
 // ── TIMING-SAFE COMPARISON ──────────────────────────────
 function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const maxLen = Math.max(a.length, b.length);
+  const aPad = a.padEnd(maxLen, '\0');
+  const bPad = b.padEnd(maxLen, '\0');
+  let mismatch = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
   }
   return mismatch === 0;
 }
@@ -43,7 +45,7 @@ async function verifyProToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (now - ts > 86400) return false; // expired
+  if (isNaN(ts) || now - ts > 86400) return false; // expired
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
