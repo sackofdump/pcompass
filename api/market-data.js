@@ -1,3 +1,14 @@
+// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://pcompass.vercel.app',
+];
+
+function getAllowedOrigin(req) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return null;
+}
+
 // ── IN-MEMORY RATE LIMITER ────────────────────────────────
 const rateLimitMap = new Map();
 const RL_MAX_REQUESTS = 30; // per IP per hour
@@ -78,6 +89,24 @@ async function fetchTicker(ticker) {
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
+  // ── CORS ──
+  const origin = req.headers.origin || '';
+  const allowedOrigin = getAllowedOrigin(req);
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
+    return res.status(200).end();
+  }
+  if (origin && !allowedOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
   // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!checkRateLimit(ip)) {

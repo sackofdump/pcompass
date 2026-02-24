@@ -1,3 +1,14 @@
+// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://pcompass.vercel.app',
+];
+
+function getAllowedOrigin(req) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return null;
+}
+
 // ── IN-MEMORY RATE LIMITER ────────────────────────────────
 const trialAttempts = new Map();
 const MAX_ATTEMPTS = 5;
@@ -28,8 +39,58 @@ async function neonSQL(sql, params = []) {
   return data.rows || [];
 }
 
+// ── TIMING-SAFE COMPARISON ──────────────────────────────
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+// ── AUTH TOKEN VERIFICATION ──────────────────────────────
+async function verifyAuthToken(email, token, timestamp) {
+  if (!email || !token || !timestamp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  const ts = parseInt(timestamp);
+  if (isNaN(ts) || now - ts > 86400) return false;
+
+  const secret = process.env.PRO_TOKEN_SECRET;
+  if (!secret) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`auth:${email.toLowerCase().trim()}:${ts}`));
+  const expected = Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return timingSafeEqual(token, expected);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+
+  // ── CORS ──
+  const origin = req.headers.origin || '';
+  const allowedOrigin = getAllowedOrigin(req);
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Auth-Token, X-Auth-Email, X-Auth-Ts');
+
+  if (req.method === 'OPTIONS') {
+    if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
+    return res.status(200).end();
+  }
+  if (origin && !allowedOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -38,6 +99,18 @@ export default async function handler(req, res) {
   const email = (req.body?.email || '').toLowerCase().trim();
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Valid email required' });
+  }
+
+  // ── Require valid auth token ──
+  const authToken = req.headers['x-auth-token'] || '';
+  const authEmail = req.headers['x-auth-email'] || '';
+  const authTs    = req.headers['x-auth-ts']    || '';
+  const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
+  if (!isAuthenticated) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (authEmail.toLowerCase().trim() !== email) {
+    return res.status(403).json({ error: 'Token email mismatch' });
   }
 
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
