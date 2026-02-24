@@ -105,7 +105,30 @@ export default async function handler(req, res) {
     );
 
     const user = users[0];
-    res.status(200).json({ success: true, user: { id: user.id, email: user.email, name: user.name, picture: user.picture } });
+
+    // Generate HMAC-signed auth token (24hr expiry)
+    // 'auth:' prefix prevents cross-use with Pro tokens
+    const authTs = Math.floor(Date.now() / 1000);
+    const secret = process.env.PRO_TOKEN_SECRET;
+    if (!secret) throw new Error('PRO_TOKEN_SECRET not configured');
+    const enc = new TextEncoder();
+    const authKey = await crypto.subtle.importKey(
+      'raw', enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const authSig = await crypto.subtle.sign(
+      'HMAC', authKey,
+      enc.encode(`auth:${email.toLowerCase().trim()}:${authTs}`)
+    );
+    const authToken = Array.from(new Uint8Array(authSig))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+
+    res.status(200).json({
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
+      authToken,
+      authTs,
+    });
   } catch (err) {
     console.error('Auth error:', err);
     res.status(500).json({ error: 'Authentication failed' });

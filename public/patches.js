@@ -52,7 +52,15 @@ function isProUser() {
 
 async function verifyProAccess(email) {
   try {
-    const res = await fetch('/api/verify-pro?email=' + encodeURIComponent(email));
+    const authToken = localStorage.getItem('pc_auth_token') || '';
+    const authTs    = localStorage.getItem('pc_auth_ts')    || '';
+    const res = await fetch('/api/verify-pro?email=' + encodeURIComponent(email), {
+      headers: {
+        'X-Auth-Token': authToken,
+        'X-Auth-Email': email,
+        'X-Auth-Ts':    authTs,
+      },
+    });
     const data = await res.json();
     if (data.pro && data.token) {
       localStorage.setItem('pc_pro_email', email.toLowerCase().trim());
@@ -81,8 +89,9 @@ async function verifyProAccess(email) {
   }
 
   const email = localStorage.getItem('pc_pro_email');
-  if (email) {
-    // Re-verify on load (refreshes token)
+  const hasAuth = localStorage.getItem('pc_auth_token');
+  if (email && hasAuth) {
+    // Re-verify on load (refreshes token) — only if auth token exists
     await verifyProAccess(email);
   }
 
@@ -235,6 +244,10 @@ async function handleGoogleResponse(response) {
       currentUser = data.user;
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
+      if (data.authToken && data.authTs) {
+        localStorage.setItem('pc_auth_token', data.authToken);
+        localStorage.setItem('pc_auth_ts', String(data.authTs));
+      }
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
 
@@ -315,6 +328,8 @@ document.addEventListener('click', function(e) {
 function signOut() {
   currentUser = null;
   localStorage.removeItem('pc_user');
+  localStorage.removeItem('pc_auth_token');
+  localStorage.removeItem('pc_auth_ts');
   updateUserUI();
   showToast('Signed out.');
 }
@@ -452,6 +467,10 @@ async function appleSignIn() {
       currentUser = data.user;
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
+      if (data.authToken && data.authTs) {
+        localStorage.setItem('pc_auth_token', data.authToken);
+        localStorage.setItem('pc_auth_ts', String(data.authTs));
+      }
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
       await syncPortfoliosFromCloud();

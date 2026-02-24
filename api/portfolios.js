@@ -1,3 +1,14 @@
+// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://pcompass.vercel.app',
+];
+
+function getAllowedOrigin(req) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return null;
+}
+
 async function neonSQL(sql, params = []) {
   const connStr = process.env.POSTGRES_URL;
   const host = new URL(connStr).hostname;
@@ -59,6 +70,23 @@ async function verifyUser(req, claimedUserId) {
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
+  // ── CORS ──
+  const origin = req.headers.origin || '';
+  const allowedOrigin = getAllowedOrigin(req);
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts');
+
+  if (req.method === 'OPTIONS') {
+    if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
+    return res.status(200).end();
+  }
+  if (origin && !allowedOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
 
   if (req.method === 'GET') {
     const userId = req.query.userId;

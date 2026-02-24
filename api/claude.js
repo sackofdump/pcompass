@@ -60,6 +60,28 @@ async function verifyProToken(email, token, timestamp) {
   return timingSafeEqual(token, expected);
 }
 
+// ── AUTH TOKEN VERIFICATION ──────────────────────────────
+async function verifyAuthToken(email, token, timestamp) {
+  if (!email || !token || !timestamp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  const ts = parseInt(timestamp);
+  if (isNaN(ts) || now - ts > 86400) return false;
+
+  const secret = process.env.PRO_TOKEN_SECRET;
+  if (!secret) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`auth:${email.toLowerCase().trim()}:${ts}`));
+  const expected = Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return timingSafeEqual(token, expected);
+}
+
 // ── DB-BACKED RATE LIMITER ───────────────────────────────
 const LIMITS = {
   free:      { requests: 3,  windowMs: 60 * 60 * 1000 },       // 3/hr
@@ -97,9 +119,10 @@ async function checkRateLimitDB(clientKey, endpoint, limitKey) {
   return { allowed: true, remaining: limit.requests - count - 1, used: count + 1 };
 }
 
-function getClientKey(req, isPro, proEmail) {
-  // Use verified Pro email when available, otherwise IP
+function getClientKey(req, isPro, proEmail, authEmail) {
+  // Always prefer verified email over IP for rate limiting
   if (isPro && proEmail) return `email:${proEmail.toLowerCase().trim()}`;
+  if (authEmail) return `email:${authEmail.toLowerCase().trim()}`;
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   return `ip:${ip}`;
 }
@@ -123,7 +146,7 @@ export default async function handler(req, res) {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts, X-Auth-Token, X-Auth-Email, X-Auth-Ts');
 
   if (req.method === 'OPTIONS') {
     if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
@@ -136,6 +159,15 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ── Require valid auth token ──
+  const authToken = req.headers['x-auth-token'] || '';
+  const authEmail = req.headers['x-auth-email'] || '';
+  const authTs    = req.headers['x-auth-ts']    || '';
+  const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
+  if (!isAuthenticated) {
+    return res.status(401).json({ error: 'Authentication required. Please sign in.' });
+  }
 
   // ── Verify Pro server-side (don't just trust the header) ──
   const proToken = req.headers['x-pro-token'] || '';
@@ -157,12 +189,32 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Each message must have role "user" or "assistant"' });
   }
 
+  // ── Content length limits ──
+  const MAX_TEXT_LENGTH = 2000;
+  const MAX_IMAGE_B64_BYTES = 5 * 1024 * 1024;
+  if (typeof msg.content === 'string') {
+    if (msg.content.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ error: 'Message content exceeds ' + MAX_TEXT_LENGTH + ' character limit' });
+    }
+  } else if (Array.isArray(msg.content)) {
+    for (const block of msg.content) {
+      if (block.type === 'text' && block.text && block.text.length > MAX_TEXT_LENGTH) {
+        return res.status(400).json({ error: 'Text block exceeds ' + MAX_TEXT_LENGTH + ' character limit' });
+      }
+      if (block.type === 'image' && block.source?.type === 'base64') {
+        if ((block.source.data || '').length > MAX_IMAGE_B64_BYTES) {
+          return res.status(400).json({ error: 'Image exceeds 5 MB size limit' });
+        }
+      }
+    }
+  }
+
   // Screenshot requests have their own stricter rate limit for free users
   const isScreenshot = isScreenshotRequest(messages);
   const limitKey = isPro ? 'pro' : isScreenshot ? 'screenshot' : 'free';
   const endpoint = isScreenshot ? 'screenshot' : 'analysis';
 
-  const clientKey = getClientKey(req, isPro, proEmail);
+  const clientKey = getClientKey(req, isPro, proEmail, authEmail);
 
   let rateCheck;
   try {

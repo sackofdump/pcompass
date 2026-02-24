@@ -20,9 +20,11 @@ function escapeHTML(str) {
 // ── CLAUDE API HELPER (defined first so all functions can use it) ─────────────
 // Sends pro token + email + timestamp so server can verify Pro server-side
 async function callClaudeAPI(body) {
-  const proToken = localStorage.getItem('pc_pro_token') || '';
-  const proEmail = localStorage.getItem('pc_pro_email') || '';
-  const proTs    = localStorage.getItem('pc_pro_ts')    || '';
+  const proToken  = localStorage.getItem('pc_pro_token')  || '';
+  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
+  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
+  const authToken = localStorage.getItem('pc_auth_token') || '';
+  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
   return fetch('/api/claude', {
     method: 'POST',
     headers: {
@@ -30,6 +32,9 @@ async function callClaudeAPI(body) {
       'X-Pro-Token':  proToken,
       'X-Pro-Email':  proEmail,
       'X-Pro-Ts':     proTs,
+      'X-Auth-Token': authToken,
+      'X-Auth-Email': proEmail,
+      'X-Auth-Ts':    authTs,
     },
     body: JSON.stringify(body),
   });
