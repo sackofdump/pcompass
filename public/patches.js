@@ -18,20 +18,20 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Restore Purchases — prompts for email and verifies server-side
+// Restore Purchases — requires sign-in, uses authenticated email
 function restorePurchases() {
-  const savedEmail = localStorage.getItem('pc_pro_email');
-  const email = prompt('Enter the email you used to purchase Pro:', savedEmail || '');
-  if (!email || !email.includes('@')) {
-    showToast('Please enter a valid email.');
+  if (!currentUser || !currentUser.email) {
+    showToast('Sign in first to restore your Pro purchase.');
+    showAuthModalOptimized();
     return;
   }
+  const email = currentUser.email;
   verifyProAccess(email).then(isPro => {
     if (isPro) {
       closePaywall();
       showToast('Pro access restored!');
     } else {
-      showToast('No active Pro subscription found for that email.');
+      showToast('No active Pro subscription found for ' + email + '.');
     }
   });
 }
