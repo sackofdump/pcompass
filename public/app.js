@@ -1515,8 +1515,11 @@ function showPaywall(trigger) {
     tiers.forEach(function(el) { el.style.display = 'none'; });
     const confirmBtn = document.getElementById('paywallConfirmBtn');
     if (confirmBtn) {
-      confirmBtn.textContent = 'Visit pcompass.vercel.app to upgrade';
-      confirmBtn.onclick = function() { closePaywall(); showToast('Visit pcompass.vercel.app in your browser to upgrade.'); };
+      confirmBtn.textContent = 'This feature requires Pro';
+      confirmBtn.onclick = function() { closePaywall(); };
+      confirmBtn.style.background = '#1e2430';
+      confirmBtn.style.color = '#8a9ab8';
+      confirmBtn.style.cursor = 'default';
     }
   }
 

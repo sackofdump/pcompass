@@ -25,15 +25,13 @@ if (_isIOSApp) {
     if (actions) {
       actions.innerHTML =
         '<div style="text-align:center;padding:12px 0;">' +
-          '<p style="color:#8a9ab8;font-size:12px;margin:0 0 10px;">To upgrade to Pro, visit our website:</p>' +
-          '<p style="color:#00e5a0;font-size:14px;font-weight:700;margin:0;">pcompass.vercel.app</p>' +
-          '<p style="color:#8a9ab8;font-size:10px;margin:6px 0 0;">Open in Safari, sign in, and purchase Pro there.</p>' +
+          '<p style="color:#8a9ab8;font-size:12px;margin:0;">This feature requires a Pro subscription.</p>' +
         '</div>';
     }
     // Hide the Pro upgrade button in header if it exists
     var btnPro = document.getElementById('btnPro');
     if (btnPro) {
-      btnPro.onclick = function() { showToast('Visit pcompass.vercel.app in your browser to upgrade.'); };
+      btnPro.onclick = function() { showToast('This feature requires a Pro subscription.'); };
     }
   });
 }
@@ -167,7 +165,7 @@ async function verifyProAccess(email) {
 // ── PURCHASE FLOW ────────────────────────────────────────
 function goToPurchase(stripeUrl) {
   if (_isIOSApp) {
-    showToast('Visit pcompass.vercel.app in your browser to upgrade.');
+    showToast('This feature requires a Pro subscription.');
     return;
   }
   const savedEmail = localStorage.getItem('pc_pro_email') || '';
