@@ -696,6 +696,118 @@ function selectPaywallTier(tier) {
   }
 }
 
+// ── PATCH 8: OFFLINE PORTFOLIO VIEWING ────────────────────────────
+(function initOfflineSupport() {
+  var offlineBanner = null;
+  var disabledEls = [];
+  var analysisObserver = null;
+  var CACHE_KEY = 'pc_cached_analysis';
+  var CACHE_TS_KEY = 'pc_cached_analysis_ts';
+
+  function showOfflineBanner() {
+    if (offlineBanner) return;
+    offlineBanner = document.createElement('div');
+    offlineBanner.id = 'offlineBanner';
+    offlineBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b8860b;color:#fff;text-align:center;padding:6px 12px;font-family:"Space Mono",monospace;font-size:11px;letter-spacing:0.5px;';
+    offlineBanner.textContent = "You\u2019re offline \u2014 viewing saved data";
+    document.body.appendChild(offlineBanner);
+    // Push body content down
+    document.body.style.marginTop = (offlineBanner.offsetHeight || 28) + 'px';
+  }
+
+  function hideOfflineBanner() {
+    if (!offlineBanner) return;
+    offlineBanner.remove();
+    offlineBanner = null;
+    document.body.style.marginTop = '';
+  }
+
+  function disableControls() {
+    var selectors = ['#analyzeBtn', '.btn-analyze-sticky', '#refreshMarketBtn'];
+    disabledEls = [];
+    selectors.forEach(function(sel) {
+      var el = document.querySelector(sel);
+      if (el) {
+        el.dataset.pcWasDisabled = el.disabled ? 'true' : 'false';
+        el.disabled = true;
+        el.style.opacity = '0.4';
+        el.style.pointerEvents = 'none';
+        disabledEls.push(el);
+      }
+    });
+  }
+
+  function enableControls() {
+    disabledEls.forEach(function(el) {
+      if (el.dataset.pcWasDisabled !== 'true') {
+        el.disabled = false;
+      }
+      el.style.opacity = '';
+      el.style.pointerEvents = '';
+      delete el.dataset.pcWasDisabled;
+    });
+    disabledEls = [];
+  }
+
+  // Cache analysis HTML when it changes
+  function startObserving() {
+    var panel = document.getElementById('resultsPanel');
+    if (!panel || analysisObserver) return;
+    analysisObserver = new MutationObserver(function() {
+      var html = panel.innerHTML.trim();
+      if (html && html.length > 100) {
+        try {
+          localStorage.setItem(CACHE_KEY, html);
+          localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+        } catch(e) { /* quota exceeded */ }
+      }
+    });
+    analysisObserver.observe(panel, { childList: true, subtree: true, characterData: true });
+  }
+
+  function restoreCachedAnalysis() {
+    var panel = document.getElementById('resultsPanel');
+    if (!panel) return;
+    // Only restore if panel is currently empty
+    if (panel.innerHTML.trim().length > 100) return;
+    var cached = localStorage.getItem(CACHE_KEY);
+    var ts = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0');
+    if (!cached) return;
+    var age = Date.now() - ts;
+    var ageText = age < 60000 ? 'just now' :
+                  age < 3600000 ? Math.round(age / 60000) + 'm ago' :
+                  age < 86400000 ? Math.round(age / 3600000) + 'h ago' :
+                  Math.round(age / 86400000) + 'd ago';
+    var badge = '<div style="background:#b8860b;color:#fff;padding:6px 12px;border-radius:8px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:10px;text-align:center;letter-spacing:0.5px;">Cached analysis from ' + ageText + '</div>';
+    panel.innerHTML = badge + cached;
+  }
+
+  function goOffline() {
+    showOfflineBanner();
+    disableControls();
+    restoreCachedAnalysis();
+  }
+
+  function goOnline() {
+    hideOfflineBanner();
+    enableControls();
+  }
+
+  window.addEventListener('offline', goOffline);
+  window.addEventListener('online', goOnline);
+
+  // Start observing once DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      startObserving();
+      if (!navigator.onLine) goOffline();
+    });
+  } else {
+    startObserving();
+    if (!navigator.onLine) goOffline();
+  }
+})();
+
 // ── DYNAMIC PRICING INJECTION (web only) ─────────────────────────
 // Stripe URLs and dollar amounts are NOT in the HTML source.
 // They are injected here at runtime, only on non-iOS platforms,

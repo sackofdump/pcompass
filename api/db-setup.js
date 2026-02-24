@@ -92,6 +92,17 @@ export default async function handler(req, res) {
     )`);
     results.push('api_usage table ✓');
 
+    // ── PUSH TOKENS (push notification device tokens) ──
+    await neonSQL(`CREATE TABLE IF NOT EXISTS push_tokens (
+      id SERIAL PRIMARY KEY,
+      token VARCHAR(255) UNIQUE NOT NULL,
+      email VARCHAR(255),
+      platform VARCHAR(20) DEFAULT 'ios',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    results.push('push_tokens table ✓');
+
     // ── INDEXES (all IF NOT EXISTS — safe to re-run) ──
     // portfolios.user_id — speeds up GET /api/portfolios?userId=X
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id)`);
@@ -107,6 +118,9 @@ export default async function handler(req, res) {
 
     // api_usage — speeds up rate limit lookups
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_api_usage_lookup ON api_usage(client_key, endpoint, created_at)`);
+
+    // push_tokens.updated_at — speeds up active token queries for notifications
+    await neonSQL(`CREATE INDEX IF NOT EXISTS idx_push_tokens_updated ON push_tokens(updated_at)`);
 
     // users.apple_id — speeds up Apple auth lookups
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_users_apple_id ON users(apple_id)`);

@@ -1305,12 +1305,29 @@ function loadExample(key) {
 }
 
 // ── SHARE PORTFOLIO ───────────────────────────────────────
-function sharePortfolio() {
+async function sharePortfolio() {
   if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const encoded = holdings.map(h => h.ticker + '-' + h.pct).join('_');
   const url = window.location.origin + window.location.pathname + '?p=' + encoded;
-  navigator.clipboard.writeText(url).then(() => showToast('🔗 Link copied!')).catch(() => prompt('Copy this link:', url));
+  const summary = holdings.slice().sort((a, b) => b.pct - a.pct).map(h => h.ticker + ' ' + h.pct + '%').join(', ');
+  const text = 'My portfolio: ' + summary;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Portfolio Compass', text: text, url: url });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // user cancelled
+    }
+  }
+  // Clipboard fallback for desktop browsers
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied to clipboard!');
+  } catch (e) {
+    prompt('Copy this link:', url);
+  }
 }
 
 function showToast(msg) {

@@ -10,8 +10,16 @@
     "api/check-feature.js": { "maxDuration": 10 },
     "api/pro-picks.js": { "maxDuration": 10 },
     "api/delete-account.js": { "maxDuration": 10 },
-    "api/auth-apple.js": { "maxDuration": 10 }
+    "api/auth-apple.js": { "maxDuration": 10 },
+    "api/register-push.js": { "maxDuration": 10 },
+    "api/send-notifications.js": { "maxDuration": 30 }
   },
+  "crons": [
+    {
+      "path": "/api/send-notifications",
+      "schedule": "30 14 * * 1-5"
+    }
+  ],
   "headers": [
     {
       "source": "/data.js",
