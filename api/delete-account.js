@@ -102,8 +102,9 @@ export default async function handler(req, res) {
     // Delete pro license first (no FK)
     await neonSQL(`DELETE FROM pro_licenses WHERE LOWER(email) = $1`, [bodyEmail]);
 
-    // Delete api_usage records
-    await neonSQL(`DELETE FROM api_usage WHERE LOWER(client_key) LIKE $1`, [bodyEmail + '%']);
+    // Delete api_usage records (exact prefix match, escape LIKE wildcards)
+    const safeEmail = bodyEmail.replace(/%/g, '\\%').replace(/_/g, '\\_');
+    await neonSQL(`DELETE FROM api_usage WHERE client_key LIKE $1 ESCAPE '\\'`, ['email:' + safeEmail + '%']);
 
     // Delete user (cascades to portfolios)
     const deleted = await neonSQL(
@@ -117,7 +118,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({ success: true });
   } catch (err) {
-    console.error('Delete account error:', err);
+    console.error('Delete account error:', err.message);
     res.status(500).json({ error: 'Failed to delete account' });
   }
 }

@@ -164,16 +164,16 @@
   .error-msg { color:var(--aggressive); font-size:11px; font-family:'Space Mono',monospace; padding:4px 0 8px; }
 
   /* Stocks list */
-  .stock-list { padding:0 24px 12px; display:flex; flex-direction:column; gap:6px; min-height:40px; }
+  .stock-list { padding:0 24px 12px; display:flex; flex-direction:column; gap:4px; min-height:40px; }
   .stock-item {
     display:flex; align-items:center; justify-content:space-between;
     background:var(--surface2); border:1px solid var(--border); border-radius:8px;
-    padding:10px 14px; animation:slideIn 0.2s ease;
+    padding:7px 14px; animation:slideIn 0.2s ease;
   }
   @keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-  .stock-info { display:flex; align-items:center; gap:16px; }
-  .stock-ticker { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color:var(--text); }
-  .stock-sector { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; }
+  .stock-info { display:flex; align-items:center; gap:12px; }
+  .stock-ticker { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--text); letter-spacing:0.3px; }
+  .stock-sector { font-size:10px; color:var(--muted); font-family:'DM Sans',sans-serif; letter-spacing:0.2px; }
   .stock-weight { font-family:'Space Mono',monospace; font-size:12px; color:var(--accent); font-weight:700; }
   .btn-remove { background:none; border:none; color:var(--muted); cursor:pointer; padding:0 2px; font-size:16px; transition:color 0.2s; }
   .btn-remove:hover { color:var(--aggressive); }
@@ -647,11 +647,11 @@
     input[type="text"], input[type="number"] { padding: 9px 10px; font-size: 12px; }
     .btn-add { padding: 9px 12px; font-size: 16px; }
 
-    .stock-list { padding: 0 16px 10px; }
-    .stock-item { padding: 9px 12px; }
-    .stock-info { gap: 10px; }
+    .stock-list { padding: 0 16px 10px; gap: 3px; }
+    .stock-item { padding: 6px 12px 4px; }
+    .stock-info { gap: 8px; }
     .stock-ticker { font-size: 12px; }
-    .stock-sector { font-size: 10px; }
+    .stock-sector { font-size: 9px; }
 
     .portfolio-summary { padding: 12px 16px 14px; }
     .btn-analyze { margin: 0 16px 16px; width: calc(100% - 32px); padding: 13px; font-size: 12px; }
@@ -801,7 +801,7 @@
   .corr-text strong { color:var(--text); }
 
   /* ── SLIDER on holdings ─── */
-  .stock-item { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 14px 8px; }
+  .stock-item { flex-direction: column; align-items: stretch; gap: 3px; padding: 7px 14px 5px; }
   .stock-item-top { display:flex; align-items:center; justify-content:space-between; }
   .stock-slider-row { display:flex; align-items:center; gap:8px; }
   .stock-slider {

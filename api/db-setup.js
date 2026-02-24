@@ -130,6 +130,6 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, results });
   } catch (err) {
     console.error('[db-setup] error:', err.message);
-    res.status(500).json({ error: err.message, results });
+    res.status(500).json({ error: 'Database setup failed', results });
   }
 }

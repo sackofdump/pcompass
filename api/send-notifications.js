@@ -1,3 +1,16 @@
+// ── TIMING-SAFE COMPARISON ──────────────────────────────
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const maxLen = Math.max(a.length, b.length);
+  const aPad = a.padEnd(maxLen, '\0');
+  const bPad = b.padEnd(maxLen, '\0');
+  let mismatch = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 // ── NEON SQL HELPER ──────────────────────────────────────
 async function neonSQL(sql, params = []) {
   const connStr = process.env.POSTGRES_URL;
@@ -13,10 +26,10 @@ async function neonSQL(sql, params = []) {
 }
 
 export default async function handler(req, res) {
-  // Auth via CRON_SECRET (Vercel sets this for cron jobs)
+  // Auth via CRON_SECRET (Vercel sets this for cron jobs) — timing-safe
   const authHeader = req.headers.authorization || '';
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || !timingSafeEqual(authHeader, `Bearer ${cronSecret}`)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

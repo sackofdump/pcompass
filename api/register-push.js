@@ -6,8 +6,6 @@ const ALLOWED_ORIGINS = [
 function getAllowedOrigin(req) {
   const origin = req.headers.origin || '';
   if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  // Allow no-origin requests (native app direct fetch)
-  if (!origin) return null;
   return null;
 }
 
@@ -25,6 +23,27 @@ async function neonSQL(sql, params = []) {
   return r.json();
 }
 
+// ── IP-BASED RATE LIMITER (DB-backed) ───────────────────
+async function checkRateLimit(ip) {
+  const MAX_REQUESTS = 20; // per IP per hour
+  try {
+    const result = await neonSQL(
+      `SELECT COUNT(*) FROM api_usage WHERE client_key = $1 AND endpoint = 'register-push' AND created_at > NOW() - INTERVAL '1 hour'`,
+      [ip]
+    );
+    const count = parseInt(result.rows?.[0]?.[0] || '0');
+    if (count >= MAX_REQUESTS) return false;
+    await neonSQL(
+      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, 'register-push')`,
+      [ip]
+    );
+    return true;
+  } catch (e) {
+    // If rate limit check fails, allow the request (fail open for push registration)
+    return true;
+  }
+}
+
 export default async function handler(req, res) {
   // CORS
   const origin = getAllowedOrigin(req);
@@ -37,11 +56,22 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    // Rate limit by IP
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+    if (!await checkRateLimit(ip)) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
     const { token, email, platform } = req.body || {};
 
     // Validate token format
     if (!token || typeof token !== 'string' || !token.startsWith('ExponentPushToken[')) {
       return res.status(400).json({ error: 'Invalid push token format' });
+    }
+
+    // Validate token length (ExponentPushToken[...] is typically ~50 chars)
+    if (token.length > 100) {
+      return res.status(400).json({ error: 'Token too long' });
     }
 
     // Sanitize inputs

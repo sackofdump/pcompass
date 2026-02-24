@@ -141,7 +141,7 @@ export default async function handler(req, res) {
       authTs,
     });
   } catch (err) {
-    console.error('Apple auth error:', err);
+    console.error('Apple auth error:', err.message);
     res.status(401).json({ error: 'Apple authentication failed' });
   }
 }

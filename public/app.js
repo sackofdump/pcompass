@@ -1581,18 +1581,23 @@ function showPaywall(trigger) {
   if (msgEl) msgEl.textContent = 'You must have Pro Access to access this.';
   const modal = document.getElementById('paywallModal');
 
-  // Inside iOS app: hide Stripe buttons, show website redirect (Apple Guideline 3.1.1)
+  // Inside iOS app: hide all payment references (Apple Guideline 3.1.1)
   if (typeof _isIOSApp !== 'undefined' && _isIOSApp) {
     const tiers = modal.querySelectorAll('[id^="tier-"]');
     tiers.forEach(function(el) { el.style.display = 'none'; });
+    // Hide feature list and "Unlock Pro" heading
+    modal.querySelectorAll('.pw-features, .pw-heading').forEach(function(el) { el.style.display = 'none'; });
+    // Hide Restore Purchases in paywall
+    modal.querySelectorAll('[onclick*="restorePurchases"]').forEach(function(el) { el.style.display = 'none'; });
     const confirmBtn = document.getElementById('paywallConfirmBtn');
     if (confirmBtn) {
-      confirmBtn.textContent = 'This feature requires Pro';
+      confirmBtn.textContent = 'OK';
       confirmBtn.onclick = function() { closePaywall(); };
       confirmBtn.style.background = '#1e2430';
       confirmBtn.style.color = '#8a9ab8';
       confirmBtn.style.cursor = 'default';
     }
+    if (msgEl) msgEl.textContent = 'This feature requires a Pro subscription.';
   }
 
   modal.style.display = 'flex';

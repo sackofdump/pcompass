@@ -17,7 +17,7 @@ function isIOSApp() {
 
 const _isIOSApp = isIOSApp();
 
-// Hide Stripe purchase buttons inside iOS app on load
+// Hide Stripe purchase buttons and payment references inside iOS app (Apple Guideline 3.1.1)
 if (_isIOSApp) {
   document.addEventListener('DOMContentLoaded', function() {
     // Hide upgrade modal pricing tiers and Stripe buttons entirely
@@ -27,17 +27,16 @@ if (_isIOSApp) {
     if (actions) {
       actions.innerHTML =
         '<div style="text-align:center;padding:12px 0;">' +
-          '<p style="color:#8a9ab8;font-size:12px;margin:0;">Subscription management is available on our website.</p>' +
+          '<p style="color:#8a9ab8;font-size:12px;margin:0;">This feature requires a Pro subscription.</p>' +
         '</div>';
     }
-    // Hide "Restore Purchases" in upgrade modal
-    var restoreBtn = document.querySelector('#upgradeModal [onclick*="restorePurchases"]');
-    if (restoreBtn) restoreBtn.parentElement.style.display = 'none';
-    // Hide the Pro upgrade button in header if it exists
+    // Hide all "Restore Purchases" buttons (upgrade modal + paywall modal + user menu)
+    document.querySelectorAll('[onclick*="restorePurchases"]').forEach(function(btn) {
+      btn.style.display = 'none';
+    });
+    // Hide the Pro upgrade button in header entirely
     var btnPro = document.getElementById('btnPro');
-    if (btnPro) {
-      btnPro.onclick = function() { showToast('Subscription management is available on our website.'); };
-    }
+    if (btnPro) btnPro.style.display = 'none';
   });
 }
 
@@ -341,18 +340,22 @@ function updateUserUI() {
         if (pb) pb.style.display = 'none';
         if (headerBadge) headerBadge.style.display = 'inline-block';
       } else {
-        proStatus.innerHTML = '<span style="color:var(--muted);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="event.stopPropagation();toggleFreePlanInfo();">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>' +
-          '<div id="freePlanInfo" style="display:none;margin-top:8px;background:#0a0c10;border:1px solid #1e2430;border-radius:8px;padding:10px 12px;">' +
-            '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your free plan</div>' +
-            '<div style="display:flex;flex-direction:column;gap:4px;font-family:\'Space Mono\',monospace;font-size:10px;color:#e8ecf0;">' +
-              '<div><span style="color:#00e5a0;">✓</span> Portfolio analysis &amp; scoring</div>' +
-              '<div><span style="color:#00e5a0;">✓</span> 5 stock picks per strategy</div>' +
-              '<div><span style="color:#00e5a0;">✓</span> 4 ETF picks per strategy</div>' +
-              '<div><span style="color:#00e5a0;">✓</span> 3 AI explanations per hour</div>' +
-              '<div><span style="color:#00e5a0;">✓</span> 3 saved portfolios</div>' +
-            '</div>' +
-            '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #1e2430;font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;">Upgrade to unlock unlimited AI, expanded picks, PDF export, cloud sync &amp; more</div>' +
-          '</div>';
+        if (_isIOSApp) {
+          proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span>';
+        } else {
+          proStatus.innerHTML = '<span style="color:var(--muted);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="event.stopPropagation();toggleFreePlanInfo();">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>' +
+            '<div id="freePlanInfo" style="display:none;margin-top:8px;background:#0a0c10;border:1px solid #1e2430;border-radius:8px;padding:10px 12px;">' +
+              '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your free plan</div>' +
+              '<div style="display:flex;flex-direction:column;gap:4px;font-family:\'Space Mono\',monospace;font-size:10px;color:#e8ecf0;">' +
+                '<div><span style="color:#00e5a0;">✓</span> Portfolio analysis &amp; scoring</div>' +
+                '<div><span style="color:#00e5a0;">✓</span> 5 stock picks per strategy</div>' +
+                '<div><span style="color:#00e5a0;">✓</span> 4 ETF picks per strategy</div>' +
+                '<div><span style="color:#00e5a0;">✓</span> 3 AI explanations per hour</div>' +
+                '<div><span style="color:#00e5a0;">✓</span> 3 saved portfolios</div>' +
+              '</div>' +
+              '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #1e2430;font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;">Upgrade to unlock unlimited AI, expanded picks, PDF export, cloud sync &amp; more</div>' +
+            '</div>';
+        }
         if (headerBadge) headerBadge.style.display = 'none';
       }
     }
