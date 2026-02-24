@@ -2,6 +2,21 @@ document.getElementById('paywallModal').style.display='flex';
 document.getElementById('paywallModal').style.display='none';
 // re-close on load
 
+// ── iOS NATIVE AUTH RELAY ──────────────────────────────────
+// When the system browser redirects here after Google OAuth with state=ios_native,
+// relay the id_token back to the native app via custom URL scheme.
+(function() {
+  var h = window.location.hash;
+  if (h && h.indexOf('state=ios_native') !== -1) {
+    var params = new URLSearchParams(h.substring(1));
+    var idToken = params.get('id_token');
+    if (idToken) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      window.location.href = 'pcompass://auth?id_token=' + encodeURIComponent(idToken);
+    }
+  }
+})();
+
 // ── iOS APP DETECTION ─────────────────────────────────────
 // Detects if running inside a native iOS WebView (PWABuilder wrapper)
 // Used to hide Stripe payment links (Apple Guideline 3.1.1)
