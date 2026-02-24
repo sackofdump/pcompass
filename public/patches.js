@@ -338,7 +338,18 @@ function updateUserUI() {
         if (pb) pb.style.display = 'none';
         if (headerBadge) headerBadge.style.display = 'inline-block';
       } else {
-        proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>';
+        proStatus.innerHTML = '<span style="color:var(--muted);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="event.stopPropagation();toggleFreePlanInfo();">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>' +
+          '<div id="freePlanInfo" style="display:none;margin-top:8px;background:#0a0c10;border:1px solid #1e2430;border-radius:8px;padding:10px 12px;">' +
+            '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your free plan</div>' +
+            '<div style="display:flex;flex-direction:column;gap:4px;font-family:\'Space Mono\',monospace;font-size:10px;color:#e8ecf0;">' +
+              '<div><span style="color:#00e5a0;">✓</span> Portfolio analysis &amp; scoring</div>' +
+              '<div><span style="color:#00e5a0;">✓</span> 5 stock picks per strategy</div>' +
+              '<div><span style="color:#00e5a0;">✓</span> 4 ETF picks per strategy</div>' +
+              '<div><span style="color:#00e5a0;">✓</span> 3 AI explanations per hour</div>' +
+              '<div><span style="color:#00e5a0;">✓</span> 3 saved portfolios</div>' +
+            '</div>' +
+            '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #1e2430;font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;">Upgrade to unlock unlimited AI, expanded picks, PDF export, cloud sync &amp; more</div>' +
+          '</div>';
         if (headerBadge) headerBadge.style.display = 'none';
       }
     }
@@ -346,6 +357,11 @@ function updateUserUI() {
     signInBtn.style.display = 'flex';
     avatar.style.display = 'none';
   }
+}
+
+function toggleFreePlanInfo() {
+  const el = document.getElementById('freePlanInfo');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 function closeAuthModal() {
