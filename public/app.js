@@ -17,9 +17,57 @@ function escapeHTML(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── AI DATA-SHARING CONSENT (Apple Guideline 5.1.2(i)) ──────────────────────
+// Must obtain explicit consent before sending data to Anthropic (Claude AI)
+function hasAIConsent() {
+  return localStorage.getItem('pc_ai_consent') === 'yes';
+}
+
+function showAIConsentDialog() {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.id = 'aiConsentOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px;';
+    overlay.innerHTML =
+      '<div style="background:#131720;border:1px solid #2a3040;border-radius:14px;max-width:380px;width:100%;padding:24px;text-align:center;">' +
+        '<div style="font-size:32px;margin-bottom:12px;">🤖</div>' +
+        '<h3 style="color:#fff;font-family:\'DM Sans\',sans-serif;font-size:17px;margin:0 0 8px;">AI Data Disclosure</h3>' +
+        '<p style="color:#8a9ab8;font-family:\'DM Sans\',sans-serif;font-size:13px;line-height:1.5;margin:0 0 6px;">' +
+          'Portfolio Compass uses <strong style="color:#c5cee0;">Anthropic (Claude AI)</strong> to analyze your portfolio.' +
+        '</p>' +
+        '<p style="color:#8a9ab8;font-family:\'DM Sans\',sans-serif;font-size:13px;line-height:1.5;margin:0 0 16px;">' +
+          'Your stock holdings and portfolio data will be sent to Anthropic\'s servers for analysis. ' +
+          'Anthropic does not use this data for model training. ' +
+          '<a href="/privacy.html" target="_blank" style="color:#6c63ff;">Privacy Policy</a>' +
+        '</p>' +
+        '<div style="display:flex;gap:10px;">' +
+          '<button id="aiConsentDecline" style="flex:1;padding:10px;border-radius:8px;border:1px solid #2a3040;background:none;color:#8a9ab8;font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Decline</button>' +
+          '<button id="aiConsentAccept" style="flex:1;padding:10px;border-radius:8px;border:none;background:#6c63ff;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Allow</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('aiConsentAccept').onclick = function() {
+      localStorage.setItem('pc_ai_consent', 'yes');
+      overlay.remove();
+      resolve(true);
+    };
+    document.getElementById('aiConsentDecline').onclick = function() {
+      overlay.remove();
+      resolve(false);
+    };
+  });
+}
+
 // ── CLAUDE API HELPER (defined first so all functions can use it) ─────────────
 // Sends pro token + email + timestamp so server can verify Pro server-side
 async function callClaudeAPI(body) {
+  // Check AI consent before sending any data to Anthropic
+  if (!hasAIConsent()) {
+    var consented = await showAIConsentDialog();
+    if (!consented) {
+      throw new Error('AI_CONSENT_DECLINED');
+    }
+  }
   const proToken  = localStorage.getItem('pc_pro_token')  || '';
   const proEmail  = localStorage.getItem('pc_pro_email')  || '';
   const proTs     = localStorage.getItem('pc_pro_ts')     || '';
@@ -846,6 +894,7 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
     drawerCache[cacheKey] = text;
     textEl.textContent = text;
   } catch(e) {
+    if (e.message === 'AI_CONSENT_DECLINED') { itemEl.classList.remove('open'); return; }
     console.error('[claude] drawer error:', e);
     textEl.textContent = 'Fetch failed: ' + (e.message || 'unknown');
   }
@@ -952,12 +1001,18 @@ async function processImageFile(file) {
   if (!requireAuth()) return;
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/png';
-  const response = await callClaudeAPI({
-    messages:[{role:'user',content:[
-      {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
-      {type:'text',text:'This is a screenshot from a stock brokerage app (likely Robinhood). It shows stock holdings with share counts.\n\nRead EVERY ticker and its EXACT share count as shown on screen. Be precise with decimal shares (e.g. 0.811746, 0.098814, 51.58).\n\nRespond ONLY with JSON, no other text:\n{\"holdings\":[{\"ticker\":\"HOOD\",\"shares\":51.58,\"name\":\"Robinhood Markets\"},{\"ticker\":\"QQQ\",\"shares\":1.40,\"name\":\"Invesco QQQ\"}]}\n\nRules:\n- ticker = uppercase symbol exactly as shown\n- shares = exact number shown (keep all decimals)\n- name = company name if you know it, otherwise ticker\n- Skip cash, buying power, or any non-stock items\n- If nothing detected: {\"holdings\":[],\"error\":\"Could not detect holdings\"}'}
-    ]}]
-  });
+  var response;
+  try {
+    response = await callClaudeAPI({
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
+        {type:'text',text:'This is a screenshot from a stock brokerage app (likely Robinhood). It shows stock holdings with share counts.\n\nRead EVERY ticker and its EXACT share count as shown on screen. Be precise with decimal shares (e.g. 0.811746, 0.098814, 51.58).\n\nRespond ONLY with JSON, no other text:\n{\"holdings\":[{\"ticker\":\"HOOD\",\"shares\":51.58,\"name\":\"Robinhood Markets\"},{\"ticker\":\"QQQ\",\"shares\":1.40,\"name\":\"Invesco QQQ\"}]}\n\nRules:\n- ticker = uppercase symbol exactly as shown\n- shares = exact number shown (keep all decimals)\n- name = company name if you know it, otherwise ticker\n- Skip cash, buying power, or any non-stock items\n- If nothing detected: {\"holdings\":[],\"error\":\"Could not detect holdings\"}'}
+      ]}]
+    });
+  } catch(e) {
+    if (e.message === 'AI_CONSENT_DECLINED') return;
+    throw e;
+  }
   if (response.status === 429) {
     const errData = await response.json();
     document.getElementById('scanningOverlay').style.display = 'none';

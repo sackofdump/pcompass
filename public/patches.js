@@ -20,18 +20,23 @@ const _isIOSApp = isIOSApp();
 // Hide Stripe purchase buttons inside iOS app on load
 if (_isIOSApp) {
   document.addEventListener('DOMContentLoaded', function() {
-    // Hide upgrade modal Stripe buttons, replace with website message
+    // Hide upgrade modal pricing tiers and Stripe buttons entirely
+    var tiers = document.querySelector('.upgrade-tiers');
+    if (tiers) tiers.style.display = 'none';
     var actions = document.querySelector('.upgrade-actions');
     if (actions) {
       actions.innerHTML =
         '<div style="text-align:center;padding:12px 0;">' +
-          '<p style="color:#8a9ab8;font-size:12px;margin:0;">This feature requires a Pro subscription.</p>' +
+          '<p style="color:#8a9ab8;font-size:12px;margin:0;">Manage your subscription at pcompass.vercel.app</p>' +
         '</div>';
     }
+    // Hide "Restore Purchases" in upgrade modal
+    var restoreBtn = document.querySelector('#upgradeModal [onclick*="restorePurchases"]');
+    if (restoreBtn) restoreBtn.parentElement.style.display = 'none';
     // Hide the Pro upgrade button in header if it exists
     var btnPro = document.getElementById('btnPro');
     if (btnPro) {
-      btnPro.onclick = function() { showToast('This feature requires a Pro subscription.'); };
+      btnPro.onclick = function() { showToast('Manage your subscription at pcompass.vercel.app'); };
     }
   });
 }
@@ -386,6 +391,33 @@ function signOut() {
   localStorage.removeItem('pc_auth_ts');
   updateUserUI();
   showToast('Signed out.');
+}
+
+async function deleteAccount() {
+  var email = (currentUser && currentUser.email) || '';
+  if (!email) { showToast('Not signed in.'); return; }
+  if (!confirm('Delete your account?\n\nThis will permanently delete your profile, all cloud portfolios, and any Pro license. This cannot be undone.')) return;
+  if (!confirm('Are you absolutely sure? Type OK in the next prompt to confirm.')) return;
+  var typed = prompt('Type DELETE to permanently delete your account:');
+  if (typed !== 'DELETE') { showToast('Account deletion cancelled.'); return; }
+  try {
+    var headers = getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    var res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ email: email }),
+    });
+    var data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed to delete account.'); return; }
+    currentUser = null;
+    localStorage.clear();
+    updateUserUI();
+    showToast('Account deleted.');
+    setTimeout(function() { location.reload(); }, 1500);
+  } catch(e) {
+    showToast('Error deleting account. Please try again.');
+  }
 }
 
 // ── CLOUD PORTFOLIO SYNC ────────────────────────────────

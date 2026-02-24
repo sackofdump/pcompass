@@ -1,11 +1,13 @@
-const CACHE_NAME = 'pcompass-v2';
+const CACHE_NAME = 'pcompass-v3';
 const PRECACHE = [
   '/',
   '/index.html',
   '/styles.css',
   '/data.js',
   '/app.js',
-  '/patches.js'
+  '/patches.js',
+  '/privacy.html',
+  '/terms.html'
 ];
 
 // Install: cache the app shell
