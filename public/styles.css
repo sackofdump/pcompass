@@ -720,7 +720,7 @@
 
   /* ── PORTFOLIO SAVE/LOAD ─── */
   .portfolio-manager {
-    padding: 0 24px 12px;
+    padding: 8px 24px 12px;
     display: flex; flex-direction: column; gap: 8px;
   }
   .portfolio-slots { display: flex; flex-direction: column; gap: 5px; }
