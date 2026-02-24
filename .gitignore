@@ -2,3 +2,4 @@ portfolio-compass-pro
 node_modules
 .vercel
 .env*.local
+.claude/

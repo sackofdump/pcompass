@@ -9,21 +9,37 @@ function getAllowedOrigin(req) {
   return null;
 }
 
-// ── IN-MEMORY RATE LIMITER ────────────────────────────────
-const rateLimitMap = new Map();
-const RL_MAX_REQUESTS = 30; // per IP per hour
-const RL_WINDOW_MS = 60 * 60 * 1000;
+// ── NEON SQL HELPER ──────────────────────────────────────
+async function neonSQL(sql, params = []) {
+  const connStr = process.env.POSTGRES_URL;
+  const host = new URL(connStr).hostname;
+  const r = await fetch(`https://${host}/sql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
+    body: JSON.stringify({ query: sql, params }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const data = await r.json();
+  return data.rows || [];
+}
 
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const record = rateLimitMap.get(ip);
-  if (!record || now - record.windowStart > RL_WINDOW_MS) {
-    rateLimitMap.set(ip, { count: 1, windowStart: now });
+// ── DB-BACKED RATE LIMITER ───────────────────────────────
+async function checkRateLimit(ip, endpoint, maxRequests) {
+  try {
+    const result = await neonSQL(
+      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [ip, endpoint]
+    );
+    const count = result[0]?.cnt || 0;
+    if (count >= maxRequests) return false;
+    await neonSQL(
+      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+      [ip, endpoint]
+    );
     return true;
+  } catch (e) {
+    return false; // fail closed
   }
-  if (record.count >= RL_MAX_REQUESTS) return false;
-  record.count++;
-  return true;
 }
 
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
@@ -109,7 +125,7 @@ export default async function handler(req, res) {
 
   // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!checkRateLimit(ip)) {
+  if (!await checkRateLimit(ip, 'market-data', 60)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
@@ -120,7 +136,7 @@ export default async function handler(req, res) {
   const tickerList = [...new Set(
     tickers.split(',')
       .map(t => t.trim().toUpperCase().replace(/[^A-Z0-9.]/g, ''))
-      .filter(t => t.length >= 1 && t.length <= 6)
+      .filter(t => t.length >= 1 && t.length <= 6 && /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(t))
   )];
 
   // Hard cap — don't let someone request 500 tickers

@@ -1,3 +1,9 @@
+import * as jose from 'jose';
+
+// ── GOOGLE JWKS (cached) ────────────────────────────────
+const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+const GOOGLE_CLIENT_ID = '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
+
 // ── CORS ORIGIN ALLOWLIST ────────────────────────────────
 const ALLOWED_ORIGINS = [
   'https://pcompass.vercel.app',
@@ -9,21 +15,23 @@ function getAllowedOrigin(req) {
   return null;
 }
 
-// ── IN-MEMORY RATE LIMITER ────────────────────────────────
-const authAttempts = new Map();
-const MAX_ATTEMPTS = 10; // per IP per hour
-const WINDOW_MS = 60 * 60 * 1000;
-
-function checkAuthRateLimit(ip) {
-  const now = Date.now();
-  const record = authAttempts.get(ip);
-  if (!record || now - record.windowStart > WINDOW_MS) {
-    authAttempts.set(ip, { count: 1, windowStart: now });
+// ── DB-BACKED RATE LIMITER ───────────────────────────────
+async function checkRateLimit(ip, endpoint, maxRequests) {
+  try {
+    const result = await neonSQL(
+      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [ip, endpoint]
+    );
+    const count = result[0]?.cnt || 0;
+    if (count >= maxRequests) return false;
+    await neonSQL(
+      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+      [ip, endpoint]
+    );
     return true;
+  } catch (e) {
+    return false; // fail closed
   }
-  if (record.count >= MAX_ATTEMPTS) return false;
-  record.count++;
-  return true;
 }
 
 // ── NEON SQL HELPER ──────────────────────────────────────
@@ -65,7 +73,7 @@ export default async function handler(req, res) {
 
   // ── Rate limit by IP ──
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!checkAuthRateLimit(ip)) {
+  if (!await checkRateLimit(ip, 'auth', 20)) {
     return res.status(429).json({ error: 'Too many authentication attempts' });
   }
 
@@ -75,16 +83,12 @@ export default async function handler(req, res) {
 
   try {
     if (credential) {
-      // Verify Google ID token
-      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-      const payload = await verifyRes.json();
-      if (payload.error) {
-        return res.status(401).json({ error: 'Invalid token' });
-      }
-      if (payload.aud !== '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com') {
-        return res.status(401).json({ error: 'Token audience mismatch' });
-      }
-      // Accept token if it has a valid sub (user ID) and email
+      // Verify Google ID token locally via JWKS
+      const { payload } = await jose.jwtVerify(credential, GOOGLE_JWKS, {
+        issuer: ['https://accounts.google.com', 'accounts.google.com'],
+        audience: GOOGLE_CLIENT_ID,
+      });
+
       if (!payload.sub || !payload.email) {
         return res.status(401).json({ error: 'Token missing user info' });
       }

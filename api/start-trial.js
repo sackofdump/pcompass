@@ -9,21 +9,23 @@ function getAllowedOrigin(req) {
   return null;
 }
 
-// ── IN-MEMORY RATE LIMITER ────────────────────────────────
-const trialAttempts = new Map();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 60 * 60 * 1000;
-
-function checkTrialRateLimit(ip) {
-  const now = Date.now();
-  const record = trialAttempts.get(ip);
-  if (!record || now - record.windowStart > WINDOW_MS) {
-    trialAttempts.set(ip, { count: 1, windowStart: now });
+// ── DB-BACKED RATE LIMITER ───────────────────────────────
+async function checkRateLimit(ip, endpoint, maxRequests) {
+  try {
+    const result = await neonSQL(
+      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [ip, endpoint]
+    );
+    const count = result[0]?.cnt || 0;
+    if (count >= maxRequests) return false;
+    await neonSQL(
+      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+      [ip, endpoint]
+    );
     return true;
+  } catch (e) {
+    return false; // fail closed
   }
-  if (record.count >= MAX_ATTEMPTS) return false;
-  record.count++;
-  return true;
 }
 
 async function neonSQL(sql, params = []) {
@@ -56,7 +58,7 @@ async function verifyAuthToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 86400) return false;
+  if (isNaN(ts) || now - ts > 14400) return false;
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
@@ -116,7 +118,7 @@ export default async function handler(req, res) {
   }
 
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!checkTrialRateLimit(ip)) {
+  if (!await checkRateLimit(ip, 'start-trial', 10)) {
     return res.status(429).json({ error: 'Too many attempts. Try again later.' });
   }
 

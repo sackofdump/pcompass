@@ -10,7 +10,8 @@ document.getElementById('paywallModal').style.display='none';
   if (h && h.indexOf('state=ios_native') !== -1) {
     var params = new URLSearchParams(h.substring(1));
     var idToken = params.get('id_token');
-    if (idToken) {
+    // Validate JWT format (three base64url segments) before relaying
+    if (idToken && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken)) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
       window.location.href = 'pcompass://auth?id_token=' + encodeURIComponent(idToken);
     }
@@ -98,7 +99,7 @@ function isProUser() {
   const email = localStorage.getItem('pc_pro_email');
   if (token && email && timestamp) {
     const now = Math.floor(Date.now() / 1000);
-    if (now - timestamp <= 86400) return true;
+    if (now - timestamp <= 14400) return true;
   }
   return false;
 }
@@ -247,8 +248,9 @@ initGoogleSignIn();
 
 
 function openGoogleOAuthPopup() {
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
   const popup = window.open(
-    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${Math.random().toString(36).slice(2)}`,
+    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${nonce}`,
     'google-signin',
     'width=500,height=600,left=200,top=100'
   );

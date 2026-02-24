@@ -30,7 +30,7 @@ async function verifyAuthToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 86400) return false;
+  if (isNaN(ts) || now - ts > 14400) return false;
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
@@ -52,7 +52,7 @@ async function verifyProToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 86400) return false;
+  if (isNaN(ts) || now - ts > 14400) return false;
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;

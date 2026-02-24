@@ -39,8 +39,8 @@ async function checkRateLimit(ip) {
     );
     return true;
   } catch (e) {
-    // If rate limit check fails, allow the request (fail open for push registration)
-    return true;
+    // Fail closed — deny if rate limit check fails
+    return false;
   }
 }
 
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
 
   try {
     // Rate limit by IP
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+    const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',').pop()?.trim() || 'unknown';
     if (!await checkRateLimit(ip)) {
       return res.status(429).json({ error: 'Too many requests' });
     }

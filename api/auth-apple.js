@@ -11,21 +11,23 @@ function getAllowedOrigin(req) {
   return null;
 }
 
-// ── IN-MEMORY RATE LIMITER ────────────────────────────────
-const authAttempts = new Map();
-const MAX_ATTEMPTS = 10;
-const WINDOW_MS = 60 * 60 * 1000;
-
-function checkAuthRateLimit(ip) {
-  const now = Date.now();
-  const record = authAttempts.get(ip);
-  if (!record || now - record.windowStart > WINDOW_MS) {
-    authAttempts.set(ip, { count: 1, windowStart: now });
+// ── DB-BACKED RATE LIMITER ───────────────────────────────
+async function checkRateLimit(ip, endpoint, maxRequests) {
+  try {
+    const result = await neonSQL(
+      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [ip, endpoint]
+    );
+    const count = result[0]?.cnt || 0;
+    if (count >= maxRequests) return false;
+    await neonSQL(
+      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+      [ip, endpoint]
+    );
     return true;
+  } catch (e) {
+    return false; // fail closed
   }
-  if (record.count >= MAX_ATTEMPTS) return false;
-  record.count++;
-  return true;
 }
 
 // ── NEON SQL HELPER ──────────────────────────────────────
@@ -70,7 +72,7 @@ export default async function handler(req, res) {
 
   // ── Rate limit ──
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!checkAuthRateLimit(ip)) {
+  if (!await checkRateLimit(ip, 'auth-apple', 20)) {
     return res.status(429).json({ error: 'Too many authentication attempts' });
   }
 

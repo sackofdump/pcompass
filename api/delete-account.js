@@ -39,7 +39,7 @@ async function verifyAuthToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 86400) return false;
+  if (isNaN(ts) || now - ts > 14400) return false;
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
@@ -102,9 +102,8 @@ export default async function handler(req, res) {
     // Delete pro license first (no FK)
     await neonSQL(`DELETE FROM pro_licenses WHERE LOWER(email) = $1`, [bodyEmail]);
 
-    // Delete api_usage records (exact prefix match, escape LIKE wildcards)
-    const safeEmail = bodyEmail.replace(/%/g, '\\%').replace(/_/g, '\\_');
-    await neonSQL(`DELETE FROM api_usage WHERE client_key LIKE $1 ESCAPE '\\'`, ['email:' + safeEmail + '%']);
+    // Delete api_usage records for this user
+    await neonSQL(`DELETE FROM api_usage WHERE client_key = $1`, ['email:' + bodyEmail]);
 
     // Delete user (cascades to portfolios)
     const deleted = await neonSQL(

@@ -9,22 +9,24 @@ function getAllowedOrigin(req) {
   return null;
 }
 
-// ── IN-MEMORY RATE LIMITER ────────────────────────────────
+// ── DB-BACKED RATE LIMITER ───────────────────────────────
 // Prevents someone from hammering verify-pro to enumerate valid emails
-const verifyAttempts = new Map();
-const MAX_ATTEMPTS = 10; // per IP per hour
-const WINDOW_MS = 60 * 60 * 1000;
-
-function checkVerifyRateLimit(ip) {
-  const now = Date.now();
-  const record = verifyAttempts.get(ip);
-  if (!record || now - record.windowStart > WINDOW_MS) {
-    verifyAttempts.set(ip, { count: 1, windowStart: now });
+async function checkRateLimit(ip, endpoint, maxRequests) {
+  try {
+    const result = await neonSQL(
+      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [ip, endpoint]
+    );
+    const count = result[0]?.cnt || 0;
+    if (count >= maxRequests) return false;
+    await neonSQL(
+      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+      [ip, endpoint]
+    );
     return true;
+  } catch (e) {
+    return false; // fail closed
   }
-  if (record.count >= MAX_ATTEMPTS) return false;
-  record.count++;
-  return true;
 }
 
 async function neonSQL(sql, params = []) {
@@ -57,7 +59,7 @@ async function verifyAuthToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 86400) return false;
+  if (isNaN(ts) || now - ts > 14400) return false;
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
@@ -118,7 +120,7 @@ export default async function handler(req, res) {
 
   // Rate limit by IP (secondary defense)
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!checkVerifyRateLimit(ip)) {
+  if (!await checkRateLimit(ip, 'verify-pro', 30)) {
     return res.status(429).json({ pro: false, error: 'Too many verification attempts' });
   }
 
@@ -135,7 +137,7 @@ export default async function handler(req, res) {
 
     const license = rows[0];
 
-    // Generate signed HMAC token — expires in 24 hours
+    // Generate signed HMAC token — expires in 4 hours
     const timestamp = Math.floor(Date.now() / 1000);
     const secret = process.env.PRO_TOKEN_SECRET;
     if (!secret) throw new Error('PRO_TOKEN_SECRET not configured');
@@ -154,7 +156,7 @@ export default async function handler(req, res) {
 
     // Don't cache this — it contains a fresh signed token each time
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({ pro: true, plan: license.plan, token, timestamp, expiresIn: 86400 });
+    return res.status(200).json({ pro: true, plan: license.plan, token, timestamp, expiresIn: 14400 });
 
   } catch (err) {
     console.error('[verify-pro] error:', err.message);
