@@ -28,6 +28,16 @@ async function neonSQL(sql, params = []) {
   return data;
 }
 
+// ── TIMING-SAFE COMPARISON ──────────────────────────────
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 // ── PRO TOKEN VERIFICATION (server-side, not just trusting client header) ──
 async function verifyProToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
@@ -45,9 +55,9 @@ async function verifyProToken(email, token, timestamp) {
   );
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${email.toLowerCase().trim()}:${ts}`));
   const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    .map(b => b.toString(16).padStart(2, '0')).join('');
 
-  return token === expected;
+  return timingSafeEqual(token, expected);
 }
 
 // ── DB-BACKED RATE LIMITER ───────────────────────────────
@@ -90,7 +100,7 @@ async function checkRateLimitDB(clientKey, endpoint, limitKey) {
 function getClientKey(req, isPro, proEmail) {
   // Use verified Pro email when available, otherwise IP
   if (isPro && proEmail) return `email:${proEmail.toLowerCase().trim()}`;
-  const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   return `ip:${ip}`;
 }
 
@@ -159,8 +169,7 @@ export default async function handler(req, res) {
     rateCheck = await checkRateLimitDB(clientKey, endpoint, limitKey);
   } catch (err) {
     console.error('Rate limit DB error:', err.message);
-    // Fail open — don't block users if DB is down, but log it
-    rateCheck = { allowed: true, remaining: -1, used: -1 };
+    return res.status(503).json({ error: 'Service temporarily unavailable. Please try again shortly.' });
   }
 
   if (!rateCheck.allowed) {

@@ -12,6 +12,11 @@
   }, { passive: true });
 })();
 
+function escapeHTML(str) {
+  if (typeof str !== 'string') return String(str);
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ── CLAUDE API HELPER (defined first so all functions can use it) ─────────────
 // Sends pro token + email + timestamp so server can verify Pro server-side
 async function callClaudeAPI(body) {
@@ -72,10 +77,10 @@ function renderHoldings() {
     <div class="stock-item">
       <div class="stock-item-top">
         <div class="stock-info">
-          <span class="stock-ticker">${h.ticker}</span>
-          <span class="stock-sector">${h.sector}</span>
+          <span class="stock-ticker">${escapeHTML(h.ticker)}</span>
+          <span class="stock-sector">${escapeHTML(h.sector)}</span>
         </div>
-        <button class="btn-remove" onclick="removeStock('${h.ticker}')">×</button>
+        <button class="btn-remove" onclick="removeStock('${escapeHTML(h.ticker)}')">×</button>
       </div>
       <div class="stock-slider-row">
         <input type="range" class="stock-slider" min="0.1" max="${Math.min(100, h.pct + (100 - total) + h.pct)}" step="0.1"
@@ -189,7 +194,7 @@ function buildPositionTable(amount, marketData) {
     const price = md ? md.price : null;
     const shares = price ? (dollarAmt / price) : null;
     rows += '<tr>' +
-      '<td><span class="ticker-cell">' + h.ticker + '</span><br><span class="sector-cell">' + (h.sector || '') + '</span></td>' +
+      '<td><span class="ticker-cell">' + escapeHTML(h.ticker) + '</span><br><span class="sector-cell">' + escapeHTML(h.sector || '') + '</span></td>' +
       '<td>' + alloc + '%</td>' +
       '<td class="amount-cell">$' + Math.round(dollarAmt).toLocaleString() + '</td>' +
       '<td class="shares-cell">' + (shares != null ? shares.toFixed(1) : '—') + '</td>' +
@@ -941,8 +946,8 @@ function renderPreview() {
   const totalPct = previewHoldings.reduce((s,h) => s + h.pct, 0);
   container.innerHTML = previewHoldings.map((h,i) =>
     '<div class="preview-item" style="grid-template-columns:52px 1fr auto 70px 20px;">' +
-    '<span class="preview-ticker">' + h.ticker + '</span>' +
-    '<span class="preview-name">' + h.name + '</span>' +
+    '<span class="preview-ticker">' + escapeHTML(h.ticker) + '</span>' +
+    '<span class="preview-name">' + escapeHTML(h.name) + '</span>' +
     '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);white-space:nowrap;">' + (h.shares ? h.shares.toLocaleString(undefined,{maximumFractionDigits:2}) + ' sh' : '') + '</span>' +
     '<div class="preview-pct-wrapper"><input class="preview-pct-input" type="number" value="' + h.pct + '" min="0.1" max="100" step="0.1" onchange="updatePreviewPct(' + i + ',this.value)" /><span class="preview-pct-symbol">%</span></div>' +
     '<button class="btn-preview-remove" onclick="removePreviewItem(' + i + ')">×</button>' +
@@ -1039,7 +1044,7 @@ function updateCorrelationWarnings() {
     }
   }
   el.innerHTML = warnings.map(w =>
-    '<div class="corr-warn"><span class="corr-icon">⚠</span><span class="corr-text">' + w + '</span></div>'
+    '<div class="corr-warn"><span class="corr-icon">⚠</span><span class="corr-text">' + escapeHTML(w) + '</span></div>'
   ).join('');
 }
 
@@ -1150,7 +1155,7 @@ function renderPortfolioSlots() {
   if (portfolios.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = portfolios.map((p, i) =>
     '<div class="portfolio-slot" id="slot-' + i + '" onclick="loadPortfolio(' + i + ')">' +
-    '<span class="slot-name" id="slot-name-' + i + '">' + p.name + '</span>' +
+    '<span class="slot-name" id="slot-name-' + i + '">' + escapeHTML(p.name) + '</span>' +
     '<span class="slot-count">' + p.holdings.length + ' holdings</span>' +
     '<div class="slot-actions">' +
     '<button class="slot-btn" onclick="event.stopPropagation();startRenameSlot(' + i + ')" title="Rename">✎</button>' +
@@ -1166,7 +1171,7 @@ function startRenameSlot(i) {
   const current = nameEl.textContent;
   // Replace span with input
   nameEl.outerHTML =
-    '<input class="slot-name-input" id="slot-name-' + i + '" value="' + current + '" maxlength="24"' +
+    '<input class="slot-name-input" id="slot-name-' + i + '" value="' + escapeHTML(current) + '" maxlength="24"' +
     ' onclick="event.stopPropagation()"' +
     ' onblur="finishRenameSlot(' + i + ', this.value)"' +
     ' onkeydown="if(event.key===\'Enter\')this.blur();if(event.key===\'Escape\')this.blur();" />';
@@ -1211,7 +1216,7 @@ function showToast(msg) {
   const p = new URLSearchParams(window.location.search).get('p');
   if (!p) return;
   try {
-    const parsed = p.split('_').map(s => { const [t,pct] = s.split('-'); return {ticker:(t||'').toUpperCase(), pct:parseFloat(pct)}; }).filter(h=>h.ticker&&h.pct>0);
+    const parsed = p.split('_').map(s => { const [t,pct] = s.split('-'); return {ticker:(t||'').toUpperCase().replace(/[^A-Z0-9.]/g,''), pct:parseFloat(pct)}; }).filter(h=>h.ticker&&h.pct>0);
     if (!parsed.length) return;
     holdings = parsed.map(e => { const info = STOCK_DB[e.ticker]||{name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
     renderHoldings();

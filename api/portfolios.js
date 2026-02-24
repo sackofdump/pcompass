@@ -11,6 +11,16 @@ async function neonSQL(sql, params = []) {
   return data.rows || [];
 }
 
+// ── TIMING-SAFE COMPARISON ──────────────────────────────
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 // ── VERIFY USER IS WHO THEY CLAIM ─────────────────────────
 // Without this, any user could pass userId=1 and read/write anyone's portfolios
 async function verifyUser(req, claimedUserId) {
@@ -35,9 +45,9 @@ async function verifyUser(req, claimedUserId) {
   );
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${proEmail.toLowerCase().trim()}:${ts}`));
   const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    .map(b => b.toString(16).padStart(2, '0')).join('');
 
-  if (proToken !== expected) return false;
+  if (!timingSafeEqual(proToken, expected)) return false;
 
   // Confirm this token's email matches the claimed userId
   const rows = await neonSQL(

@@ -64,7 +64,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ── Rate limit by IP ──
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!checkAuthRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many authentication attempts' });
   }
@@ -80,6 +80,9 @@ export default async function handler(req, res) {
       const payload = await verifyRes.json();
       if (payload.error) {
         return res.status(401).json({ error: 'Invalid token' });
+      }
+      if (payload.aud !== '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com') {
+        return res.status(401).json({ error: 'Token audience mismatch' });
       }
       // Accept token if it has a valid sub (user ID) and email
       if (!payload.sub || !payload.email) {

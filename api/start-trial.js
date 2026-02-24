@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Valid email required' });
   }
 
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!checkTrialRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many attempts. Try again later.' });
   }

@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   }
 
   // Rate limit by IP
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!checkVerifyRateLimit(ip)) {
     return res.status(429).json({ pro: false, error: 'Too many verification attempts' });
   }
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
       encoder.encode(`${email}:${timestamp}`)
     );
     const token = Array.from(new Uint8Array(sig))
-      .map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+      .map(b => b.toString(16).padStart(2, '0')).join('');
 
     // Don't cache this — it contains a fresh signed token each time
     res.setHeader('Cache-Control', 'no-store');

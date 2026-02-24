@@ -79,7 +79,7 @@ async function fetchTicker(ticker) {
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
   // Rate limit by IP
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
