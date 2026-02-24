@@ -318,6 +318,7 @@ function updateUserUI() {
     if (currentUser.picture) {
       avatarImg.src = currentUser.picture;
       avatarImg.style.display = 'block';
+      avatar.querySelector('.avatar-initials')?.remove();
     } else {
       // Show initials circle for email users
       avatarImg.style.display = 'none';
