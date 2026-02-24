@@ -43,6 +43,7 @@ async function callClaudeAPI(body) {
 
 // ── PRO FEATURE CHECK HELPER ─────────────────────────────
 // Calls /api/check-feature to verify Pro status server-side
+// Returns: 'allowed', 'denied', or 'auth_expired'
 async function callCheckFeature(feature) {
   const proToken  = localStorage.getItem('pc_pro_token')  || '';
   const proEmail  = localStorage.getItem('pc_pro_email')  || '';
@@ -63,13 +64,13 @@ async function callCheckFeature(feature) {
       },
       body: JSON.stringify({ feature }),
     });
-    if (res.status === 401) return false;
-    if (!res.ok) return false;
+    if (res.status === 401) return 'auth_expired';
+    if (!res.ok) return 'denied';
     const data = await res.json();
-    return data.allowed === true;
+    return data.allowed === true ? 'allowed' : 'denied';
   } catch (e) {
     console.warn('[check-feature] request failed:', e.message);
-    return false; // fail closed
+    return 'denied'; // fail closed
   }
 }
 
@@ -1163,8 +1164,9 @@ async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
   if (portfolios.length >= MAX_SLOTS) {
-    const allowed = await callCheckFeature('slots');
-    if (!allowed) {
+    const result = await callCheckFeature('slots');
+    if (result === 'auth_expired') { showToast('Session expired — please sign out and back in.'); return; }
+    if (result !== 'allowed') {
       showUpgradeModal();
       return;
     }
@@ -1282,8 +1284,9 @@ async function exportPDF() {
   if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
 
-  const allowed = await callCheckFeature('pdf');
-  if (!allowed) { showPaywall('pdf'); return; }
+  const result = await callCheckFeature('pdf');
+  if (result === 'auth_expired') { showToast('Session expired — please sign out and back in.'); return; }
+  if (result !== 'allowed') { showPaywall('pdf'); return; }
 
   const profile = getPortfolioProfile();
   const {sectors} = profile;
@@ -1410,8 +1413,9 @@ async function toggleShowMore(type) {
   }
 
   // First expansion: verify Pro server-side
-  const allowed = await callCheckFeature('picks');
-  if (!allowed) { showPaywall('showmore'); return; }
+  const result = await callCheckFeature('picks');
+  if (result === 'auth_expired') { showToast('Session expired — please sign out and back in.'); return; }
+  if (result !== 'allowed') { showPaywall('showmore'); return; }
 
   // If panel is still empty, fetch pro picks and render them
   if (panel.querySelectorAll(':scope > .etf-item').length === 0) {
