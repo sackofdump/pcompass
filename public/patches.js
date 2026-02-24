@@ -258,7 +258,7 @@ function updateUserUI() {
 
   if (currentUser) {
     signInBtn.style.display = 'none';
-    avatar.style.display = 'block';
+    avatar.style.display = 'flex';
     if (currentUser.picture) {
       avatarImg.src = currentUser.picture;
       avatarImg.style.display = 'block';
@@ -276,13 +276,16 @@ function updateUserUI() {
     avatarImg.onerror = function() { this.style.display='none'; };
     menuName.textContent = currentUser.name || currentUser.email.split('@')[0];
     menuEmail.textContent = currentUser.email;
+    const headerBadge = document.getElementById('proBadgeHeader');
     if (proStatus) {
       if (isProUser()) {
         const pb = document.getElementById('btnPro');
         proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
         if (pb) pb.style.display = 'none';
+        if (headerBadge) headerBadge.style.display = 'inline-block';
       } else {
         proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>';
+        if (headerBadge) headerBadge.style.display = 'none';
       }
     }
   } else {
