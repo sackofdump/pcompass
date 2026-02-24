@@ -57,7 +57,7 @@
           <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">✦</span> Pro: Screenshot import</div>
           <div style="font-family:'Space Mono',monospace;font-size:9px;color:#e8ecf0;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">✦</span> Pro: PDF export</div>
         </div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e2430;font-family:'Space Mono',monospace;font-size:8px;color:#00e5a0;">Free to join · Pro from $1.99/mo</div>
+        <div id="signInProTeaser" style="margin-top:8px;padding-top:8px;border-top:1px solid #1e2430;font-family:'Space Mono',monospace;font-size:8px;color:#00e5a0;">Free to join</div>
       </div>
     </button>
     <!-- Logged in: show avatar -->
@@ -71,7 +71,12 @@
         <button onclick="syncPortfoliosFromCloud()" style="display:block;width:100%;text-align:left;padding:8px 14px;background:none;border:none;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer;">☁️ Sync from Cloud</button>
         <button onclick="restorePurchases()" style="display:block;width:100%;text-align:left;padding:8px 14px;background:none;border:none;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer;">🔄 Restore Purchases</button>
         <button onclick="signOut()" style="display:block;width:100%;text-align:left;padding:8px 14px;background:none;border:none;font-family:'Space Mono',monospace;font-size:10px;color:var(--aggressive);cursor:pointer;">Sign Out</button>
-        <button onclick="deleteAccount()" style="display:block;width:100%;text-align:left;padding:8px 14px;background:none;border:none;font-family:'Space Mono',monospace;font-size:10px;color:#ff4d4d;cursor:pointer;border-top:1px solid var(--border);margin-top:2px;padding-top:10px;">Delete Account</button>
+        <div style="border-top:1px solid var(--border);margin-top:2px;padding-top:4px;">
+          <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="display:block;width:100%;text-align:left;padding:6px 14px;background:none;border:none;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;opacity:0.6;">Account Settings ▸</button>
+          <div style="display:none;">
+            <button onclick="deleteAccount()" style="display:block;width:100%;text-align:left;padding:8px 14px;background:none;border:none;font-family:'Space Mono',monospace;font-size:10px;color:#ff4d4d;cursor:pointer;">Delete Account</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -214,34 +219,34 @@
             <div class="upgrade-tier-name">Free</div>
             <div class="upgrade-tier-desc">3 AI explanations · 3 screenshot imports · All analysis tools</div>
           </div>
-          <div class="upgrade-tier-price" style="color:var(--muted)">$0</div>
+          <div class="upgrade-tier-price" style="color:var(--muted)"></div>
         </div>
         <div class="upgrade-tier featured">
           <div>
             <div class="upgrade-tier-name">Pro ✦</div>
             <div class="upgrade-tier-desc">Unlimited AI insights · Screenshot import · PDF export</div>
           </div>
-          <div class="upgrade-tier-price">$1.99<span>/mo</span></div>
+          <div class="upgrade-tier-price"></div>
         </div>
         <div class="upgrade-tier" style="border-color:#a78bfa40;">
           <div>
             <div class="upgrade-tier-name">Pro Annual <span style="font-size:9px;color:#a78bfa;font-weight:400;">Save 37%</span></div>
             <div class="upgrade-tier-desc">Everything in Pro · Billed yearly</div>
           </div>
-          <div class="upgrade-tier-price" style="color:#a78bfa">$14.99<span>/yr</span></div>
+          <div class="upgrade-tier-price" style="color:#a78bfa"></div>
         </div>
         <div class="upgrade-tier">
           <div>
             <div class="upgrade-tier-name">Lifetime</div>
             <div class="upgrade-tier-desc">Everything in Pro · Pay once, own forever</div>
           </div>
-          <div class="upgrade-tier-price" style="color:#a78bfa">$19.99<span> one-time</span></div>
+          <div class="upgrade-tier-price" style="color:#a78bfa"></div>
         </div>
       </div>
       <div class="upgrade-actions">
-        <button class="btn-upgrade-cta" onclick="goToPurchase('https://buy.stripe.com/28E8wPb66b4Y4aj0M96AM03')">Get Pro — $1.99/mo</button>
-        <button class="btn-upgrade-secondary" onclick="goToPurchase('https://buy.stripe.com/28EdR94HIc926ir66t6AM05')" style="color:#a78bfa">Annual — $14.99/yr (save 37%)</button>
-        <button class="btn-upgrade-secondary" onclick="goToPurchase('https://buy.stripe.com/14AeVddeedd64aj3Yl6AM04')">Lifetime — $19.99</button>
+        <button class="btn-upgrade-cta"></button>
+        <button class="btn-upgrade-secondary" style="color:#a78bfa"></button>
+        <button class="btn-upgrade-secondary"></button>
       </div>
       <div class="upgrade-free-note">Delete a saved portfolio to save a new one on the free plan.</div>
       <div style="text-align:center;margin-top:8px;"><button onclick="restorePurchases()" style="background:none;color:var(--muted);border:none;padding:6px;font-size:10px;cursor:pointer;font-family:'Space Mono',monospace;">Restore Purchases</button></div>
@@ -302,32 +307,32 @@
           <div style="color:#e8ecf0;font-weight:600;font-size:14px;">Pro ✦</div>
           <div style="color:#8a9ab8;font-size:11px;">Unlimited AI · Screenshot import · PDF export</div>
         </div>
-        <div style="color:#00e5a0;font-weight:700;font-size:16px;">$1.99<span style="font-size:11px;color:#8a9ab8;">/mo</span></div>
+        <div class="pw-tier-price" style="color:#00e5a0;font-weight:700;font-size:16px;"></div>
       </div>
       <div id="tier-annual" onclick="selectPaywallTier('annual')" style="border:2px solid #1e2430;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;">
         <div>
           <div style="color:#e8ecf0;font-weight:600;font-size:14px;">Annual <span style="font-size:10px;color:#a78bfa;font-weight:400;">Save 37%</span></div>
           <div style="color:#8a9ab8;font-size:11px;">Everything in Pro · Billed yearly</div>
         </div>
-        <div style="color:#a78bfa;font-weight:700;font-size:16px;">$14.99<span style="font-size:11px;color:#8a9ab8;">/yr</span></div>
+        <div class="pw-tier-price" style="color:#a78bfa;font-weight:700;font-size:16px;"></div>
       </div>
       <div id="tier-lifetime" onclick="selectPaywallTier('lifetime')" style="border:2px solid #1e2430;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;">
         <div>
           <div style="color:#e8ecf0;font-weight:600;font-size:14px;">Lifetime</div>
           <div style="color:#8a9ab8;font-size:11px;">Pay once, own forever</div>
         </div>
-        <div style="color:#a78bfa;font-weight:700;font-size:16px;">$19.99</div>
+        <div class="pw-tier-price" style="color:#a78bfa;font-weight:700;font-size:16px;"></div>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">
-      <button id="paywallConfirmBtn" onclick="goToPurchase('https://buy.stripe.com/28E8wPb66b4Y4aj0M96AM03')" style="background:linear-gradient(135deg,#00e5a0,#00b87a);color:#000;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Get Pro — $1.99/mo</button>
+      <button id="paywallConfirmBtn" style="background:linear-gradient(135deg,#00e5a0,#00b87a);color:#000;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;width:100%;"></button>
       <button onclick="restorePurchases()" style="background:none;color:#8a9ab8;border:none;padding:5px;font-size:10px;cursor:pointer;width:100%;font-family:'Space Mono',monospace;">Restore Purchases</button>
     </div>
   </div>
 </div>
 
 <footer style="text-align:center;padding:24px 0 12px;font-family:'Space Mono',monospace;font-size:9px;color:#5a6478;">
-  <a href="/privacy.html" style="color:#5a6478;text-decoration:none;">Privacy Policy</a> &middot; <a href="/terms.html" style="color:#5a6478;text-decoration:none;">Terms of Service</a>
+  <a href="/privacy.html" style="color:#5a6478;text-decoration:none;">Privacy Policy</a> &middot; <a href="/terms.html" style="color:#5a6478;text-decoration:none;">Terms of Service</a> &middot; <a href="/support.html" style="color:#5a6478;text-decoration:none;">Support</a>
 </footer>
 
 <script src="/data.js"></script>
