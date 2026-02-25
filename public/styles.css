@@ -6,7 +6,7 @@
     --accent: #00e5a0;
     --text: #e8ecf0;
     --muted: #9aabc4;
-    --aggressive: #ff4d6d;
+    --aggressive: #ff8c42;
     --moderate: #ffd166;
     --conservative: #06d6a0;
     /* Glassmorphism */
@@ -18,7 +18,7 @@
     --accent-glow: 0 0 20px rgba(0,229,160,0.25);
     --accent-glow-strong: 0 0 30px rgba(0,229,160,0.4), 0 0 60px rgba(0,229,160,0.15);
     --accent-glow-subtle: 0 0 12px rgba(0,229,160,0.12);
-    --aggressive-glow: 0 0 20px rgba(255,77,109,0.3);
+    --aggressive-glow: 0 0 20px rgba(255,140,66,0.3);
     --moderate-glow: 0 0 20px rgba(255,209,102,0.3);
     --conservative-glow: 0 0 20px rgba(6,214,160,0.3);
     /* Gradients */
@@ -37,7 +37,7 @@
     --border: #dde2ec;
     --text: #0f1623;
     --muted: #8a9ab8;
-    --aggressive: #e02a4a;
+    --aggressive: #d06820;
     --moderate: #c49500;
     --conservative: #00a87a;
     --glass-bg: rgba(255,255,255,0.7);
@@ -47,7 +47,7 @@
     --accent-glow: 0 0 16px rgba(0,168,122,0.15);
     --accent-glow-strong: 0 0 24px rgba(0,168,122,0.2);
     --accent-glow-subtle: 0 0 10px rgba(0,168,122,0.08);
-    --aggressive-glow: 0 0 16px rgba(224,42,74,0.15);
+    --aggressive-glow: 0 0 16px rgba(208,104,32,0.15);
     --moderate-glow: 0 0 16px rgba(196,149,0,0.15);
     --conservative-glow: 0 0 16px rgba(0,168,122,0.15);
   }
@@ -287,7 +287,7 @@
   /* Strategy card */
   .strategy-card { animation:fadeUp 0.4s ease backwards; transition:transform var(--transition-med),box-shadow var(--transition-med),border-color var(--transition-med); }
   .strategy-card:hover { transform:translateY(-3px); box-shadow:var(--glass-shadow), var(--accent-glow-subtle); }
-  .strategy-card:has(.badge-aggressive):hover { border-color:rgba(255,77,109,0.4); box-shadow:var(--glass-shadow), var(--aggressive-glow); }
+  .strategy-card:has(.badge-aggressive):hover { border-color:rgba(255,140,66,0.4); box-shadow:var(--glass-shadow), var(--aggressive-glow); }
   .strategy-card:has(.badge-moderate):hover { border-color:rgba(255,209,102,0.4); box-shadow:var(--glass-shadow), var(--moderate-glow); }
   .strategy-card:has(.badge-conservative):hover { border-color:rgba(6,214,160,0.4); box-shadow:var(--glass-shadow), var(--conservative-glow); }
   @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -302,7 +302,7 @@
     padding:4px 10px; border-radius:20px; font-size:10px; font-weight:600;
     letter-spacing:1.5px; text-transform:uppercase; font-family:'Space Mono',monospace;
   }
-  .badge-aggressive { background:rgba(255,77,109,0.15); color:var(--aggressive); border:1px solid rgba(255,77,109,0.3); box-shadow:0 0 8px rgba(255,77,109,0.15); }
+  .badge-aggressive { background:rgba(255,140,66,0.15); color:var(--aggressive); border:1px solid rgba(255,140,66,0.3); box-shadow:0 0 8px rgba(255,140,66,0.15); }
   .badge-moderate { background:rgba(255,209,102,0.15); color:var(--moderate); border:1px solid rgba(255,209,102,0.3); box-shadow:0 0 8px rgba(255,209,102,0.15); }
   .badge-conservative { background:rgba(6,214,160,0.15); color:var(--conservative); border:1px solid rgba(6,214,160,0.3); box-shadow:0 0 8px rgba(6,214,160,0.15); }
   .strategy-desc { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; max-width:200px; text-align:right; line-height:1.5; }
@@ -334,7 +334,7 @@
   .etf-ticker, .pick-ticker { font-family:'Space Mono',monospace; font-size:14px; font-weight:700; color:var(--text); }
     .item-type-tag { font-family:'Space Mono',monospace; font-size:8px; font-weight:700; letter-spacing:1px; padding:1px 5px; border-radius:3px; }
   .tag-etf { background:rgba(77,159,255,0.15); color:#4d9fff; border:1px solid rgba(77,159,255,0.3); }
-  .tag-stock { background:rgba(255,77,109,0.12); color:var(--aggressive); border:1px solid rgba(255,77,109,0.25); }
+  .tag-stock { background:rgba(255,140,66,0.12); color:var(--aggressive); border:1px solid rgba(255,140,66,0.25); }
   .etf-details h4, .pick-details h4 { font-size:13px; font-weight:600; color:var(--text); margin-bottom:2px; }
   .etf-details p,.pick-details p { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; }
     .etf-meta,.pick-meta { text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
@@ -343,7 +343,7 @@
   .match-med { background:rgba(255,209,102,0.15); color:var(--moderate); box-shadow:0 0 6px rgba(255,209,102,0.15); }
   .pick-sector-tag { font-family:'Space Mono',monospace; font-size:10px; padding:2px 7px; border-radius:4px; display:inline-block; }
   .etf-meta .pick-sector-tag { background:rgba(77,159,255,0.15); color:#4d9fff; border:1px solid rgba(77,159,255,0.3); }
-  .pick-meta .pick-sector-tag { background:rgba(255,77,109,0.1); color:var(--aggressive); border:1px solid rgba(255,77,109,0.25); }
+  .pick-meta .pick-sector-tag { background:rgba(255,140,66,0.1); color:var(--aggressive); border:1px solid rgba(255,140,66,0.25); }
   .pick-risk { font-family:'Space Mono',monospace; font-size:12px; font-weight:700; }
   
   /* Why hint */
@@ -362,7 +362,7 @@
     margin:0 12px 12px; background:rgba(0,229,160,0.05);
     border:1px solid rgba(0,229,160,0.15); border-radius:8px; padding:12px 14px;
   }
-  .pick-drawer-inner { background:rgba(255,77,109,0.05); border-color:rgba(255,77,109,0.15); }
+  .pick-drawer-inner { background:rgba(255,140,66,0.05); border-color:rgba(255,140,66,0.15); }
   .etf-drawer-label,.pick-drawer-label {
     font-family:'Space Mono',monospace; font-size:10px; font-weight:700;
     color:var(--accent); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:7px;
@@ -394,7 +394,7 @@
     position:relative;
   }
   .legend-item.hoverable:hover,.legend-item.hoverable.active { background:rgba(255,255,255,0.05); border-color:var(--border); }
-  .legend-item.hoverable.active-agg { color:var(--aggressive); border-color:rgba(255,77,109,0.3); background:rgba(255,77,109,0.08); }
+  .legend-item.hoverable.active-agg { color:var(--aggressive); border-color:rgba(255,140,66,0.3); background:rgba(255,140,66,0.08); }
   .legend-item.hoverable.active-mod { color:var(--moderate); border-color:rgba(255,209,102,0.3); background:rgba(255,209,102,0.08); }
   .legend-item.hoverable.active-con { color:var(--conservative); border-color:rgba(6,214,160,0.3); background:rgba(6,214,160,0.08); }
 
@@ -433,7 +433,7 @@
   .sector-bar-fill { height:100%; border-radius:4px; transition:width 0.9s cubic-bezier(0.4,0,0.2,1); position:relative; z-index:1; }
   /* Target tick markers — vertical line at target % position */
   .sector-tick { position:absolute; top:-3px; width:3px; height:14px; border-radius:2px; opacity:0; transition:opacity 0.25s ease, left 0.9s cubic-bezier(0.4,0,0.2,1); pointer-events:none; z-index:3; transform:translateX(-50%); }
-  .sector-tick.agg { background:var(--aggressive); box-shadow:0 0 6px rgba(255,77,109,0.8); }
+  .sector-tick.agg { background:var(--aggressive); box-shadow:0 0 6px rgba(255,140,66,0.8); }
   .sector-tick.mod { background:var(--moderate); box-shadow:0 0 6px rgba(255,209,102,0.8); }
   .sector-tick.con { background:var(--conservative); box-shadow:0 0 6px rgba(6,214,160,0.8); }
   .sector-bars.show-agg .sector-tick.agg { opacity:1; }
@@ -544,7 +544,7 @@
     padding:1px 5px; border-radius:3px; white-space:nowrap; flex-shrink:0;
   }
   .market-badge.up      { background:rgba(0,229,160,0.12); color:var(--conservative); border:1px solid rgba(0,229,160,0.25); box-shadow:0 0 6px rgba(0,229,160,0.12); }
-  .market-badge.down    { background:rgba(255,77,109,0.12); color:var(--aggressive);   border:1px solid rgba(255,77,109,0.25); box-shadow:0 0 6px rgba(255,77,109,0.12); }
+  .market-badge.down    { background:rgba(255,140,66,0.12); color:var(--aggressive);   border:1px solid rgba(255,140,66,0.25); box-shadow:0 0 6px rgba(255,140,66,0.12); }
   .market-badge.flat    { background:rgba(90,100,120,0.15); color:var(--muted);        border:1px solid var(--border); }
   .market-badge.loading { background:var(--surface2); color:var(--muted); border:1px solid var(--border); animation:pulse 1.4s ease infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
@@ -1448,7 +1448,7 @@
 
   /* 9. ETF vs Stock visual distinction */
   .etf-type-etf { border-left: 3px solid rgba(77,159,255,0.4); }
-  .etf-type-stock { border-left: 3px solid rgba(255,77,109,0.3); }
+  .etf-type-stock { border-left: 3px solid rgba(255,140,66,0.3); }
 
   /* 10. Gradient text on result section titles */
   .results-panel .section-title {

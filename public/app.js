@@ -1632,7 +1632,7 @@ async function exportPDF() {
   .logo-text span { color:#00e5a0; }
   .compass-icon { width:28px; height:28px; border:1.5px solid #2a3140; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .compass-icon::before { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-bottom:9px solid #00e5a0; top:2px; }
-  .compass-icon::after { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-top:9px solid #ff4d6d; bottom:2px; opacity:0.55; }
+  .compass-icon::after { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-top:9px solid #ff8c42; bottom:2px; opacity:0.55; }
   .compass-dot { width:3px; height:3px; background:#e8ecf0; border-radius:50%; position:absolute; z-index:2; }
   .date { font-family:'Space Mono',monospace; font-size:11px; color:#8a9ab8; }
   h2 { font-family:'Space Mono',monospace; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#8a9ab8; margin:24px 0 12px; }
@@ -1664,7 +1664,7 @@ async function exportPDF() {
     <div class="label">Sectors</div>
   </div>
   <div class="health-stat">
-    <div class="value" style="color:${riskNum >= 65 ? '#ff4d6d' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskLabel}</div>
+    <div class="value" style="color:${riskNum >= 65 ? '#ff8c42' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskLabel}</div>
     <div class="label">Risk Level</div>
   </div>
 </div>
@@ -1672,9 +1672,9 @@ async function exportPDF() {
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
     <span style="font-family:'Space Mono',monospace;font-size:10px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;">Portfolio Risk</span>
-    <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:${riskNum >= 65 ? '#ff4d6d' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskNum}/100</span>
+    <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:${riskNum >= 65 ? '#ff8c42' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskNum}/100</span>
   </div>
-  <div class="risk-bar"><div class="risk-fill" style="width:${riskNum}%;background:linear-gradient(90deg,#06d6a0,#ffd166,#ff4d6d)"></div></div>
+  <div class="risk-bar"><div class="risk-fill" style="width:${riskNum}%;background:linear-gradient(90deg,#06d6a0,#ffd166,#ff8c42)"></div></div>
 </div>
 
 <h2>Holdings</h2>
