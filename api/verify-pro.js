@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Uses idx_pro_licenses_email index (created in db-setup.js)
+    // Uses idx_pro_licenses_email index
     const rows = await neonSQL(
       `SELECT active, plan FROM pro_licenses WHERE email = $1 LIMIT 1`,
       [email]

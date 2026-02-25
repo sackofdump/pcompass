@@ -1,13 +1,17 @@
 import * as jose from 'jose';
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── GOOGLE JWKS (cached) ────────────────────────────────
 const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
 export default async function handler(req, res) {
+  if (!GOOGLE_CLIENT_ID) {
+    console.error('GOOGLE_CLIENT_ID not configured');
+    return res.status(500).json({ error: 'Server misconfiguration' });
+  }
   // ── CORS with origin allowlist ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
@@ -31,6 +35,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   // ── Rate limit by IP ──
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';

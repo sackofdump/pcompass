@@ -1,4 +1,5 @@
 import { neonSQL } from './lib/neon.js';
+import { checkBodySize } from './lib/cors.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -58,6 +59,7 @@ async function verifyStripeSignature(rawBody, sigHeader, secret) {
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   const rawBody = await getRawBody(req);
 

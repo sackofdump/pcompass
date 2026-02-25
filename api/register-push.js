@@ -1,4 +1,4 @@
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
 import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
@@ -24,6 +24,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   // ── Require valid auth token (cookie-first, header fallback) ──
   const authCk = getAuthFromCookie(req);

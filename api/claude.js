@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
 import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 
@@ -16,7 +16,13 @@ async function checkRateLimitDB(clientKey, endpoint, limitKey) {
   const limit = LIMITS[limitKey] || LIMITS.free;
   const windowStart = new Date(Date.now() - limit.windowMs).toISOString();
 
-  // Count recent requests
+  // Insert first (atomic — no race between check and insert)
+  await neonSQL(
+    `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
+    [clientKey, endpoint]
+  );
+
+  // Then count (includes the row we just inserted)
   const countResult = await neonSQL(
     `SELECT COUNT(*)::int AS cnt FROM api_usage
      WHERE client_key = $1 AND endpoint = $2 AND created_at > $3`,
@@ -24,22 +30,16 @@ async function checkRateLimitDB(clientKey, endpoint, limitKey) {
   );
   const count = countResult[0]?.cnt || 0;
 
-  if (count >= limit.requests) {
-    return { allowed: false, remaining: 0, used: count };
-  }
-
-  // Record this request
-  await neonSQL(
-    `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
-    [clientKey, endpoint]
-  );
-
   // Lazy cleanup (1 in 50 chance) — delete rows older than 48 hours
   if (Math.random() < 0.02) {
     neonSQL(`DELETE FROM api_usage WHERE created_at < NOW() - INTERVAL '48 hours'`).catch(() => {});
   }
 
-  return { allowed: true, remaining: limit.requests - count - 1, used: count + 1 };
+  if (count > limit.requests) {
+    return { allowed: false, remaining: 0, used: count };
+  }
+
+  return { allowed: true, remaining: limit.requests - count, used: count };
 }
 
 function getClientKey(req, isPro, proEmail, authEmail) {
@@ -84,6 +84,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!checkBodySize(req, 10_000_000)) return res.status(413).json({ error: 'Request body too large' });
 
   // ── Require valid auth token (cookie-first, header fallback) ──
   const authCk = getAuthFromCookie(req);
@@ -136,7 +137,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Text block exceeds ' + MAX_TEXT_LENGTH + ' character limit' });
       }
       if (block.type === 'image' && block.source?.type === 'base64') {
-        if ((block.source.data || '').length > MAX_IMAGE_B64_BYTES) {
+        const b64 = block.source.data || '';
+        const decodedSize = Math.ceil(b64.length * 3 / 4);
+        if (decodedSize > MAX_IMAGE_B64_BYTES) {
           return res.status(400).json({ error: 'Image exceeds 5 MB size limit' });
         }
       }

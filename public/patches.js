@@ -339,6 +339,7 @@ async function handleGoogleResponse(response) {
       currentUser = data.user;
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
+      closeAuthModal();
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
 
@@ -591,6 +592,7 @@ async function appleSignIn() {
       currentUser = data.user;
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
+      closeAuthModal();
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
       await verifyProAccess(data.user.email);

@@ -1,4 +1,4 @@
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
 import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
@@ -45,6 +45,9 @@ export default async function handler(req, res) {
   }
   if (origin && !allowedOrigin) {
     return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  if ((req.method === 'POST' || req.method === 'DELETE') && !checkBodySize(req)) {
+    return res.status(413).json({ error: 'Request body too large' });
   }
 
   // ── Require valid auth token (cookie-first, header fallback) ──
@@ -107,6 +110,9 @@ export default async function handler(req, res) {
     for (const h of holdings) {
       if (!h || typeof h.ticker !== 'string' || h.ticker.length > 10 || typeof h.pct !== 'number') {
         return res.status(400).json({ error: 'Each holding must have ticker (string) and pct (number)' });
+      }
+      if (!Number.isFinite(h.pct) || h.pct < 0 || h.pct > 100) {
+        return res.status(400).json({ error: 'Each holding pct must be a finite number between 0 and 100' });
       }
     }
 

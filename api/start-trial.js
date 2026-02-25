@@ -1,4 +1,4 @@
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
 import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
@@ -29,6 +29,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+  if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   const email = (req.body?.email || '').toLowerCase().trim();
   if (!email || !email.includes('@')) {

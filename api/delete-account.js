@@ -1,4 +1,4 @@
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
 import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   try {
     // ── Verify auth token (cookie-first, header fallback) ──
@@ -69,6 +70,10 @@ export default async function handler(req, res) {
     if (deleted.length === 0) {
       return res.status(404).json({ error: 'Account not found' });
     }
+
+    // Clear auth cookie so it can't be reused
+    const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `pc_auth=; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=0`);
 
     res.status(200).json({ success: true });
   } catch (err) {

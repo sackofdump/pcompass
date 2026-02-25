@@ -8,6 +8,12 @@ export function getAllowedOrigin(req) {
   return null;
 }
 
+// Request body size guard — call at top of POST handlers
+export function checkBodySize(req, maxBytes = 1_000_000) {
+  const len = parseInt(req.headers['content-length'] || '0');
+  return len <= maxBytes;
+}
+
 // Security headers — call at top of every handler
 export function setSecurityHeaders(res) {
   res.setHeader('X-Frame-Options', 'DENY');
