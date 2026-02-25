@@ -16,8 +16,33 @@ function setCached(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── FETCH BATCH VIA FMP ──────────────────────────────────
-// Single API call for all tickers using Financial Modeling Prep batch quote endpoint
+// ── FETCH QUOTES VIA FMP STABLE API ─────────────────────
+// FMP deprecated the v3 batch endpoint for free-tier keys (Aug 2025).
+// Use stable/quote per ticker in parallel, with in-memory cache.
+async function fetchOne(ticker, apiKey) {
+  try {
+    const url = `https://financialmodelingprep.com/stable/quote?symbol=${ticker}&apikey=${apiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const quote = data[0];
+    if (!quote.symbol || quote.price == null) return null;
+    const changePct = quote.changePercentage ?? 0;
+    const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+    return {
+      price: Math.round(quote.price * 100) / 100,
+      changePct: Math.round(changePct * 100) / 100,
+      change: Math.round(changePct * 100) / 100,
+      momentum: Math.round(momentum),
+      marketState: 'REGULAR',
+      name: quote.name || quote.symbol,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchBatch(tickerList) {
   const apiKey = process.env.FMP_API_KEY;
   if (!apiKey) {
@@ -39,43 +64,21 @@ async function fetchBatch(tickerList) {
 
   if (uncached.length === 0) return results;
 
-  try {
-    const url = `https://financialmodelingprep.com/api/v3/quote/${uncached.join(',')}?apikey=${apiKey}`;
-    const r = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
-    });
+  // Fetch uncached tickers in parallel (individual stable/quote calls)
+  const settled = await Promise.allSettled(
+    uncached.map(async (ticker) => {
+      const result = await fetchOne(ticker, apiKey);
+      if (result) {
+        setCached(ticker, result);
+        results[ticker] = result;
+      } else {
+        results[ticker] = null;
+      }
+    })
+  );
 
-    if (!r.ok) {
-      console.warn('[market-data] FMP responded', r.status);
-      return results; // return whatever we had cached
-    }
-
-    const data = await r.json();
-    if (!Array.isArray(data)) return results;
-
-    for (const quote of data) {
-      if (!quote.symbol || quote.price == null) continue;
-      const changePct = quote.changesPercentage ?? 0;
-      const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
-      const result = {
-        price: Math.round(quote.price * 100) / 100,
-        changePct: Math.round(changePct * 100) / 100,
-        change: Math.round(changePct * 100) / 100,
-        momentum: Math.round(momentum),
-        marketState: quote.marketOpen ? 'REGULAR' : 'CLOSED',
-        name: quote.name || quote.symbol,
-      };
-      setCached(quote.symbol, result);
-      results[quote.symbol] = result;
-    }
-  } catch (e) {
-    console.warn('[market-data] FMP fetch failed:', e.message);
-  }
-
-  // Fill in nulls for any tickers that didn't return
-  for (const ticker of uncached) {
-    if (!results[ticker]) results[ticker] = null;
-  }
+  const failed = settled.filter(s => s.status === 'rejected').length;
+  if (failed > 0) console.warn(`[market-data] ${failed}/${uncached.length} FMP calls failed`);
 
   return results;
 }
