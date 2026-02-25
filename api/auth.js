@@ -59,6 +59,7 @@ export default async function handler(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
@@ -127,11 +128,14 @@ export default async function handler(req, res) {
     const authToken = Array.from(new Uint8Array(authSig))
       .map(b => b.toString(16).padStart(2, '0')).join('');
 
+    // Set HttpOnly auth cookie
+    const cookieVal = encodeURIComponent(`${email.toLowerCase().trim()}|${authTs}|${authToken}`);
+    const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=14400`);
+
     res.status(200).json({
       success: true,
       user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
-      authToken,
-      authTs,
     });
   } catch (err) {
     console.error('Auth error:', err.message);

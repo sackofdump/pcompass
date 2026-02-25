@@ -91,64 +91,47 @@ function restorePurchases() {
 }
 
 // ── PRO VERIFICATION SYSTEM ─────────────────────────────
-// Server-signed tokens prevent localStorage tampering
+// Pro token now lives in HttpOnly cookie — JS checks expiry flag only
 function isProUser() {
-  // Check paid Pro token
-  const token = localStorage.getItem('pc_pro_token');
-  const timestamp = parseInt(localStorage.getItem('pc_pro_ts') || '0');
-  const email = localStorage.getItem('pc_pro_email');
-  if (token && email && timestamp) {
-    const now = Math.floor(Date.now() / 1000);
-    if (now - timestamp <= 14400) return true;
-  }
-  return false;
+  return Date.now() < parseInt(localStorage.getItem('pc_pro_expiry') || '0');
 }
 
 async function verifyProAccess(email) {
   try {
-    const authToken = localStorage.getItem('pc_auth_token') || '';
-    const authTs    = localStorage.getItem('pc_auth_ts')    || '';
-    const res = await fetch('/api/verify-pro?email=' + encodeURIComponent(email), {
-      headers: {
-        'X-Auth-Token': authToken,
-        'X-Auth-Email': email,
-        'X-Auth-Ts':    authTs,
-      },
-    });
+    const res = await fetch('/api/verify-pro?email=' + encodeURIComponent(email));
     const data = await res.json();
-    if (data.pro && data.token) {
+    if (data.pro) {
       localStorage.setItem('pc_pro_email', email.toLowerCase().trim());
-      localStorage.setItem('pc_pro_token', data.token);
-      localStorage.setItem('pc_pro_ts', String(data.timestamp));
+      localStorage.setItem('pc_pro_expiry', String(Date.now() + (data.expiresIn || 14400) * 1000));
       localStorage.setItem('pc_pro_plan', data.plan || 'pro');
       updateUserUI();
       return true;
     } else {
-      localStorage.removeItem('pc_pro_token');
-      localStorage.removeItem('pc_pro_ts');
+      localStorage.removeItem('pc_pro_expiry');
       return false;
     }
   } catch(e) {
     console.warn('Pro verification failed:', e.message);
-    // If server is down, honor existing valid token
+    // If server is down, honor existing valid expiry
     return isProUser();
   }
 }
 
 // Check pro status on page load
 (async function checkProStatus() {
-  // Legacy support: if old pc_pro flag exists, prompt for email migration
-  if (isProUser() && !localStorage.getItem('pc_pro_token')) {
-    localStorage.removeItem('pc_pro'); // clear insecure flag
-  }
+  // Legacy cleanup: remove old token-based localStorage keys
+  localStorage.removeItem('pc_pro_token');
+  localStorage.removeItem('pc_pro_ts');
+  localStorage.removeItem('pc_auth_token');
+  localStorage.removeItem('pc_auth_ts');
+  localStorage.removeItem('pc_pro'); // clear insecure flag
 
   const email = localStorage.getItem('pc_pro_email');
-  const hasAuth = localStorage.getItem('pc_auth_token');
-  if (email && hasAuth) {
-    // Re-verify on load (refreshes token) — only if auth token exists
+  const hasUser = localStorage.getItem('pc_user');
+  if (email && hasUser) {
+    // Re-verify on load (refreshes cookie) — only if user is signed in
     await verifyProAccess(email);
   }
-
 })();
 
 // Sticky analyze button for mobile
@@ -303,10 +286,6 @@ async function handleGoogleResponse(response) {
       currentUser = data.user;
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
-      if (data.authToken && data.authTs) {
-        localStorage.setItem('pc_auth_token', data.authToken);
-        localStorage.setItem('pc_auth_ts', String(data.authTs));
-      }
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
 
@@ -408,8 +387,11 @@ document.addEventListener('click', function(e) {
 function signOut() {
   currentUser = null;
   localStorage.removeItem('pc_user');
-  localStorage.removeItem('pc_auth_token');
-  localStorage.removeItem('pc_auth_ts');
+  localStorage.removeItem('pc_pro_expiry');
+  localStorage.removeItem('pc_pro_email');
+  localStorage.removeItem('pc_pro_plan');
+  // Clear HttpOnly cookies server-side
+  fetch('/api/signout', { method: 'POST' }).catch(() => {});
   updateUserUI();
   showToast('Signed out.');
 }
@@ -442,20 +424,9 @@ async function deleteAccount() {
 }
 
 // ── CLOUD PORTFOLIO SYNC ────────────────────────────────
+// Auth/Pro tokens now travel via HttpOnly cookies — no JS headers needed
 function getAuthHeaders() {
-  const proToken  = localStorage.getItem('pc_pro_token')  || '';
-  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
-  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
-  const authToken = localStorage.getItem('pc_auth_token') || '';
-  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
-  return {
-    'X-Pro-Token':  proToken,
-    'X-Pro-Email':  proEmail,
-    'X-Pro-Ts':     proTs,
-    'X-Auth-Token': authToken,
-    'X-Auth-Email': proEmail,
-    'X-Auth-Ts':    authTs,
-  };
+  return {};
 }
 
 async function savePortfolioToCloud(name, holdingsData) {
@@ -592,10 +563,6 @@ async function appleSignIn() {
       currentUser = data.user;
       localStorage.setItem('pc_user', JSON.stringify(data.user));
       localStorage.setItem('pc_pro_email', data.user.email);
-      if (data.authToken && data.authTs) {
-        localStorage.setItem('pc_auth_token', data.authToken);
-        localStorage.setItem('pc_auth_ts', String(data.authTs));
-      }
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
       await syncPortfoliosFromCloud();

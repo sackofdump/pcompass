@@ -68,22 +68,9 @@ async function callClaudeAPI(body) {
       throw new Error('AI_CONSENT_DECLINED');
     }
   }
-  const proToken  = localStorage.getItem('pc_pro_token')  || '';
-  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
-  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
-  const authToken = localStorage.getItem('pc_auth_token') || '';
-  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
   return fetch('/api/claude', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Pro-Token':  proToken,
-      'X-Pro-Email':  proEmail,
-      'X-Pro-Ts':     proTs,
-      'X-Auth-Token': authToken,
-      'X-Auth-Email': proEmail,
-      'X-Auth-Ts':    authTs,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
@@ -93,23 +80,10 @@ async function callClaudeAPI(body) {
 // Calls /api/check-feature to verify Pro status server-side
 // Returns: 'allowed', 'denied', or 'auth_expired'
 async function callCheckFeature(feature) {
-  const proToken  = localStorage.getItem('pc_pro_token')  || '';
-  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
-  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
-  const authToken = localStorage.getItem('pc_auth_token') || '';
-  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
   try {
     const res = await fetch('/api/check-feature', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Pro-Token':  proToken,
-        'X-Pro-Email':  proEmail,
-        'X-Pro-Ts':     proTs,
-        'X-Auth-Token': authToken,
-        'X-Auth-Email': proEmail,
-        'X-Auth-Ts':    authTs,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ feature }),
     });
     if (res.status === 401) return 'auth_expired';
@@ -127,22 +101,8 @@ async function callCheckFeature(feature) {
 let _proPicksCache = null;
 async function fetchProPicks() {
   if (_proPicksCache) return _proPicksCache;
-  const proToken  = localStorage.getItem('pc_pro_token')  || '';
-  const proEmail  = localStorage.getItem('pc_pro_email')  || '';
-  const proTs     = localStorage.getItem('pc_pro_ts')     || '';
-  const authToken = localStorage.getItem('pc_auth_token') || '';
-  const authTs    = localStorage.getItem('pc_auth_ts')    || '';
   try {
-    const res = await fetch('/api/pro-picks', {
-      headers: {
-        'X-Pro-Token':  proToken,
-        'X-Pro-Email':  proEmail,
-        'X-Pro-Ts':     proTs,
-        'X-Auth-Token': authToken,
-        'X-Auth-Email': proEmail,
-        'X-Auth-Ts':    authTs,
-      },
-    });
+    const res = await fetch('/api/pro-picks');
     if (!res.ok) return null;
     const data = await res.json();
     _proPicksCache = data;
@@ -503,10 +463,12 @@ function analyze() {
         '✦ Show more picks' +
       '</button>';
 
-    return '<div class="strategy-card"><div class="strategy-header"><div class="strategy-label">' +
-      '<span class="strategy-badge badge-' + type + '">' + label + '</span></div>' +
+    return '<div class="strategy-card"><div class="strategy-header strategy-toggle" onclick="toggleStrategyCard(this)">' +
+      '<div class="strategy-label">' +
+      '<span class="strategy-badge badge-' + type + '">' + label + '</span>' +
+      '<span class="strategy-chevron">&#9662;</span></div>' +
       '<span class="strategy-desc">' + desc + '</span></div>' +
-      '<div class="etf-list">' + primaryHTML + extraHTML + '</div></div>';
+      '<div class="etf-list strategy-collapsed">' + primaryHTML + extraHTML + '</div></div>';
   }
 
   function renderResultsPanel(marketData) {
@@ -545,7 +507,7 @@ function analyze() {
 
     // Alert
     const alertHTML = topSectorPct >= 30
-      ? '<div class="health-alert">&#9888; ' + topSectorName + ' makes up ' + topSectorPct + '% of your portfolio — watch for sector-specific volatility.</div>'
+      ? '<div class="health-alert">&#9888; ' + topSectorName + ' makes up ' + Math.round(topSectorPct) + '% of your portfolio — watch for sector-specific volatility.</div>'
       : '';
 
     // VS S&P 500 comparisons
@@ -553,12 +515,13 @@ function analyze() {
     const spyTopSector = 28;
     const spyTopHolding = 7;
     const betaDiff = (profile.beta - spyBeta).toFixed(2);
-    const sectorDiff = topSectorPct - spyTopSector;
-    const holdDiff = (largestHolding ? largestHolding.pct : 0) - spyTopHolding;
-    const diffBadge = (val, invert) => {
-      const abs = Math.abs(val);
-      const cls = (invert ? val <= 0 : val >= 0) ? (abs > 8 ? 'bad' : 'warn') : 'good';
-      return '<span class="health-compare-diff ' + cls + '">' + (val > 0 ? '+' : '') + val + (typeof val === 'number' && val % 1 === 0 ? '%' : '') + '</span>';
+    const sectorDiff = Math.round(topSectorPct - spyTopSector);
+    const holdDiff = Math.round((largestHolding ? largestHolding.pct : 0) - spyTopHolding);
+    const diffBadge = (val, suffix, invert) => {
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      const abs = Math.abs(num);
+      const cls = (invert ? num <= 0 : num >= 0) ? (abs > 8 ? 'bad' : 'warn') : 'good';
+      return '<span class="health-compare-diff ' + cls + '">' + (num > 0 ? '+' : '') + val + suffix + '</span>';
     };
 
     const healthHTML =
@@ -576,7 +539,7 @@ function analyze() {
             '<div class="health-card-label">Diversification</div>' +
             '<div class="health-card-value ' + divClass + '">' + divScore + '<span style="font-size:14px;color:var(--muted)">/100</span></div>' +
             '<div class="health-card-sub">' + divLabel + '</div>' +
-            '<div class="health-card-sub" style="margin-top:2px">' + numSectors + ' sectors &middot; top: ' + topSectorPct + '%</div>' +
+            '<div class="health-card-sub" style="margin-top:2px">' + numSectors + ' sectors &middot; top: ' + Math.round(topSectorPct) + '%</div>' +
           '</div>' +
         '</div>' +
         '<div class="health-compare">' +
@@ -585,19 +548,19 @@ function analyze() {
             '<span class="health-compare-label">Portfolio Beta</span>' +
             '<span class="health-compare-val">' + profile.beta.toFixed(2) + '</span>' +
             '<span class="health-compare-spy">SPY 1.0</span>' +
-            diffBadge(betaDiff, true) +
+            diffBadge(betaDiff, '', true) +
           '</div>' +
           '<div class="health-compare-row">' +
             '<span class="health-compare-label">Top Sector</span>' +
-            '<span class="health-compare-val">' + topSectorPct + '%</span>' +
+            '<span class="health-compare-val">' + Math.round(topSectorPct) + '%</span>' +
             '<span class="health-compare-spy">SPY ~28%</span>' +
-            diffBadge(sectorDiff, true) +
+            diffBadge(sectorDiff, '%', true) +
           '</div>' +
           '<div class="health-compare-row">' +
             '<span class="health-compare-label">Largest Holding</span>' +
-            '<span class="health-compare-val">' + (largestHolding ? largestHolding.ticker + ' ' + largestHolding.pct + '%' : '—') + '</span>' +
+            '<span class="health-compare-val">' + (largestHolding ? largestHolding.ticker + ' ' + Math.round(largestHolding.pct) + '%' : '—') + '</span>' +
             '<span class="health-compare-spy">SPY top ~7%</span>' +
-            diffBadge(holdDiff, true) +
+            diffBadge(holdDiff, '%', true) +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1465,6 +1428,15 @@ async function exportPDF() {
 })();
 
 renderPortfolioSlots();
+
+// ── STRATEGY CARD COLLAPSE/EXPAND ────────────────────────
+function toggleStrategyCard(headerEl) {
+  const list = headerEl.nextElementSibling;
+  if (!list) return;
+  const chevron = headerEl.querySelector('.strategy-chevron');
+  list.classList.toggle('strategy-collapsed');
+  if (chevron) chevron.classList.toggle('strategy-chevron-open');
+}
 
 // ── SHOW MORE TOGGLE ─────────────────────────────────────
 async function toggleShowMore(type) {

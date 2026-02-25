@@ -1,3 +1,21 @@
+// ── COOKIE HELPERS ───────────────────────────────────────
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || '').split(';').forEach(c => {
+    const [key, ...rest] = c.trim().split('=');
+    if (key) cookies[key.trim()] = decodeURIComponent(rest.join('='));
+  });
+  return cookies;
+}
+function getAuthFromCookie(req) {
+  const c = parseCookies(req);
+  if (c.pc_auth) {
+    const [e, t, tk] = c.pc_auth.split('|');
+    if (e && t && tk) return { email: e, ts: t, token: tk };
+  }
+  return null;
+}
+
 // ── CORS ORIGIN ALLOWLIST ────────────────────────────────
 const ALLOWED_ORIGINS = [
   'https://pcompass.vercel.app',
@@ -86,6 +104,7 @@ export default async function handler(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Auth-Token, X-Auth-Email, X-Auth-Ts');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });
@@ -105,10 +124,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ pro: false, error: 'Valid email required' });
   }
 
-  // ── Require valid auth token ──
-  const authToken = req.headers['x-auth-token'] || '';
-  const authEmail = req.headers['x-auth-email'] || '';
-  const authTs    = req.headers['x-auth-ts']    || '';
+  // ── Require valid auth token (cookie-first, header fallback) ──
+  const authCk = getAuthFromCookie(req);
+  const authToken = authCk?.token || req.headers['x-auth-token'] || '';
+  const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
+  const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
   const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
   if (!isAuthenticated) {
     return res.status(401).json({ pro: false, error: 'Authentication required' });
@@ -154,9 +174,14 @@ export default async function handler(req, res) {
     const token = Array.from(new Uint8Array(sig))
       .map(b => b.toString(16).padStart(2, '0')).join('');
 
+    // Set HttpOnly pro cookie
+    const cookieVal = encodeURIComponent(`${email}|${timestamp}|${token}`);
+    const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `pc_pro=${cookieVal}; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=14400`);
+
     // Don't cache this — it contains a fresh signed token each time
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({ pro: true, plan: license.plan, token, timestamp, expiresIn: 14400 });
+    return res.status(200).json({ pro: true, plan: license.plan, expiresIn: 14400 });
 
   } catch (err) {
     console.error('[verify-pro] error:', err.message);

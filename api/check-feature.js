@@ -1,3 +1,29 @@
+// ── COOKIE HELPERS ───────────────────────────────────────
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || '').split(';').forEach(c => {
+    const [key, ...rest] = c.trim().split('=');
+    if (key) cookies[key.trim()] = decodeURIComponent(rest.join('='));
+  });
+  return cookies;
+}
+function getAuthFromCookie(req) {
+  const c = parseCookies(req);
+  if (c.pc_auth) {
+    const [e, t, tk] = c.pc_auth.split('|');
+    if (e && t && tk) return { email: e, ts: t, token: tk };
+  }
+  return null;
+}
+function getProFromCookie(req) {
+  const c = parseCookies(req);
+  if (c.pc_pro) {
+    const [e, t, tk] = c.pc_pro.split('|');
+    if (e && t && tk) return { email: e, ts: t, token: tk };
+  }
+  return null;
+}
+
 // ── CORS ORIGIN ALLOWLIST ────────────────────────────────
 const ALLOWED_ORIGINS = [
   'https://pcompass.vercel.app',
@@ -127,10 +153,11 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ── Require valid auth token ──
-  const authToken = req.headers['x-auth-token'] || '';
-  const authEmail = req.headers['x-auth-email'] || '';
-  const authTs    = req.headers['x-auth-ts']    || '';
+  // ── Require valid auth token (cookie-first, header fallback) ──
+  const authCk = getAuthFromCookie(req);
+  const authToken = authCk?.token || req.headers['x-auth-token'] || '';
+  const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
+  const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
   const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
   if (!isAuthenticated) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -154,10 +181,11 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Service temporarily unavailable' });
   }
 
-  // ── Verify Pro status ──
-  const proToken = req.headers['x-pro-token'] || '';
-  const proEmail = req.headers['x-pro-email'] || '';
-  const proTs    = req.headers['x-pro-ts']    || '';
+  // ── Verify Pro status (cookie-first, header fallback) ──
+  const proCk = getProFromCookie(req);
+  const proToken = proCk?.token || req.headers['x-pro-token'] || '';
+  const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
+  const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
   const isPro = await verifyProToken(proEmail, proToken, proTs);
 
   return res.status(200).json({ allowed: isPro });

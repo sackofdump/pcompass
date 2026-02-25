@@ -11,6 +11,7 @@
     "api/pro-picks.js": { "maxDuration": 10 },
     "api/delete-account.js": { "maxDuration": 10 },
     "api/auth-apple.js": { "maxDuration": 10 },
+    "api/signout.js": { "maxDuration": 10 },
     "api/register-push.js": { "maxDuration": 10 },
     "api/send-notifications.js": { "maxDuration": 30 }
   },
