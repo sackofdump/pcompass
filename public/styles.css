@@ -591,11 +591,7 @@
     header.header-compact { padding: 10px 20px; }
     .logo { flex: 1; min-width: 0; }
     .tagline { display:none; }
-    .portfolio-switcher {
-      position: static; transform: none; order: 0;
-    }
     .switcher-pill { max-width: 160px; }
-    .switcher-dropdown { left: 0; transform: none; }
     .header-actions {
       position: static; transform: none;
       order: 0;
@@ -738,7 +734,7 @@
 
   /* ── PORTFOLIO SWITCHER (header dropdown) ─── */
   .portfolio-switcher {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    position: relative;
     z-index: 10002;
   }
   .switcher-pill {
@@ -754,7 +750,7 @@
   .switcher-chevron { font-size: 8px; color: var(--muted); transition: transform 0.2s; flex-shrink: 0; }
   .portfolio-switcher.open .switcher-chevron { transform: rotate(180deg); }
   .switcher-dropdown {
-    display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    display: none; position: absolute; top: calc(100% + 6px); right: 0;
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
     padding: 8px; min-width: 260px; max-width: 300px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 10002;
