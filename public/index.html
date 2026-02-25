@@ -39,20 +39,6 @@
     <span class="tagline">Portfolio Diversification &amp; Strategy Analyzer</span>
   </div>
   <div class="header-actions">
-    <div class="portfolio-switcher" id="portfolioSwitcher" onclick="event.stopPropagation()">
-      <button class="switcher-pill" id="switcherPill" onclick="toggleSwitcherDropdown()">
-        <span class="switcher-label" id="switcherLabel">My Portfolios</span>
-        <span class="switcher-chevron">&#9662;</span>
-      </button>
-      <div class="switcher-dropdown" id="switcherDropdown">
-        <div class="switcher-slots" id="switcherSlots"></div>
-        <div class="switcher-actions">
-          <button class="switcher-btn" id="btnSwitcherSave" onclick="savePortfolio()">＋ Save Current</button>
-          <button class="switcher-btn" id="btnSwitcherSync" onclick="syncPortfoliosFromCloud()" style="display:none;">☁ Sync from Cloud</button>
-          <button class="switcher-btn switcher-btn-clear" id="btnSwitcherClear" onclick="clearAllHoldings()" style="display:none;">✕ Clear All</button>
-        </div>
-      </div>
-    </div>
     <!-- Pro button - always visible -->
     <button onclick="showPaywall('header')" id="btnPro" style="background:linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06));border:1px solid rgba(0,229,160,0.3);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00e5a0;cursor:pointer;display:flex;align-items:center;gap:5px;transition:border-color 0.2s,background 0.2s;" onmouseover="this.style.background='rgba(0,229,160,0.18)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06))'">
       ✦ Get Pro
@@ -97,6 +83,23 @@
     <span id="themeLabel">DARK</span>
     <div class="theme-toggle-track">
       <div class="theme-toggle-thumb"></div>
+    </div>
+  </div>
+  <div class="header-sub" onclick="event.stopPropagation()">
+    <div class="header-sub-left"></div>
+    <div class="portfolio-switcher" id="portfolioSwitcher">
+      <button class="switcher-pill" id="switcherPill" onclick="toggleSwitcherDropdown()">
+        <span class="switcher-label" id="switcherLabel">My Portfolios</span>
+        <span class="switcher-chevron">&#9662;</span>
+      </button>
+      <div class="switcher-dropdown" id="switcherDropdown">
+        <div class="switcher-slots" id="switcherSlots"></div>
+        <div class="switcher-actions">
+          <button class="switcher-btn" id="btnSwitcherSave" onclick="savePortfolio()">＋ Save Current</button>
+          <button class="switcher-btn" id="btnSwitcherSync" onclick="syncPortfoliosFromCloud()" style="display:none;">☁ Sync from Cloud</button>
+          <button class="switcher-btn switcher-btn-clear" id="btnSwitcherClear" onclick="clearAllHoldings()" style="display:none;">✕ Clear All</button>
+        </div>
+      </div>
     </div>
   </div>
 </header>

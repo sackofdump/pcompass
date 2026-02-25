@@ -28,8 +28,7 @@
   .theme-toggle {
     position: absolute;
     right: 5%;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 12px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 20px;
@@ -84,7 +83,7 @@
     transition:padding 0.25s ease, gap 0.25s ease;
   }
   header.header-compact {
-    padding:10px 5%;
+    padding:10px 5% 0;
     gap:0;
   }
   header.header-compact .tagline { font-size:10px; margin-left:0; opacity:0.5; }
@@ -95,9 +94,15 @@
   header.header-compact .logo h1 { font-size:22px; }
   header.header-compact .logo { gap:8px; }
   .header-actions {
-    position:absolute; right:calc(5% + 80px); top:50%; transform:translateY(-50%);
+    position:absolute; right:calc(5% + 80px); top:12px;
     display:flex; align-items:center; gap:8px;
   }
+  .header-sub {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 0 8px; width:100%;
+    border-top:1px solid var(--border); margin-top:8px;
+  }
+  .header-sub-left { flex:1; }
   .logo { display:flex; align-items:center; gap:12px; }
   .logo-icon {
     width:42px; height:42px;
@@ -588,10 +593,9 @@
       padding: 20px 20px 16px;
       flex-direction: row; flex-wrap: wrap; align-items: center;
     }
-    header.header-compact { padding: 10px 20px; }
+    header.header-compact { padding: 10px 20px 0; }
     .logo { flex: 1; min-width: 0; }
     .tagline { display:none; }
-    .switcher-pill { max-width: 160px; }
     .header-actions {
       position: static; transform: none;
       order: 0;
@@ -600,6 +604,8 @@
       position: static; transform: none;
       order: 0;
     }
+    .header-sub { width: 100%; margin-top: 6px; padding: 5px 0 6px; }
+    .switcher-pill { max-width: 160px; }
     .sector-row { grid-template-columns: 110px 1fr 32px; }
     .strategy-desc { max-width: 160px; }
     /* Sticky analyze button */
@@ -634,12 +640,13 @@
       padding: 14px 16px 12px;
       gap: 6px;
     }
-    header.header-compact { padding: 8px 16px; }
+    header.header-compact { padding: 8px 16px 0; }
     header.header-compact .logo h1 { font-size: 15px; }
     header.header-compact .logo-icon { width: 24px; height: 24px; }
     .logo h1 { font-size: 17px; }
     .logo-icon { width: 30px; height: 30px; }
     .tagline { display:none; }
+    .header-sub { margin-top: 4px; padding: 4px 0 5px; }
     .switcher-pill { max-width: 120px; font-size: 10px; padding: 4px 8px; }
     .header-actions { gap: 6px; }
     .theme-toggle {
@@ -735,7 +742,6 @@
   /* ── PORTFOLIO SWITCHER (header dropdown) ─── */
   .portfolio-switcher {
     position: relative;
-    z-index: 10002;
   }
   .switcher-pill {
     display: flex; align-items: center; gap: 5px;
