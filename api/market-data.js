@@ -16,48 +16,68 @@ function setCached(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── FETCH SINGLE TICKER ───────────────────────────────────
-async function fetchTicker(ticker) {
-  const cached = getCached(ticker);
-  if (cached) return cached;
+// ── FETCH BATCH VIA FMP ──────────────────────────────────
+// Single API call for all tickers using Financial Modeling Prep batch quote endpoint
+async function fetchBatch(tickerList) {
+  const apiKey = process.env.FMP_API_KEY;
+  if (!apiKey) {
+    console.error('[market-data] FMP_API_KEY not set');
+    return {};
+  }
+
+  // Check cache first — return cached results and only fetch uncached
+  const results = {};
+  const uncached = [];
+  for (const ticker of tickerList) {
+    const cached = getCached(ticker);
+    if (cached) {
+      results[ticker] = cached;
+    } else {
+      uncached.push(ticker);
+    }
+  }
+
+  if (uncached.length === 0) return results;
 
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+    const url = `https://financialmodelingprep.com/api/v3/quote/${uncached.join(',')}?apikey=${apiKey}`;
     const r = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(5000), // 5s timeout per ticker
+      signal: AbortSignal.timeout(8000),
     });
 
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.warn('[market-data] FMP responded', r.status);
+      return results; // return whatever we had cached
+    }
 
     const data = await r.json();
-    const quote = data?.chart?.result?.[0]?.meta;
-    const price = quote?.regularMarketPrice;
-    const prev  = quote?.chartPreviousClose;
+    if (!Array.isArray(data)) return results;
 
-    if (!quote || !price || !prev) return null;
-
-    const changePct = ((price - prev) / prev * 100);
-    // Momentum: 50 = neutral, 0-100 scale based on recent change
-    const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
-
-    const result = {
-      price: Math.round(price * 100) / 100,
-      changePct: Math.round(changePct * 100) / 100,
-      change: Math.round(changePct * 100) / 100, // alias for backwards compat
-      momentum: Math.round(momentum),
-      marketState: quote.marketState || 'REGULAR',
-      name: quote.shortName || quote.longName || ticker,
-    };
-
-    setCached(ticker, result);
-    return result;
-  } catch {
-    return null;
+    for (const quote of data) {
+      if (!quote.symbol || quote.price == null) continue;
+      const changePct = quote.changesPercentage ?? 0;
+      const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+      const result = {
+        price: Math.round(quote.price * 100) / 100,
+        changePct: Math.round(changePct * 100) / 100,
+        change: Math.round(changePct * 100) / 100,
+        momentum: Math.round(momentum),
+        marketState: quote.marketOpen ? 'REGULAR' : 'CLOSED',
+        name: quote.name || quote.symbol,
+      };
+      setCached(quote.symbol, result);
+      results[quote.symbol] = result;
+    }
+  } catch (e) {
+    console.warn('[market-data] FMP fetch failed:', e.message);
   }
+
+  // Fill in nulls for any tickers that didn't return
+  for (const ticker of uncached) {
+    if (!results[ticker]) results[ticker] = null;
+  }
+
+  return results;
 }
 
 // ── HANDLER ───────────────────────────────────────────────
@@ -102,12 +122,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Too many tickers. Max 40 per request.' });
   }
 
-  // Fetch all in parallel
-  const results = await Promise.all(
-    tickerList.map(async ticker => [ticker, await fetchTicker(ticker)])
-  );
-
-  const output = Object.fromEntries(results);
+  // Fetch all via single FMP batch call
+  const output = await fetchBatch(tickerList);
 
   // Cache headers — Vercel edge will cache this response per unique ticker combo
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
