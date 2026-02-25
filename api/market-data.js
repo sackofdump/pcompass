@@ -1,50 +1,7 @@
-// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-];
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
-}
-
-// ── NEON SQL HELPER ──────────────────────────────────────
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.rows || [];
-}
-
-// ── DB-BACKED RATE LIMITER ───────────────────────────────
-async function checkRateLimit(ip, endpoint, maxRequests) {
-  try {
-    const result = await neonSQL(
-      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
-      [ip, endpoint]
-    );
-    const count = result[0]?.cnt || 0;
-    if (count >= maxRequests) return false;
-    await neonSQL(
-      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
-      [ip, endpoint]
-    );
-    return true;
-  } catch (e) {
-    return false; // fail closed
-  }
-}
+import { getAllowedOrigin } from './lib/cors.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
-// Serverless functions share memory within the same instance.
-// Vercel edge cache (vercel.json) handles cross-instance caching.
 const cache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min in-function cache (edge handles the 1hr)
 
@@ -84,7 +41,7 @@ async function fetchTicker(ticker) {
     if (!quote || !price || !prev) return null;
 
     const changePct = ((price - prev) / prev * 100);
-    // Momentum: 50 = neutral, 0–100 scale based on recent change
+    // Momentum: 50 = neutral, 0-100 scale based on recent change
     const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
 
     const result = {

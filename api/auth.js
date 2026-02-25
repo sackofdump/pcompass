@@ -1,52 +1,11 @@
 import * as jose from 'jose';
+import { getAllowedOrigin } from './lib/cors.js';
+import { neonSQL } from './lib/neon.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── GOOGLE JWKS (cached) ────────────────────────────────
 const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const GOOGLE_CLIENT_ID = '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
-
-// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-];
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
-}
-
-// ── DB-BACKED RATE LIMITER ───────────────────────────────
-async function checkRateLimit(ip, endpoint, maxRequests) {
-  try {
-    const result = await neonSQL(
-      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
-      [ip, endpoint]
-    );
-    const count = result[0]?.cnt || 0;
-    if (count >= maxRequests) return false;
-    await neonSQL(
-      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
-      [ip, endpoint]
-    );
-    return true;
-  } catch (e) {
-    return false; // fail closed
-  }
-}
-
-// ── NEON SQL HELPER ──────────────────────────────────────
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.rows || [];
-}
 
 export default async function handler(req, res) {
   // ── CORS with origin allowlist ──
@@ -111,7 +70,7 @@ export default async function handler(req, res) {
 
     const user = users[0];
 
-    // Generate HMAC-signed auth token (24hr expiry)
+    // Generate HMAC-signed auth token (4hr expiry)
     // 'auth:' prefix prevents cross-use with Pro tokens
     const authTs = Math.floor(Date.now() / 1000);
     const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;

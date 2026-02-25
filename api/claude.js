@@ -1,114 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAllowedOrigin } from './lib/cors.js';
+import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
+import { neonSQL } from './lib/neon.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-// ── COOKIE HELPERS ───────────────────────────────────────
-function parseCookies(req) {
-  const cookies = {};
-  (req.headers.cookie || '').split(';').forEach(c => {
-    const [key, ...rest] = c.trim().split('=');
-    if (key) cookies[key.trim()] = decodeURIComponent(rest.join('='));
-  });
-  return cookies;
-}
-function getAuthFromCookie(req) {
-  const c = parseCookies(req);
-  if (c.pc_auth) {
-    const [e, t, tk] = c.pc_auth.split('|');
-    if (e && t && tk) return { email: e, ts: t, token: tk };
-  }
-  return null;
-}
-function getProFromCookie(req) {
-  const c = parseCookies(req);
-  if (c.pc_pro) {
-    const [e, t, tk] = c.pc_pro.split('|');
-    if (e && t && tk) return { email: e, ts: t, token: tk };
-  }
-  return null;
-}
-
-// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-];
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
-}
-
-// ── NEON SQL HELPER ──────────────────────────────────────
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  if (!connStr) throw new Error('POSTGRES_URL not set');
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data;
-}
-
-// ── TIMING-SAFE COMPARISON ──────────────────────────────
-function timingSafeEqual(a, b) {
-  const maxLen = Math.max(a.length, b.length);
-  const aPad = a.padEnd(maxLen, '\0');
-  const bPad = b.padEnd(maxLen, '\0');
-  let mismatch = a.length ^ b.length;
-  for (let i = 0; i < maxLen; i++) {
-    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
-  }
-  return mismatch === 0;
-}
-
-// ── PRO TOKEN VERIFICATION (server-side, not just trusting client header) ──
-async function verifyProToken(email, token, timestamp) {
-  if (!email || !token || !timestamp) return false;
-  const now = Math.floor(Date.now() / 1000);
-  const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false; // expired
-
-  const secret = process.env.PRO_TOKEN_SECRET;
-  if (!secret) return false;
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${email.toLowerCase().trim()}:${ts}`));
-  const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
-
-  return timingSafeEqual(token, expected);
-}
-
-// ── AUTH TOKEN VERIFICATION ──────────────────────────────
-async function verifyAuthToken(email, token, timestamp) {
-  if (!email || !token || !timestamp) return false;
-  const now = Math.floor(Date.now() / 1000);
-  const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false;
-
-  const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
-  if (!secret) return false;
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`auth:${email.toLowerCase().trim()}:${ts}`));
-  const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
-
-  return timingSafeEqual(token, expected);
-}
 
 // ── DB-BACKED RATE LIMITER ───────────────────────────────
 const LIMITS = {
@@ -127,7 +22,7 @@ async function checkRateLimitDB(clientKey, endpoint, limitKey) {
      WHERE client_key = $1 AND endpoint = $2 AND created_at > $3`,
     [clientKey, endpoint, windowStart]
   );
-  const count = countResult.rows?.[0]?.cnt || 0;
+  const count = countResult[0]?.cnt || 0;
 
   if (count >= limit.requests) {
     return { allowed: false, remaining: 0, used: count };
@@ -209,7 +104,7 @@ export default async function handler(req, res) {
     // DB validation: confirm license is still active (handles cancellations)
     try {
       const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail]);
-      if (!lic.rows || lic.rows.length === 0) isPro = false;
+      if (lic.length === 0) isPro = false;
     } catch { isPro = false; }
   }
 

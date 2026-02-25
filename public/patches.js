@@ -2,20 +2,29 @@ document.getElementById('paywallModal').style.display='flex';
 document.getElementById('paywallModal').style.display='none';
 // re-close on load
 
-// ── iOS NATIVE AUTH RELAY ──────────────────────────────────
-// When the system browser redirects here after Google OAuth with state=ios_native,
-// relay the id_token back to the native app via custom URL scheme.
+// ── GOOGLE AUTH REDIRECT HANDLER ─────────────────────────────
+// Handles the return from Google OAuth redirect flow (popup fallback + iOS native).
 (function() {
   var h = window.location.hash;
-  if (h && h.indexOf('state=ios_native') !== -1) {
-    var params = new URLSearchParams(h.substring(1));
-    var idToken = params.get('id_token');
-    // Validate JWT format (three base64url segments) before relaying
-    if (idToken && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken)) {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
-      window.location.href = 'pcompass://auth?id_token=' + encodeURIComponent(idToken);
-    }
+  if (!h || !h.includes('id_token')) return;
+  var params = new URLSearchParams(h.substring(1));
+  var idToken = params.get('id_token');
+  if (!idToken || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken)) return;
+
+  // iOS native relay — send token back to native app via custom URL scheme
+  if (h.indexOf('state=ios_native') !== -1) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    window.location.href = 'pcompass://auth?id_token=' + encodeURIComponent(idToken);
+    return;
   }
+
+  // Web redirect flow — clean URL and process sign-in
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  window.addEventListener('DOMContentLoaded', function() {
+    if (typeof handleGoogleResponse === 'function') {
+      handleGoogleResponse({ credential: idToken });
+    }
+  });
 })();
 
 // ── iOS APP DETECTION ─────────────────────────────────────
@@ -230,14 +239,23 @@ initGoogleSignIn();
 
 
 
-function openGoogleOAuthPopup() {
+function buildGoogleOAuthURL(state) {
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-  const popup = window.open(
-    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${nonce}`,
-    'google-signin',
-    'width=500,height=600,left=200,top=100'
-  );
-  if (!popup) { showToast('Popup blocked — please allow popups for this site.'); return; }
+  let url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${nonce}`;
+  if (state) url += `&state=${encodeURIComponent(state)}`;
+  return url;
+}
+
+function openGoogleOAuthPopup() {
+  const url = buildGoogleOAuthURL();
+  const popup = window.open(url, 'google-signin', 'width=500,height=600,left=200,top=100');
+
+  if (!popup || popup.closed) {
+    // Popup blocked — fall back to redirect flow (navigates away, comes back with token in hash)
+    window.location.href = url;
+    return;
+  }
+
   const checkPopup = setInterval(() => {
     try {
       if (popup.closed) { clearInterval(checkPopup); return; }
@@ -256,19 +274,13 @@ function openGoogleOAuthPopup() {
 }
 
 function googleSignIn() {
-  // If Google SDK is loaded, try One Tap first, then fall back to popup
-  if (typeof google !== 'undefined' && google.accounts) {
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        openGoogleOAuthPopup();
-      }
-    });
-    return;
-  }
-  // SDK not loaded yet — go straight to OAuth popup (works without SDK)
+  // Go straight to OAuth popup/redirect — this preserves user gesture context
+  // so popup won't be blocked. One Tap is unreliable (often suppressed by browser).
   openGoogleOAuthPopup();
-  // Load SDK in background for next time
-  loadGoogleSignInScript();
+  // Load SDK in background for future One Tap
+  if (typeof google === 'undefined' || !google.accounts) {
+    loadGoogleSignInScript();
+  }
 }
 
 async function handleGoogleResponse(response) {

@@ -1,48 +1,7 @@
 import * as jose from 'jose';
-
-// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-];
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
-}
-
-// ── DB-BACKED RATE LIMITER ───────────────────────────────
-async function checkRateLimit(ip, endpoint, maxRequests) {
-  try {
-    const result = await neonSQL(
-      `SELECT COUNT(*)::int AS cnt FROM api_usage WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
-      [ip, endpoint]
-    );
-    const count = result[0]?.cnt || 0;
-    if (count >= maxRequests) return false;
-    await neonSQL(
-      `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
-      [ip, endpoint]
-    );
-    return true;
-  } catch (e) {
-    return false; // fail closed
-  }
-}
-
-// ── NEON SQL HELPER ──────────────────────────────────────
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.rows || [];
-}
+import { getAllowedOrigin } from './lib/cors.js';
+import { neonSQL } from './lib/neon.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── APPLE JWKS (cached) ─────────────────────────────────
 const APPLE_JWKS = jose.createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
@@ -105,22 +64,31 @@ export default async function handler(req, res) {
       name = (first + ' ' + last).trim() || name;
     }
 
-    // Upsert user — try apple_id first, fall back to email match
-    // This handles: new Apple user, returning Apple user, and Google user adding Apple
-    const users = await neonSQL(
-      `INSERT INTO users (apple_id, email, name, picture, last_login)
-       VALUES ($1, $2, $3, '', NOW())
-       ON CONFLICT (email) DO UPDATE SET
-         apple_id = COALESCE(users.apple_id, $1),
-         last_login = NOW(),
-         name = CASE WHEN users.name IS NULL OR users.name = '' THEN $3 ELSE users.name END
+    // Upsert user — try apple_id first, then fall back to email match.
+    // This avoids edge cases where two Apple IDs share an email alias.
+    let users = await neonSQL(
+      `UPDATE users SET last_login = NOW() WHERE apple_id = $1
        RETURNING id, email, name, picture`,
-      [appleId, email, name]
+      [appleId]
     );
+
+    if (users.length === 0) {
+      // Not found by apple_id — upsert by email (new Apple user or Google user adding Apple)
+      users = await neonSQL(
+        `INSERT INTO users (apple_id, email, name, picture, last_login)
+         VALUES ($1, $2, $3, '', NOW())
+         ON CONFLICT (email) DO UPDATE SET
+           apple_id = COALESCE(users.apple_id, $1),
+           last_login = NOW(),
+           name = CASE WHEN users.name IS NULL OR users.name = '' THEN $3 ELSE users.name END
+         RETURNING id, email, name, picture`,
+        [appleId, email, name]
+      );
+    }
 
     const user = users[0];
 
-    // Generate HMAC-signed auth token (24hr expiry)
+    // Generate HMAC-signed auth token (4hr expiry)
     // 'auth:' prefix prevents cross-use with Pro tokens
     const authTs = Math.floor(Date.now() / 1000);
     const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;

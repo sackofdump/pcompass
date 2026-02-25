@@ -1,13 +1,4 @@
-// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-];
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
-}
+import { getAllowedOrigin } from './lib/cors.js';
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';

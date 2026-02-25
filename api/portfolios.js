@@ -1,126 +1,25 @@
-// ── COOKIE HELPERS ───────────────────────────────────────
-function parseCookies(req) {
-  const cookies = {};
-  (req.headers.cookie || '').split(';').forEach(c => {
-    const [key, ...rest] = c.trim().split('=');
-    if (key) cookies[key.trim()] = decodeURIComponent(rest.join('='));
-  });
-  return cookies;
-}
-function getAuthFromCookie(req) {
-  const c = parseCookies(req);
-  if (c.pc_auth) {
-    const [e, t, tk] = c.pc_auth.split('|');
-    if (e && t && tk) return { email: e, ts: t, token: tk };
-  }
-  return null;
-}
-function getProFromCookie(req) {
-  const c = parseCookies(req);
-  if (c.pc_pro) {
-    const [e, t, tk] = c.pc_pro.split('|');
-    if (e && t && tk) return { email: e, ts: t, token: tk };
-  }
-  return null;
-}
-
-// ── CORS ORIGIN ALLOWLIST ────────────────────────────────
-const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-];
-
-function getAllowedOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
-}
-
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.rows || [];
-}
-
-// ── TIMING-SAFE COMPARISON ──────────────────────────────
-function timingSafeEqual(a, b) {
-  const maxLen = Math.max(a.length, b.length);
-  const aPad = a.padEnd(maxLen, '\0');
-  const bPad = b.padEnd(maxLen, '\0');
-  let mismatch = a.length ^ b.length;
-  for (let i = 0; i < maxLen; i++) {
-    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
-  }
-  return mismatch === 0;
-}
-
-// ── AUTH TOKEN VERIFICATION ──────────────────────────────
-async function verifyAuthToken(email, token, timestamp) {
-  if (!email || !token || !timestamp) return false;
-  const now = Math.floor(Date.now() / 1000);
-  const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false;
-
-  const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
-  if (!secret) return false;
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`auth:${email.toLowerCase().trim()}:${ts}`));
-  const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
-
-  return timingSafeEqual(token, expected);
-}
-
-// ── PRO TOKEN VERIFICATION ──────────────────────────────
-async function verifyProToken(email, token, timestamp) {
-  if (!email || !token || !timestamp) return false;
-  const now = Math.floor(Date.now() / 1000);
-  const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false;
-
-  const secret = process.env.PRO_TOKEN_SECRET;
-  if (!secret) return false;
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${email.toLowerCase().trim()}:${ts}`));
-  const expected = Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
-
-  return timingSafeEqual(token, expected);
-}
+import { getAllowedOrigin } from './lib/cors.js';
+import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
+import { neonSQL } from './lib/neon.js';
 
 // ── VERIFY USER IS WHO THEY CLAIM ─────────────────────────
-// Without this, any user could pass userId=1 and read/write anyone's portfolios
+// Uses AUTH token (not Pro) — any signed-in user can access their own portfolios.
+// Pro token only controls limits (portfolio count), not ownership.
 async function verifyUser(req, claimedUserId) {
-  const proCk = getProFromCookie(req);
-  const proToken = proCk?.token || req.headers['x-pro-token'] || '';
-  const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
-  const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
+  const authCk = getAuthFromCookie(req);
+  const authToken = authCk?.token || req.headers['x-auth-token'] || '';
+  const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
+  const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
 
-  if (!proEmail || !proToken || !proTs) return false;
+  if (!authEmail || !authToken || !authTs) return false;
 
   // Verify the HMAC token matches the email
-  if (!await verifyProToken(proEmail, proToken, proTs)) return false;
+  if (!await verifyAuthToken(authEmail, authToken, authTs)) return false;
 
   // Confirm this token's email matches the claimed userId
   const rows = await neonSQL(
-    `SELECT id FROM users WHERE id = $1 AND email = $2 LIMIT 1`,
-    [parseInt(claimedUserId), proEmail.toLowerCase().trim()]
+    `SELECT id FROM users WHERE id = $1 AND LOWER(email) = $2 LIMIT 1`,
+    [parseInt(claimedUserId), authEmail]
   );
   return rows.length > 0;
 }
@@ -221,14 +120,15 @@ export default async function handler(req, res) {
         );
         const currentCount = countRows[0]?.cnt || 0;
 
-        const proCk2 = getProFromCookie(req);
-        const proToken2 = proCk2?.token || req.headers['x-pro-token'] || '';
-        const proEmail2 = (proCk2?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
-        const proTs2    = proCk2?.ts || req.headers['x-pro-ts'] || '';
-        let isPro = await verifyProToken(proEmail2, proToken2, proTs2);
+        // Pro check only for limits, not ownership
+        const proCk = getProFromCookie(req);
+        const proToken = proCk?.token || req.headers['x-pro-token'] || '';
+        const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
+        const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
+        let isPro = await verifyProToken(proEmail, proToken, proTs);
         if (isPro) {
           try {
-            const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail2]);
+            const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail]);
             if (lic.length === 0) isPro = false;
           } catch { isPro = false; }
         }

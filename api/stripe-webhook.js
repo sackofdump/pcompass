@@ -1,15 +1,4 @@
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.rows || [];
-}
+import { neonSQL } from './lib/neon.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -128,7 +117,7 @@ export default async function handler(req, res) {
     // ── Payment failed ──
     if (event.type === 'invoice.payment_failed') {
       const customerId = event.data.object.customer;
-      // Only deactivate after multiple failures (Stripe retries 3–4 times)
+      // Only deactivate after multiple failures (Stripe retries 3-4 times)
       const attemptCount = event.data.object.attempt_count || 1;
       if (customerId && attemptCount >= 3) {
         await neonSQL(

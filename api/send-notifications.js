@@ -1,29 +1,5 @@
-// ── TIMING-SAFE COMPARISON ──────────────────────────────
-function timingSafeEqual(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const maxLen = Math.max(a.length, b.length);
-  const aPad = a.padEnd(maxLen, '\0');
-  const bPad = b.padEnd(maxLen, '\0');
-  let mismatch = a.length ^ b.length;
-  for (let i = 0; i < maxLen; i++) {
-    mismatch |= aPad.charCodeAt(i) ^ bPad.charCodeAt(i);
-  }
-  return mismatch === 0;
-}
-
-// ── NEON SQL HELPER ──────────────────────────────────────
-async function neonSQL(sql, params = []) {
-  const connStr = process.env.POSTGRES_URL;
-  if (!connStr) throw new Error('POSTGRES_URL not set');
-  const host = new URL(connStr).hostname;
-  const r = await fetch(`https://${host}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
-    body: JSON.stringify({ query: sql, params }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
+import { timingSafeEqual } from './lib/auth.js';
+import { neonSQL } from './lib/neon.js';
 
 export default async function handler(req, res) {
   // Auth via CRON_SECRET (Vercel sets this for cron jobs) — timing-safe
@@ -44,7 +20,7 @@ export default async function handler(req, res) {
     const result = await neonSQL(
       `SELECT token FROM push_tokens WHERE updated_at > NOW() - INTERVAL '30 days'`
     );
-    const tokens = (result.rows || []).map(r => r[0] || r.token).filter(Boolean);
+    const tokens = result.map(r => r.token).filter(Boolean);
 
     if (tokens.length === 0) {
       return res.status(200).json({ sent: 0, reason: 'no tokens' });
