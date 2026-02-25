@@ -1036,7 +1036,6 @@ async function handleScreenshot(event) {
 }
 
 async function processImageFile(file) {
-  if (!requireAuth()) return;
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/png';
   var response;

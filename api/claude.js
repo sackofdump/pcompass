@@ -84,10 +84,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!checkBodySize(req, 10_000_000)) return res.status(413).json({ error: 'Request body too large' });
 
-  // ── Require valid auth token (cookie-first, header fallback) ──
+  // ── Auth check (cookie-first, header fallback) ──
+  // Screenshot requests are allowed without auth; other requests require it
   const auth = extractAuth(req);
   const isAuthenticated = await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv);
-  if (!isAuthenticated) {
+  const { messages: rawMessages } = req.body;
+  const isScreenshotEarly = isScreenshotRequest(rawMessages);
+  if (!isAuthenticated && !isScreenshotEarly) {
     return res.status(401).json({ error: 'Authentication required. Please sign in.' });
   }
 
