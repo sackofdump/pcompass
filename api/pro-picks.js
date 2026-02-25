@@ -1,6 +1,4 @@
 import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
-import { extractAuth, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
-import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── PRO-ONLY STOCK PICKS (indices 5-25 from original STOCK_PICKS) ──
@@ -75,32 +73,6 @@ export default async function handler(req, res) {
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!await checkRateLimit('ip:' + ip, 'pro-picks', 30)) {
     return res.status(429).json({ error: 'Too many requests' });
-  }
-
-  // ── Require valid auth token (cookie-first, header fallback) ──
-  const auth = extractAuth(req);
-  const isAuthenticated = await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv);
-  if (!isAuthenticated) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  // ── Verify Pro status (cookie-first, header fallback) ──
-  const proCk = getProFromCookie(req);
-  const proToken = proCk?.token || req.headers['x-pro-token'] || '';
-  const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
-  const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
-  let isPro = await verifyProToken(proEmail, proToken, proTs);
-  // Prevent privilege escalation: pro token email must match authenticated user
-  if (isPro && proEmail !== auth.email) isPro = false;
-  if (isPro) {
-    try {
-      const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail]);
-      if (lic.length === 0) isPro = false;
-    } catch { isPro = false; }
-  }
-
-  if (!isPro) {
-    return res.status(403).json({ error: 'Pro subscription required' });
   }
 
   return res.status(200).json({

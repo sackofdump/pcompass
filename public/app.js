@@ -473,7 +473,7 @@ function analyze() {
     _lastBuildItemHTML = buildItemHTML;
     _lastMarketData = marketData;
 
-    // Empty show-more container — populated dynamically when Pro user clicks "Show more"
+    // Show-more container — available to all users (static data, no API cost)
     const extraHTML =
       '<div class="show-more-items" id="show-more-' + type + '"></div>' +
       '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')" data-shown="0">' +
@@ -1709,13 +1709,8 @@ async function toggleShowMore(type) {
   const btn   = document.getElementById('show-more-btn-' + type);
   if (!panel || !btn) return;
 
-  // If panel is still empty, check Pro status then fetch picks
+  // If panel is still empty, fetch extra picks and render them all as hidden
   if (panel.querySelectorAll(':scope > .etf-item').length === 0) {
-    // Gate behind Pro check — show paywall for free users
-    const access = await callCheckFeature('showmore');
-    if (access === 'auth_expired') { showToast('Session expired — please sign in again.'); return; }
-    if (access !== 'allowed') { showPaywall('showmore'); return; }
-
     btn.innerHTML = '<span class="mini-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle;"></span> Loading...';
     const proData = await fetchProPicks();
     if (!proData) {
