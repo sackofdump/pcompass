@@ -101,6 +101,12 @@
     display:flex; align-items:center; justify-content:space-between;
     padding:6px 0 8px; width:100%;
     border-top:1px solid var(--border); margin-top:8px;
+    max-height:40px; overflow:hidden;
+    transition: max-height 0.25s ease, padding 0.25s ease, margin 0.25s ease, opacity 0.25s ease, border-color 0.25s ease;
+    opacity:1;
+  }
+  .header-sub.collapsed {
+    max-height:0; padding:0; margin-top:0; opacity:0; border-color:transparent;
   }
   .header-sub-left { flex:1; }
   .logo { display:flex; align-items:center; gap:12px; }
@@ -747,7 +753,8 @@
     display: flex; align-items: center; gap: 5px;
     background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
     padding: 5px 10px; cursor: pointer;
-    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
     transition: border-color 0.2s, background 0.2s;
     white-space: nowrap; max-width: 200px;
   }

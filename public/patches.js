@@ -892,6 +892,28 @@ function selectPaywallTier(tier) {
   }
 })();
 
+// ── HEADER SUB-BAR COLLAPSE ON SCROLL ─────────────────────────────
+(function initSubBarCollapse() {
+  var lastY = 0;
+  var ticking = false;
+  window.addEventListener('scroll', function() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function() {
+      var sub = document.querySelector('.header-sub');
+      if (!sub) { ticking = false; return; }
+      var y = window.scrollY || window.pageYOffset;
+      if (y > 60) {
+        sub.classList.add('collapsed');
+      } else {
+        sub.classList.remove('collapsed');
+      }
+      lastY = y;
+      ticking = false;
+    });
+  });
+})();
+
 // ── DYNAMIC PRICING INJECTION (web only) ─────────────────────────
 // Stripe URLs and dollar amounts are NOT in the HTML source.
 // They are injected here at runtime, only on non-iOS platforms,
