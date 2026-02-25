@@ -317,9 +317,6 @@ async function handleGoogleResponse(response) {
 
       // Auto-check Pro status (refreshes cookie, sets pc_pro_expiry)
       await verifyProAccess(data.user.email);
-
-      // Auto-sync portfolios from cloud
-      await syncPortfoliosFromCloud();
     } else {
       showToast('Sign in failed. Please try again.');
     }
@@ -497,27 +494,17 @@ async function syncPortfoliosFromCloud() {
     });
     const data = await res.json();
     if (data.portfolios && data.portfolios.length > 0) {
-      // Merge cloud portfolios into local storage
-      const localPortfolios = JSON.parse(localStorage.getItem('pc_portfolios') || '[]');
-      let added = 0;
-      data.portfolios.forEach(cp => {
-        const exists = localPortfolios.find(lp => lp.name === cp.name);
-        if (!exists) {
-          localPortfolios.push({
-            name: cp.name,
-            holdings: typeof cp.holdings === 'string' ? JSON.parse(cp.holdings) : cp.holdings,
-            cloudId: cp.id,
-          });
-          added++;
-        } else if (!exists.cloudId) {
-          exists.cloudId = cp.id;
-        }
-      });
-      localStorage.setItem('pc_portfolios', JSON.stringify(localPortfolios));
+      // Replace local portfolios with cloud versions
+      const cloudPortfolios = data.portfolios.map(cp => ({
+        name: cp.name,
+        holdings: typeof cp.holdings === 'string' ? JSON.parse(cp.holdings) : cp.holdings,
+        cloudId: cp.id,
+      }));
+      localStorage.setItem('pc_portfolios', JSON.stringify(cloudPortfolios));
       renderPortfolioSlots();
-      showToast('☁️ Synced ' + data.portfolios.length + ' portfolio(s) from cloud' + (added > 0 ? ' (+' + added + ' new)' : ''));
+      showToast('☁️ Synced ' + cloudPortfolios.length + ' portfolio(s) from cloud');
     } else {
-      showToast('No cloud portfolios found. Save one to sync!');
+      showToast('No cloud portfolios found.');
     }
   } catch (err) {
     console.warn('Cloud sync failed:', err);
@@ -596,7 +583,6 @@ async function appleSignIn() {
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
       await verifyProAccess(data.user.email);
-      await syncPortfoliosFromCloud();
     } else {
       showToast('Sign in failed: ' + (data.error || 'Unknown error'));
     }

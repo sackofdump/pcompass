@@ -162,10 +162,14 @@ export default async function handler(req, res) {
     if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-      await neonSQL(
-        `DELETE FROM portfolios WHERE id = $1 AND user_id = $2`,
-        [parseInt(portfolioId), parseInt(userId)]
-      );
+      if (portfolioId === 'all') {
+        await neonSQL(`DELETE FROM portfolios WHERE user_id = $1`, [parseInt(userId)]);
+      } else {
+        await neonSQL(
+          `DELETE FROM portfolios WHERE id = $1 AND user_id = $2`,
+          [parseInt(portfolioId), parseInt(userId)]
+        );
+      }
       return res.status(200).json({ success: true });
     } catch (err) {
       console.error('[portfolios DELETE]', err.message);
