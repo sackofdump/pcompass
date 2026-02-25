@@ -1,5 +1,5 @@
 import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
-import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
+import { extractAuth, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
@@ -31,11 +31,8 @@ export default async function handler(req, res) {
   if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   // ── Require valid auth token (cookie-first, header fallback) ──
-  const authCk = getAuthFromCookie(req);
-  const authToken = authCk?.token || req.headers['x-auth-token'] || '';
-  const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
-  const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
-  const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
+  const auth = extractAuth(req);
+  const isAuthenticated = await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv);
   if (!isAuthenticated) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -47,7 +44,7 @@ export default async function handler(req, res) {
   }
 
   // ── Rate limit: 20/hr per email ──
-  const clientKey = `email:${authEmail}`;
+  const clientKey = `email:${auth.email}`;
   try {
     if (!await checkRateLimit(clientKey, 'check-feature', 20)) {
       return res.status(429).json({ error: 'Rate limit exceeded' });

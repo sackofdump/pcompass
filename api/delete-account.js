@@ -1,5 +1,5 @@
 import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
-import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
+import { extractAuth, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
@@ -30,11 +30,14 @@ export default async function handler(req, res) {
   if (!checkBodySize(req)) return res.status(413).json({ error: 'Request body too large' });
 
   try {
+    // ── Rate limit by IP + email ──
+    const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
+    if (!await checkRateLimit(ip, 'delete-account', 10)) {
+      return res.status(429).json({ error: 'Too many attempts — try again later' });
+    }
+
     // ── Verify auth token (cookie-first, header fallback) ──
-    const authCk = getAuthFromCookie(req);
-    const authToken = authCk?.token || req.headers['x-auth-token'] || '';
-    const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
-    const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
+    const auth = extractAuth(req);
     const bodyEmail = (req.body.email || '').toLowerCase().trim();
 
     // Rate limit: 5 attempts per hour per email
@@ -45,11 +48,11 @@ export default async function handler(req, res) {
     if (!bodyEmail) return res.status(400).json({ error: 'Email required' });
 
     // Auth token must match the email being deleted
-    if (authEmail.toLowerCase().trim() !== bodyEmail) {
+    if (auth.email.toLowerCase().trim() !== bodyEmail) {
       return res.status(403).json({ error: 'Email mismatch' });
     }
 
-    if (!await verifyAuthToken(authEmail, authToken, authTs)) {
+    if (!await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv)) {
       return res.status(401).json({ error: 'Invalid or expired auth token' });
     }
 

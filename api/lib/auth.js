@@ -10,10 +10,31 @@ export function parseCookies(req) {
 export function getAuthFromCookie(req) {
   const c = parseCookies(req);
   if (c.pc_auth) {
-    const [e, t, tk] = c.pc_auth.split('|');
-    if (e && t && tk) return { email: e, ts: t, token: tk };
+    const parts = c.pc_auth.split('|');
+    // New format: userId|email|sv|ts|token
+    if (parts.length === 5) {
+      const [uid, e, sv, t, tk] = parts;
+      if (uid && e && sv && t && tk) return { userId: uid, email: e, sv, ts: t, token: tk };
+    }
+    // Legacy format: email|ts|token (auto-expires within 4hr)
+    if (parts.length === 3) {
+      const [e, t, tk] = parts;
+      if (e && t && tk) return { userId: '', email: e, sv: '', ts: t, token: tk };
+    }
   }
   return null;
+}
+
+// Extract all auth fields from cookie (or header fallback)
+export function extractAuth(req) {
+  const authCk = getAuthFromCookie(req);
+  return {
+    userId: authCk?.userId || '',
+    email: (authCk?.email || '').toLowerCase().trim(),
+    sv: authCk?.sv || '',
+    ts: authCk?.ts || '',
+    token: authCk?.token || '',
+  };
 }
 
 export function getProFromCookie(req) {
@@ -37,7 +58,7 @@ export function timingSafeEqual(a, b) {
   return mismatch === 0;
 }
 
-export async function verifyAuthToken(email, token, timestamp) {
+export async function verifyAuthToken(email, token, timestamp, userId, sessionVersion) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
@@ -51,10 +72,20 @@ export async function verifyAuthToken(email, token, timestamp) {
     'raw', encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
+
+  // New format: auth:userId:email:sv:ts (bound to user identity + session version)
+  if (userId && sessionVersion) {
+    const sig = await crypto.subtle.sign('HMAC', key,
+      encoder.encode(`auth:${userId}:${email.toLowerCase().trim()}:${sessionVersion}:${ts}`));
+    const expected = Array.from(new Uint8Array(sig))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    return timingSafeEqual(token, expected);
+  }
+
+  // Legacy format: auth:email:ts (backwards-compatible, auto-expires within 4hr)
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`auth:${email.toLowerCase().trim()}:${ts}`));
   const expected = Array.from(new Uint8Array(sig))
     .map(b => b.toString(16).padStart(2, '0')).join('');
-
   return timingSafeEqual(token, expected);
 }
 

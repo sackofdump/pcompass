@@ -103,7 +103,7 @@ export default async function handler(req, res) {
 
   // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!await checkRateLimit(ip, 'market-data', 60)) {
+  if (!await checkRateLimit(ip, 'market-data', 30)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 

@@ -1,4 +1,6 @@
 import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
+import { extractAuth } from './lib/auth.js';
+import { neonSQL } from './lib/neon.js';
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
@@ -23,6 +25,17 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Increment session_version to invalidate all existing tokens
+  const auth = extractAuth(req);
+  if (auth.userId) {
+    try {
+      await neonSQL(
+        'UPDATE users SET session_version = COALESCE(session_version, 1) + 1 WHERE id = $1',
+        [auth.userId]
+      );
+    } catch (e) { /* best-effort — cookie is cleared regardless */ }
+  }
 
   const secure = process.env.VERCEL_ENV ? '; Secure' : '';
   res.setHeader('Set-Cookie', [

@@ -1,5 +1,5 @@
 import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
-import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
+import { extractAuth, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
@@ -7,20 +7,17 @@ import { checkRateLimit } from './lib/rate-limit.js';
 // Uses AUTH token (not Pro) — any signed-in user can access their own portfolios.
 // Pro token only controls limits (portfolio count), not ownership.
 async function verifyUser(req, claimedUserId) {
-  const authCk = getAuthFromCookie(req);
-  const authToken = authCk?.token || req.headers['x-auth-token'] || '';
-  const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
-  const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
+  const auth = extractAuth(req);
 
-  if (!authEmail || !authToken || !authTs) return false;
+  if (!auth.email || !auth.token || !auth.ts) return false;
 
   // Verify the HMAC token matches the email
-  if (!await verifyAuthToken(authEmail, authToken, authTs)) return false;
+  if (!await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv)) return false;
 
   // Confirm this token's email matches the claimed userId
   const rows = await neonSQL(
     `SELECT id FROM users WHERE id = $1 AND LOWER(email) = $2 LIMIT 1`,
-    [parseInt(claimedUserId), authEmail]
+    [parseInt(claimedUserId), auth.email]
   );
   return rows.length > 0;
 }
@@ -51,17 +48,14 @@ export default async function handler(req, res) {
   }
 
   // ── Require valid auth token (cookie-first, header fallback) ──
-  const authCk = getAuthFromCookie(req);
-  const authToken = authCk?.token || req.headers['x-auth-token'] || '';
-  const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
-  const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
-  const isAuthenticated = await verifyAuthToken(authEmail, authToken, authTs);
+  const auth = extractAuth(req);
+  const isAuthenticated = await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv);
   if (!isAuthenticated) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   if (req.method === 'GET') {
-    if (!await checkRateLimit('email:' + authEmail, 'portfolios-read', 60)) {
+    if (!await checkRateLimit('email:' + auth.email, 'portfolios-read', 60)) {
       return res.status(429).json({ error: 'Too many requests' });
     }
     const userId = req.query.userId;
@@ -84,7 +78,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    if (!await checkRateLimit('email:' + authEmail, 'portfolios-write', 5)) {
+    if (!await checkRateLimit('email:' + auth.email, 'portfolios-write', 5)) {
       return res.status(429).json({ error: 'Too many saves — try again later' });
     }
     const { userId, name, holdings, portfolioId } = req.body;
@@ -167,7 +161,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    if (!await checkRateLimit('email:' + authEmail, 'portfolios-write', 5)) {
+    if (!await checkRateLimit('email:' + auth.email, 'portfolios-write', 5)) {
       return res.status(429).json({ error: 'Too many deletes — try again later' });
     }
     const { userId, portfolioId } = req.query;

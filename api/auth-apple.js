@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     // This avoids edge cases where two Apple IDs share an email alias.
     let users = await neonSQL(
       `UPDATE users SET last_login = NOW() WHERE apple_id = $1
-       RETURNING id, email, name, picture`,
+       RETURNING id, email, name, picture, COALESCE(session_version, 1) AS session_version`,
       [appleId]
     );
 
@@ -98,15 +98,16 @@ export default async function handler(req, res) {
            apple_id = COALESCE(users.apple_id, $1),
            last_login = NOW(),
            name = CASE WHEN users.name IS NULL OR users.name = '' THEN $3 ELSE users.name END
-         RETURNING id, email, name, picture`,
+         RETURNING id, email, name, picture, COALESCE(session_version, 1) AS session_version`,
         [appleId, email, name]
       );
     }
 
     const user = users[0];
+    const sv = String(user.session_version || 1);
 
     // Generate HMAC-signed auth token (4hr expiry)
-    // 'auth:' prefix prevents cross-use with Pro tokens
+    // Bound to userId + email + session_version to prevent identity confusion and enable revocation
     const authTs = Math.floor(Date.now() / 1000);
     const secret = process.env.AUTH_TOKEN_SECRET;
     if (!secret) throw new Error('AUTH_TOKEN_SECRET not configured');
@@ -117,13 +118,13 @@ export default async function handler(req, res) {
     );
     const authSig = await crypto.subtle.sign(
       'HMAC', authKey,
-      enc.encode(`auth:${email.toLowerCase().trim()}:${authTs}`)
+      enc.encode(`auth:${user.id}:${email.toLowerCase().trim()}:${sv}:${authTs}`)
     );
     const authToken = Array.from(new Uint8Array(authSig))
       .map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Set HttpOnly auth cookie
-    const cookieVal = encodeURIComponent(`${email.toLowerCase().trim()}|${authTs}|${authToken}`);
+    // Set HttpOnly auth cookie (format: userId|email|sv|ts|token)
+    const cookieVal = encodeURIComponent(`${user.id}|${email.toLowerCase().trim()}|${sv}|${authTs}|${authToken}`);
     const secure = process.env.VERCEL_ENV ? '; Secure' : '';
     res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 

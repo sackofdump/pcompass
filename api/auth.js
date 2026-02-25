@@ -107,14 +107,15 @@ export default async function handler(req, res) {
       `INSERT INTO users (google_id, email, name, picture, last_login)
        VALUES ($1, $2, $3, $4, NOW())
        ON CONFLICT (google_id) DO UPDATE SET last_login = NOW(), name = $3, picture = $4
-       RETURNING id, email, name, picture`,
+       RETURNING id, email, name, picture, COALESCE(session_version, 1) AS session_version`,
       [googleId, email, name, picture]
     );
 
     const user = users[0];
+    const sv = String(user.session_version || 1);
 
     // Generate HMAC-signed auth token (4hr expiry)
-    // 'auth:' prefix prevents cross-use with Pro tokens
+    // Bound to userId + email + session_version to prevent identity confusion and enable revocation
     const authTs = Math.floor(Date.now() / 1000);
     const secret = process.env.AUTH_TOKEN_SECRET;
     if (!secret) throw new Error('AUTH_TOKEN_SECRET not configured');
@@ -125,13 +126,13 @@ export default async function handler(req, res) {
     );
     const authSig = await crypto.subtle.sign(
       'HMAC', authKey,
-      enc.encode(`auth:${email.toLowerCase().trim()}:${authTs}`)
+      enc.encode(`auth:${user.id}:${email.toLowerCase().trim()}:${sv}:${authTs}`)
     );
     const authToken = Array.from(new Uint8Array(authSig))
       .map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Set HttpOnly auth cookie
-    const cookieVal = encodeURIComponent(`${email.toLowerCase().trim()}|${authTs}|${authToken}`);
+    // Set HttpOnly auth cookie (format: userId|email|sv|ts|token)
+    const cookieVal = encodeURIComponent(`${user.id}|${email.toLowerCase().trim()}|${sv}|${authTs}|${authToken}`);
     const secure = process.env.VERCEL_ENV ? '; Secure' : '';
     res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 

@@ -143,8 +143,9 @@ function renderHoldings() {
     const dbEntry = STOCK_DB[h.ticker] || {};
     const companyName = dbEntry.name || '';
     return `
-    <div class="stock-item">
+    <div class="stock-item" data-idx="${i}" draggable="true">
       <div class="stock-item-top">
+        <span class="drag-handle" title="Hold to rearrange">⠿</span>
         <div class="stock-info">
           <span class="stock-ticker">${escapeHTML(h.ticker)}</span>${companyName ? `<span class="stock-company">${escapeHTML(companyName)}</span>` : ''}
           <span class="stock-sector">${escapeHTML(h.sector)}</span>
@@ -158,6 +159,7 @@ function renderHoldings() {
       </div>
     </div>`;
   }).join('');
+  if (holdings.length > 1) initDragReorder();
 
   chip.textContent = total + '% allocated';
   btn.disabled = holdings.length === 0;
@@ -224,6 +226,91 @@ function updateSlider(i, val) {
   });
   updateRiskScore();
   updateCorrelationWarnings();
+}
+
+// ── DRAG REORDER HOLDINGS ─────────────────────────────────
+function initDragReorder() {
+  const list = document.getElementById('stockList');
+  if (!list) return;
+  let dragIdx = null;
+
+  list.querySelectorAll('.stock-item').forEach(item => {
+    item.addEventListener('dragstart', function(e) {
+      dragIdx = parseInt(this.dataset.idx);
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+      list.querySelectorAll('.stock-item').forEach(el => el.classList.remove('drag-over'));
+      dragIdx = null;
+    });
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const overIdx = parseInt(this.dataset.idx);
+      if (overIdx !== dragIdx) {
+        list.querySelectorAll('.stock-item').forEach(el => el.classList.remove('drag-over'));
+        this.classList.add('drag-over');
+      }
+    });
+    item.addEventListener('dragleave', function() { this.classList.remove('drag-over'); });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      const dropIdx = parseInt(this.dataset.idx);
+      if (dragIdx !== null && dragIdx !== dropIdx) {
+        const moved = holdings.splice(dragIdx, 1)[0];
+        holdings.splice(dropIdx, 0, moved);
+        renderHoldings();
+      }
+    });
+  });
+
+  // Touch support (long-press to drag)
+  let touchItem = null, touchClone = null, touchIdx = null, holdTimer = null;
+  list.querySelectorAll('.stock-item').forEach(item => {
+    item.addEventListener('touchstart', function(e) {
+      if (e.target.closest('.stock-slider, .btn-remove')) return;
+      const self = this;
+      holdTimer = setTimeout(function() {
+        touchIdx = parseInt(self.dataset.idx);
+        touchItem = self;
+        self.classList.add('dragging');
+        touchClone = self.cloneNode(true);
+        touchClone.classList.add('drag-ghost');
+        touchClone.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;width:' + self.offsetWidth + 'px;opacity:0.85;';
+        document.body.appendChild(touchClone);
+      }, 400);
+    }, {passive: true});
+    item.addEventListener('touchmove', function(e) {
+      if (!touchClone) { clearTimeout(holdTimer); return; }
+      e.preventDefault();
+      const touch = e.touches[0];
+      touchClone.style.left = (touch.clientX - touchClone.offsetWidth / 2) + 'px';
+      touchClone.style.top = (touch.clientY - 20) + 'px';
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const over = el?.closest('.stock-item');
+      list.querySelectorAll('.stock-item').forEach(el => el.classList.remove('drag-over'));
+      if (over && over !== touchItem) over.classList.add('drag-over');
+    }, {passive: false});
+    item.addEventListener('touchend', function(e) {
+      clearTimeout(holdTimer);
+      if (!touchClone) return;
+      const touch = e.changedTouches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const dropTarget = el?.closest('.stock-item');
+      if (dropTarget && touchIdx !== null) {
+        const dropIdx = parseInt(dropTarget.dataset.idx);
+        if (dropIdx !== touchIdx) {
+          const moved = holdings.splice(touchIdx, 1)[0];
+          holdings.splice(dropIdx, 0, moved);
+        }
+      }
+      if (touchClone.parentNode) touchClone.remove();
+      touchClone = null; touchItem = null; touchIdx = null;
+      renderHoldings();
+    });
+  });
 }
 
 function getPortfolioProfile() {
@@ -476,8 +563,8 @@ function analyze() {
     // Empty show-more container — populated dynamically when Pro user clicks "Show more"
     const extraHTML =
       '<div class="show-more-items" id="show-more-' + type + '"></div>' +
-      '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')">' +
-        '✦ Show more picks' +
+      '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')" data-shown="0">' +
+        '✦ See more stocks' +
       '</button>';
 
     return '<div class="strategy-card"><div class="strategy-header strategy-toggle" onclick="toggleStrategyCard(this)">' +
@@ -1415,6 +1502,11 @@ function renderSidebarAccount() {
 
 async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
+  if (typeof currentUser === 'undefined' || !currentUser) {
+    showToast('Sign in to save portfolios');
+    if (typeof showAuthModal === 'function') showAuthModal();
+    return;
+  }
   const portfolios = getSavedPortfolios();
   if (portfolios.length >= MAX_SLOTS) { showToast('Max ' + MAX_SLOTS + ' portfolios — delete one to save a new one.'); return; }
   const name = 'Portfolio ' + (portfolios.length + 1);
@@ -1686,59 +1778,59 @@ function toggleStrategyCard(headerEl) {
   if (!list) return;
   const chevron = headerEl.querySelector('.strategy-chevron');
   const hint = headerEl.querySelector('.strategy-expand-hint');
+  const isCollapsing = !list.classList.contains('strategy-collapsed');
   list.classList.toggle('strategy-collapsed');
   if (chevron) chevron.classList.toggle('strategy-chevron-open');
-  if (hint) hint.textContent = list.classList.contains('strategy-collapsed') ? 'tap to expand' : 'tap to collapse';
+  if (hint) hint.textContent = isCollapsing ? 'tap to expand' : 'tap to collapse';
+  // Reset show-more when collapsing so it reopens at original count
+  if (isCollapsing) {
+    list.querySelectorAll('.show-more-items').forEach(function(p) { p.classList.remove('open'); });
+    list.querySelectorAll('.btn-show-more').forEach(function(b) { b.classList.remove('open'); b.innerHTML = '✦ See more stocks'; b.dataset.shown = '0'; });
+    list.querySelectorAll('.etf-item.show-more-hidden').forEach(function(el) { el.classList.add('show-more-hidden'); });
+  }
 }
 
-// ── SHOW MORE TOGGLE ─────────────────────────────────────
+// ── SHOW MORE TOGGLE (reveals 5 at a time) ──────────────
 async function toggleShowMore(type) {
   const panel = document.getElementById('show-more-' + type);
   const btn   = document.getElementById('show-more-btn-' + type);
   if (!panel || !btn) return;
 
-  // If already open, just close
-  if (panel.classList.contains('open')) {
-    panel.classList.remove('open');
-    btn.classList.remove('open');
-    btn.innerHTML = '✦ Show more picks';
-    const panel2 = document.getElementById('show-more-2-' + type);
-    const btn2   = document.getElementById('show-more-btn-2-' + type);
-    if (panel2) panel2.classList.remove('open');
-    if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '✦ Show more picks'; }
-    return;
-  }
-
-  // If panel is still empty, fetch pro picks and render them
+  // If panel is still empty, fetch pro picks and render them all as hidden
   if (panel.querySelectorAll(':scope > .etf-item').length === 0) {
     btn.innerHTML = '<span class="mini-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle;"></span> Loading...';
     const proData = await fetchProPicks();
     if (!proData) {
-      btn.innerHTML = '✦ Show more picks';
+      btn.innerHTML = '✦ See more stocks';
       showToast('Failed to load extra picks. Try again.');
       return;
     }
-    // Render extra items into the container
     const extraHTML = _renderProPicksForStrategy(type, proData);
     if (extraHTML) {
       panel.insertAdjacentHTML('afterbegin', extraHTML);
+      // Hide all initially
+      panel.querySelectorAll('.etf-item').forEach(function(el) { el.classList.add('show-more-hidden'); });
     }
+    btn.dataset.shown = '0';
   }
 
   panel.classList.add('open');
-  btn.classList.add('open');
-  btn.innerHTML = '▾ Show fewer picks';
-}
+  const allItems = panel.querySelectorAll('.etf-item');
+  const shown = parseInt(btn.dataset.shown || '0');
+  const nextShown = Math.min(shown + 5, allItems.length);
 
-function toggleShowMore2(type) {
-  const panel = document.getElementById('show-more-2-' + type);
-  const btn   = document.getElementById('show-more-btn-2-' + type);
-  if (!panel || !btn) return;
-  const open = panel.classList.toggle('open');
-  btn.classList.toggle('open', open);
-  btn.innerHTML = open
-    ? '▾ Show fewer picks'
-    : '✦ Show ' + panel.querySelectorAll('.etf-item').length + ' more picks';
+  // Reveal next batch of 5
+  for (let i = shown; i < nextShown; i++) {
+    allItems[i].classList.remove('show-more-hidden');
+  }
+  btn.dataset.shown = String(nextShown);
+
+  const remaining = allItems.length - nextShown;
+  if (remaining > 0) {
+    btn.innerHTML = '✦ See more stocks (' + remaining + ' more)';
+  } else {
+    btn.style.display = 'none';
+  }
 }
 
 // ── RENDER PRO PICKS INTO SHOW-MORE CONTAINER ────────────
@@ -1773,7 +1865,7 @@ function _renderProPicksForStrategy(type, proData) {
       return {...p, score, isStock:true};
     })
     .sort((a,b) => b.score - a.score)
-    .slice(0,5);
+    .slice(0,20);
 
   // Score and filter pro ETFs for this strategy
   const proEtfs = (proData.etfs && proData.etfs[type]) || [];
@@ -1781,7 +1873,7 @@ function _renderProPicksForStrategy(type, proData) {
     .filter(e => !ownedTickers.includes(e.ticker))
     .map(e => ({...e, score:70, isStock:false}));
 
-  const allExtra = [...etfs, ...picks];
+  const allExtra = [...etfs, ...picks].slice(0, 20);
   if (allExtra.length === 0) return '';
 
   return allExtra.map(item => _lastBuildItemHTML(item, type, _lastMarketData)).join('');
