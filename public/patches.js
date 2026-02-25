@@ -593,6 +593,69 @@ async function appleSignIn() {
   }
 }
 
+// ── COLLAPSE HOLDINGS AFTER ANALYZE ───────────────────────────
+// After analysis, collapse the holdings editing panel and show "tap to edit"
+function collapseHoldingsPanel() {
+  var body = document.getElementById('holdingsBody');
+  var link = document.getElementById('editPortfolioLink');
+  if (body) body.style.display = 'none';
+  if (link) link.style.display = 'inline';
+}
+
+function expandHoldingsPanel() {
+  var body = document.getElementById('holdingsBody');
+  var link = document.getElementById('editPortfolioLink');
+  if (body) body.style.display = '';
+  if (link) link.style.display = 'none';
+}
+
+// Hook into analyze() to collapse after analysis completes
+(function() {
+  var origAnalyze = window.analyze;
+  if (typeof origAnalyze === 'function') {
+    window.analyze = function() {
+      origAnalyze.apply(this, arguments);
+      collapseHoldingsPanel();
+    };
+  }
+})();
+
+// ── PATCH 0: FETCH FRESH BETAS & PICKS FROM DAILY CRON ───────
+// Merges server-computed betas (Yahoo Finance 6mo) and stock picks
+// into the static STOCK_DB and STOCK_PICKS from data.js.
+// Falls back silently to static values on any failure.
+(async function loadFreshStockData() {
+  try {
+    const res = await fetch('/api/stock-data');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // Merge betas into STOCK_DB
+    if (data.betas && typeof data.betas === 'object') {
+      let updated = 0;
+      for (const [ticker, beta] of Object.entries(data.betas)) {
+        if (typeof STOCK_DB !== 'undefined' && STOCK_DB[ticker] && typeof beta === 'number') {
+          STOCK_DB[ticker].beta = beta;
+          updated++;
+        }
+      }
+      if (updated > 0) console.log('[stock-data] Updated ' + updated + ' betas from server');
+    }
+
+    // Merge picks into STOCK_PICKS (replace contents in-place)
+    if (data.picks && Array.isArray(data.picks) && data.picks.length > 0 && typeof STOCK_PICKS !== 'undefined') {
+      STOCK_PICKS.length = 0;
+      for (const pick of data.picks) {
+        STOCK_PICKS.push(pick);
+      }
+      console.log('[stock-data] Loaded ' + data.picks.length + ' fresh picks');
+    }
+  } catch (e) {
+    // Silent fallback — static data.js values remain
+    console.warn('[stock-data] Failed to load fresh data, using static defaults');
+  }
+})();
+
 // ── PATCH 1: MARKET DATA localStorage CACHE ──────────────────
 async function fetchMarketDataCached(tickersToFetch) {
   const CACHE_KEY = 'pc_market_' + tickersToFetch.slice().sort().join(',');

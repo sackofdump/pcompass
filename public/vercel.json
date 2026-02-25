@@ -13,12 +13,18 @@
     "api/auth-apple.js": { "maxDuration": 10 },
     "api/signout.js": { "maxDuration": 10 },
     "api/register-push.js": { "maxDuration": 10 },
-    "api/send-notifications.js": { "maxDuration": 30 }
+    "api/send-notifications.js": { "maxDuration": 30 },
+    "api/refresh-stock-data.js": { "maxDuration": 60 },
+    "api/stock-data.js": { "maxDuration": 10 }
   },
   "crons": [
     {
       "path": "/api/send-notifications",
       "schedule": "30 14 * * 1-5"
+    },
+    {
+      "path": "/api/refresh-stock-data",
+      "schedule": "0 11 * * 1-5"
     }
   ],
   "headers": [
@@ -48,6 +54,15 @@
     },
     {
       "source": "/api/market-data",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "s-maxage=3600, stale-while-revalidate=600"
+        }
+      ]
+    },
+    {
+      "source": "/api/stock-data",
       "headers": [
         {
           "key": "Cache-Control",

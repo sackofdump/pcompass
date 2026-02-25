@@ -30,14 +30,14 @@
 </head>
 <body>
 
-<header onclick="window.scrollTo({top:0,behavior:'smooth'})" style="cursor:pointer;">
+<header class="header-compact" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="cursor:pointer;">
   <div class="logo">
     <div class="logo-icon">
       <div class="logo-icon-center"></div>
     </div>
     <h1>Portfolio <span>Compass</span></h1>
+    <span class="tagline">Portfolio Diversification &amp; Strategy Analyzer</span>
   </div>
-  <div class="tagline">Portfolio Diversification &amp; Strategy Analyzer</div>
   <div class="header-actions">
     <!-- Pro button - always visible -->
     <button onclick="showPaywall('header')" id="btnPro" style="background:linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06));border:1px solid rgba(0,229,160,0.3);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00e5a0;cursor:pointer;display:flex;align-items:center;gap:5px;transition:border-color 0.2s,background 0.2s;" onmouseover="this.style.background='rgba(0,229,160,0.18)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06))'">
@@ -94,12 +94,14 @@
     <div class="panel">
       <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
         <h2 class="section-title">Your Holdings</h2>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span id="editPortfolioLink" style="display:none;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);cursor:pointer;letter-spacing:0.3px;" onclick="expandHoldingsPanel()">tap to edit</span>
           <button class="slot-btn" onclick="sharePortfolio()" title="Share portfolio link">🔗</button>
           <button class="slot-btn" onclick="exportPDF()" title="Export PDF">⬇</button>
         </div>
       </div>
 
+      <div id="holdingsBody">
       <!-- Onboarding banner (hidden after first use) -->
       <div class="onboarding-banner" id="onboardingBanner" style="position:relative;">
         <div class="onboarding-text">👋 <strong>Welcome!</strong> Add your stock holdings below, or try an example portfolio to see how it works.</div>
@@ -191,6 +193,7 @@
       <button class="btn-analyze" id="analyzeBtn" onclick="analyzeDebounced()" disabled>
         Analyze &amp; Recommend
       </button>
+      </div><!-- /holdingsBody -->
     </div>
   </div>
 

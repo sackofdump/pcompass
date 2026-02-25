@@ -87,7 +87,7 @@
     padding:10px 5%;
     gap:0;
   }
-  header.header-compact .tagline { display:none; }
+  header.header-compact .tagline { font-size:10px; margin-left:0; opacity:0.5; }
   header.header-compact .logo-icon { width:28px; height:28px; }
   header.header-compact .logo-icon::before { border-bottom-width:9px; top:2px; border-left-width:3px; border-right-width:3px; }
   header.header-compact .logo-icon::after { border-top-width:9px; bottom:2px; border-left-width:3px; border-right-width:3px; }
@@ -138,7 +138,7 @@
 
   .logo h1 { font-size:32px; font-weight:400; letter-spacing:2px; color:var(--text); font-family:'Bebas Neue',sans-serif; line-height:1; text-transform:uppercase; }
   .logo h1 span { color:var(--accent); font-family:'Bebas Neue',sans-serif; letter-spacing:2px; }
-  .tagline { color:var(--muted); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.3px; margin-left:48px; }
+  .tagline { color:var(--muted); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.3px; margin-left:0; white-space:nowrap; }
   .main-grid { display:grid; grid-template-columns:1fr 1.6fr; gap:24px; padding:28px 2%; position:relative; }
   .panel, .strategy-card, .health-panel, .rebalance-panel, .position-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
   .panel-header { padding:16px 20px 12px; border-bottom:1px solid var(--border); }
@@ -590,7 +590,7 @@
     }
     header.header-compact { padding: 10px 20px; }
     .logo { flex: 1; min-width: 0; }
-    .tagline { width: 100%; margin-left: 48px; order: 1; }
+    .tagline { display:none; }
     .header-actions {
       position: static; transform: none;
       order: 0;
@@ -638,7 +638,7 @@
     header.header-compact .logo-icon { width: 24px; height: 24px; }
     .logo h1 { font-size: 17px; }
     .logo-icon { width: 30px; height: 30px; }
-    .tagline { font-size: 10px; margin-left: 42px; }
+    .tagline { display:none; }
     .header-actions { gap: 6px; }
     .theme-toggle {
       padding: 4px 4px 4px 8px;

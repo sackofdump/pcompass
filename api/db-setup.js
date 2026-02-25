@@ -81,6 +81,14 @@ export default async function handler(req, res) {
     )`);
     results.push('push_tokens table done');
 
+    // ── STOCK DATA (cached betas + picks from daily cron) ──
+    await neonSQL(`CREATE TABLE IF NOT EXISTS stock_data (
+      key VARCHAR(50) PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    results.push('stock_data table done');
+
     // ── INDEXES (all IF NOT EXISTS — safe to re-run) ──
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id)`);
     await neonSQL(`CREATE INDEX IF NOT EXISTS idx_pro_licenses_email ON pro_licenses(email)`);

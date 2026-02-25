@@ -1,16 +1,4 @@
-// ── STICKY HEADER COMPACT ON SCROLL ──────────────────────────────────────────
-(function() {
-  const hdr = document.querySelector('header');
-  let compact = false;
-  window.addEventListener('scroll', () => {
-    const y = window.scrollY;
-    const shouldCompact = compact ? y > 20 : y > 80;
-    if (shouldCompact !== compact) {
-      compact = shouldCompact;
-      hdr.classList.toggle('header-compact', compact);
-    }
-  }, { passive: true });
-})();
+// ── HEADER — always compact (set via class in HTML) ─────────────────────────
 
 function escapeHTML(str) {
   if (typeof str !== 'string') return String(str);
@@ -647,14 +635,13 @@ function analyze() {
         '</div>' +
       '</div>' +
       '<div class="market-refresh-row">' +
-        statusHTML +
         '<button class="btn-refresh-market" id="refreshMarketBtn" onclick="refreshMarketData()">' +
           '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/></svg>' +
           'Refresh' +
         '</button>' +
       '</div>' +
       positionHTML +
-      '<div class="panel-header" style="border:none;padding:20px 0 8px;"><h2 class="section-title">Recommended Stocks</h2></div>' +
+      '<div class="panel-header" style="border:none;padding:20px 0 8px;display:flex;align-items:center;justify-content:space-between;"><h2 class="section-title">Recommended Stocks</h2>' + statusHTML + '</div>' +
       strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
       strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
       strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
@@ -1361,9 +1348,13 @@ async function exportPDF() {
   const riskNum = Math.round(profile.beta * 50 + (profile.concentration || 0) * 0.3);
   const riskLabel = riskNum >= 75 ? 'Aggressive' : riskNum >= 50 ? 'Moderate-High' : riskNum >= 30 ? 'Moderate' : 'Conservative';
 
+  const hasShares = holdings.some(h => h.shares && h.shares > 0);
   const holdingRows = [...holdings]
     .sort((a, b) => b.pct - a.pct)
-    .map(h => `<tr><td style="font-weight:600;color:#00e5a0">${escapeHTML(h.ticker)}</td><td>${escapeHTML(h.name)}</td><td>${escapeHTML(h.sector)}</td><td style="text-align:right;font-weight:600">${h.pct}%</td></tr>`)
+    .map(h => {
+      const sharesCell = hasShares ? `<td style="text-align:right;color:#8a9ab8">${h.shares ? h.shares.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</td>` : '';
+      return `<tr><td style="font-weight:600;color:#00e5a0">${escapeHTML(h.ticker)}</td><td>${escapeHTML(h.name)}</td><td>${escapeHTML(h.sector)}</td>${sharesCell}<td style="text-align:right;font-weight:600">${h.pct}%</td></tr>`;
+    })
     .join('');
 
   const sectorRows = Object.entries(sectors)
@@ -1380,8 +1371,13 @@ async function exportPDF() {
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#0a0c10; color:#e8ecf0; font-family:'Inter',sans-serif; padding:40px; }
   .header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e2430; padding-bottom:20px; margin-bottom:30px; }
-  .logo { font-family:'Space Mono',monospace; font-size:22px; font-weight:700; }
-  .logo span { color:#00e5a0; }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-text { font-family:'Space Mono',monospace; font-size:22px; font-weight:700; }
+  .logo-text span { color:#00e5a0; }
+  .compass-icon { width:28px; height:28px; border:1.5px solid #2a3140; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .compass-icon::before { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-bottom:9px solid #00e5a0; top:2px; }
+  .compass-icon::after { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-top:9px solid #ff4d6d; bottom:2px; opacity:0.55; }
+  .compass-dot { width:3px; height:3px; background:#e8ecf0; border-radius:50%; position:absolute; z-index:2; }
   .date { font-family:'Space Mono',monospace; font-size:11px; color:#8a9ab8; }
   h2 { font-family:'Space Mono',monospace; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#8a9ab8; margin:24px 0 12px; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -1398,7 +1394,7 @@ async function exportPDF() {
   @media print { body { padding:20px; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; } }
 </style></head><body>
 <div class="header">
-  <div class="logo">🧭 Portfolio <span>Compass</span></div>
+  <div class="logo"><div class="compass-icon"><div class="compass-dot"></div></div><div class="logo-text">Portfolio <span>Compass</span></div></div>
   <div class="date">${date}</div>
 </div>
 
@@ -1428,7 +1424,7 @@ async function exportPDF() {
 <h2>Holdings</h2>
 <div class="card">
   <table>
-    <tr><th>Ticker</th><th>Name</th><th>Sector</th><th style="text-align:right">Weight</th></tr>
+    <tr><th>Ticker</th><th>Name</th><th>Sector</th>${hasShares ? '<th style="text-align:right">Shares</th>' : ''}<th style="text-align:right">Weight</th></tr>
     ${holdingRows}
   </table>
 </div>
