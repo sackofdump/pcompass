@@ -3,22 +3,43 @@ document.getElementById('paywallModal').style.display='none';
 // re-close on load
 
 // ── GOOGLE AUTH REDIRECT HANDLER ─────────────────────────────
-// Handles the return from Google OAuth redirect flow (popup fallback + iOS native).
+// Handles the return from Google OAuth (code flow for iOS, GIS for web).
 (function() {
+  // Authorization code flow (iOS native via ASWebAuthenticationSession)
+  var sp = new URLSearchParams(window.location.search);
+  var code = sp.get('code');
+  var state = sp.get('state');
+  if (code && state === 'ios_native') {
+    history.replaceState(null, '', window.location.pathname);
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ code: code }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.idToken) {
+        window.location.href = 'pcompass://auth?id_token=' + encodeURIComponent(data.idToken);
+      }
+    })
+    .catch(function() {});
+    return;
+  }
+
+  // Legacy hash-based id_token flow (fallback)
   var h = window.location.hash;
   if (!h || !h.includes('id_token')) return;
   var params = new URLSearchParams(h.substring(1));
   var idToken = params.get('id_token');
   if (!idToken || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idToken)) return;
 
-  // iOS native relay — send token back to native app via custom URL scheme
   if (h.indexOf('state=ios_native') !== -1) {
     history.replaceState(null, '', window.location.pathname + window.location.search);
     window.location.href = 'pcompass://auth?id_token=' + encodeURIComponent(idToken);
     return;
   }
 
-  // Web redirect flow — clean URL and process sign-in
   history.replaceState(null, '', window.location.pathname + window.location.search);
   window.addEventListener('DOMContentLoaded', function() {
     if (typeof handleGoogleResponse === 'function') {
@@ -242,8 +263,7 @@ initGoogleSignIn();
 
 // OAuth popup for iOS WebView (intercepted by native window.open override)
 function openGoogleOAuthPopup() {
-  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=id_token&scope=openid%20email%20profile&nonce=${nonce}`;
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=code&scope=openid%20email%20profile`;
   window.open(url, 'google-signin', 'width=500,height=600');
 }
 

@@ -37,13 +37,50 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many authentication attempts' });
   }
 
-  const { credential } = req.body;
+  const { credential, code } = req.body;
 
   let googleId, email, name, picture;
+  let rawIdToken = null; // For iOS native relay
 
   try {
-    if (credential) {
-      // Verify Google ID token locally via JWKS
+    if (code) {
+      // Authorization code flow (iOS) — exchange code for tokens
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (!clientSecret) throw new Error('GOOGLE_CLIENT_SECRET not configured');
+
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: clientSecret,
+          redirect_uri: 'https://pcompass.vercel.app',
+          grant_type: 'authorization_code',
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.id_token) {
+        console.error('Code exchange failed:', tokenData);
+        return res.status(400).json({ error: 'Code exchange failed' });
+      }
+      rawIdToken = tokenData.id_token;
+
+      // Verify the exchanged ID token
+      const { payload } = await jose.jwtVerify(rawIdToken, GOOGLE_JWKS, {
+        issuer: ['https://accounts.google.com', 'accounts.google.com'],
+        audience: GOOGLE_CLIENT_ID,
+      });
+      if (!payload.sub || !payload.email) {
+        return res.status(401).json({ error: 'Token missing user info' });
+      }
+      googleId = payload.sub;
+      email = payload.email;
+      name = payload.name || payload.email;
+      picture = payload.picture || '';
+
+    } else if (credential) {
+      // GIS credential flow (web) — verify ID token directly
       const { payload } = await jose.jwtVerify(credential, GOOGLE_JWKS, {
         issuer: ['https://accounts.google.com', 'accounts.google.com'],
         audience: GOOGLE_CLIENT_ID,
@@ -95,6 +132,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       success: true,
       user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
+      ...(rawIdToken && { idToken: rawIdToken }),
     });
   } catch (err) {
     console.error('Auth error:', err.message);
