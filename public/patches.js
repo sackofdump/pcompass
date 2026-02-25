@@ -754,6 +754,8 @@ function analyzeDebounced() {
   analyzeDebounceTimer = setTimeout(() => {
     _analyzeLocked = true;
     var selectors = ['#analyzeBtn', '.btn-analyze-sticky', '#refreshMarketBtn'];
+    var analyzeBtn = document.getElementById('analyzeBtn');
+    if (analyzeBtn) analyzeBtn.classList.add('analyzing');
     selectors.forEach(function(s) {
       var el = document.querySelector(s);
       if (el) { el.disabled = true; el.style.opacity = '0.5'; }
@@ -762,6 +764,7 @@ function analyzeDebounced() {
     // Unlock after market data fetch completes (max 8s safety timeout)
     setTimeout(function() {
       _analyzeLocked = false;
+      if (analyzeBtn) analyzeBtn.classList.remove('analyzing');
       selectors.forEach(function(s) {
         var el = document.querySelector(s);
         if (el) { el.disabled = false; el.style.opacity = ''; }
