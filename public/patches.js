@@ -431,6 +431,13 @@ function signOut() {
   localStorage.removeItem('pc_pro_plan');
   // Clear HttpOnly cookies server-side
   fetch('/api/signout', { method: 'POST' }).catch(() => {});
+  // Reset holdings to blank state
+  holdings.length = 0;
+  _activePortfolioIdx = -1;
+  _activePortfolioSnapshot = null;
+  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="placeholder-icon">📊</div><div class="placeholder-text">Add your US stock holdings<br>on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
+  renderHoldings();
+  if (typeof expandInputSections === 'function') expandInputSections();
   updateUserUI();
   showToast('Signed out.');
 }
@@ -572,14 +579,21 @@ function loadAppleSignInScript() {
 async function appleSignIn() {
   try {
     await loadAppleSignInScript();
+    // Generate nonce for replay protection (Apple recommended)
+    const nonceBytes = new Uint8Array(32);
+    crypto.getRandomValues(nonceBytes);
+    const rawNonce = Array.from(nonceBytes, b => b.toString(16).padStart(2, '0')).join('');
+    const nonceHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawNonce))), b => b.toString(16).padStart(2, '0')).join('');
+
     AppleID.auth.init({
       clientId: APPLE_CLIENT_ID,
       scope: 'name email',
       redirectURI: window.location.origin,
       usePopup: true,
+      nonce: nonceHash,
     });
     const response = await AppleID.auth.signIn();
-    const body = { id_token: response.authorization.id_token };
+    const body = { id_token: response.authorization.id_token, nonce: rawNonce };
     // User info (name) is only sent on first sign-in
     if (response.user) body.user = response.user;
     const res = await fetch('/api/auth-apple', {
@@ -802,20 +816,35 @@ const paywallTiers = {};
 
 function selectPaywallTier(tier) {
   selectedPaywallTier = tier;
-  const ids = ['tier-monthly', 'tier-annual', 'tier-lifetime'];
-  const keys = ['monthly', 'annual', 'lifetime'];
-  ids.forEach((id, i) => {
-    const el = document.getElementById(id);
+  var keys = ['monthly', 'annual', 'lifetime'];
+  keys.forEach(function(k) {
+    var el = document.getElementById('tier-' + k);
     if (!el) return;
-    el.style.borderColor = keys[i] === tier ? '#00e5a0' : '#1e2430';
+    if (k === tier) {
+      el.classList.add('pw-tier-selected');
+    } else {
+      el.classList.remove('pw-tier-selected');
+    }
   });
-  const btn = document.getElementById('paywallConfirmBtn');
-  const t = paywallTiers[tier];
+  var btn = document.getElementById('paywallConfirmBtn');
+  var t = paywallTiers[tier];
   if (btn && t) {
     btn.textContent = t.label;
     btn.onclick = function() { goToPurchase(t.url); };
   }
 }
+
+// Event delegation — clicks anywhere inside a tier bubble up here
+(function() {
+  var container = document.getElementById('pwTiers');
+  if (!container) return;
+  container.addEventListener('click', function(e) {
+    var tier = e.target.closest('.pw-tier');
+    if (tier && tier.dataset.tier) {
+      selectPaywallTier(tier.dataset.tier);
+    }
+  });
+})();
 
 // ── PATCH 8: OFFLINE PORTFOLIO VIEWING ────────────────────────────
 (function initOfflineSupport() {
@@ -963,8 +992,8 @@ if (!_isIOSApp) {
 
     // Paywall modal — tier prices
     var pwPrices = document.querySelectorAll('.pw-tier-price');
-    if (pwPrices[0]) pwPrices[0].innerHTML = S.monthly.price + '<span style="font-size:11px;color:#8a9ab8;">' + S.monthly.period + '</span>';
-    if (pwPrices[1]) pwPrices[1].innerHTML = S.annual.price + '<span style="font-size:11px;color:#8a9ab8;">' + S.annual.period + '</span>';
+    if (pwPrices[0]) pwPrices[0].innerHTML = S.monthly.price + '<span style="font-size:10px;color:#6b7a90;">' + S.monthly.period + '</span>';
+    if (pwPrices[1]) pwPrices[1].innerHTML = S.annual.price + '<span style="font-size:10px;color:#6b7a90;">' + S.annual.period + '</span>';
     if (pwPrices[2]) pwPrices[2].textContent = S.lifetime.price;
 
     // Sign-in teaser

@@ -139,21 +139,25 @@ function renderHoldings() {
   const btn  = document.getElementById('analyzeBtn');
   const total = totalAllocation();
 
-  list.innerHTML = holdings.map((h, i) => `
+  list.innerHTML = holdings.map((h, i) => {
+    const dbEntry = STOCK_DB[h.ticker] || {};
+    const companyName = dbEntry.name || '';
+    return `
     <div class="stock-item">
       <div class="stock-item-top">
         <div class="stock-info">
-          <span class="stock-ticker">${escapeHTML(h.ticker)}</span>
+          <span class="stock-ticker">${escapeHTML(h.ticker)}</span>${companyName ? `<span class="stock-company">${escapeHTML(companyName)}</span>` : ''}
           <span class="stock-sector">${escapeHTML(h.sector)}</span>
         </div>
         <button class="btn-remove" onclick="removeStock('${escapeHTML(h.ticker)}')">×</button>
       </div>
       <div class="stock-slider-row">
-        <input type="range" class="stock-slider" min="0.1" max="${Math.min(100, h.pct + (100 - total) + h.pct)}" step="0.1"
+        <input type="range" class="stock-slider" id="slider-${i}" min="0.1" max="${Math.min(100, h.pct + (100 - total))}" step="0.1"
           value="${h.pct}" oninput="updateSlider(${i}, this.value)" />
         <span class="slider-pct" id="slider-pct-${i}">${h.pct}%</span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   chip.textContent = total + '% allocated';
   btn.disabled = holdings.length === 0;
@@ -170,9 +174,22 @@ function renderHoldings() {
   updateCorrelationWarnings();
   updateWhatIfPanel();
 
-  // Show/hide quick save button in header
+  // Show/hide quick save button
   const quickSave = document.getElementById('btnQuickSave');
   if (quickSave) quickSave.style.display = holdings.length > 0 ? 'inline-block' : 'none';
+
+  // Show/hide clear all button
+  const clearBtn = document.getElementById('btnClearAll');
+  if (clearBtn) clearBtn.style.display = holdings.length > 0 ? 'inline-block' : 'none';
+}
+
+function toggleHoldingsBody() {
+  const body = document.getElementById('holdingsBody');
+  const chevron = document.getElementById('holdingsChevron');
+  if (!body) return;
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  if (chevron) chevron.textContent = isHidden ? '▾' : '▸';
 }
 
 function clearAllHoldings() {
@@ -197,8 +214,14 @@ function updateSlider(i, val) {
   if (otherTotal + newPct > 100.05) return;
   holdings[i].pct = Math.round(newPct * 10) / 10;
   document.getElementById('slider-pct-' + i).textContent = holdings[i].pct + '%';
+  const total = totalAllocation();
   const chip = document.getElementById('summaryChip');
-  if (chip) chip.textContent = totalAllocation() + '% allocated';
+  if (chip) chip.textContent = total + '% allocated';
+  // Update all slider max values so they can't exceed 100% total
+  holdings.forEach((h, j) => {
+    const sl = document.getElementById('slider-' + j);
+    if (sl) sl.max = Math.min(100, h.pct + (100 - total));
+  });
   updateRiskScore();
   updateCorrelationWarnings();
 }
@@ -635,12 +658,6 @@ function analyze() {
           '</div>' +
         '<div class="sector-bars" id="sectorBarsEl">' + sectorBars + '</div>' +
         '</div>' +
-      '</div>' +
-      '<div class="market-refresh-row">' +
-        '<button class="btn-refresh-market" id="refreshMarketBtn" onclick="refreshMarketData()">' +
-          '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/></svg>' +
-          'Refresh' +
-        '</button>' +
       '</div>' +
       positionHTML +
       '<div class="panel-header" style="border:none;padding:20px 0 8px;display:flex;align-items:center;justify-content:space-between;"><h2 class="section-title">Recommended Stocks</h2>' + statusHTML + '</div>' +
@@ -1164,7 +1181,25 @@ function runWhatIf() {
     'Adding <strong>' + escapeHTML(ticker) + '</strong> (' + escapeHTML(info.name) + ') at <strong class="wi-new">' + pct + '%</strong>:<br>' +
     '&middot; <strong>' + escapeHTML(info.sector) + '</strong> exposure &rarr; <strong class="wi-new">' + Math.round((simSectors[info.sector]||0)/simTotal*100) + '%</strong> of portfolio<br>' +
     '&middot; Beta shift <strong class="wi-new">' + betaDir + ' ' + Math.abs(betaDelta) + '</strong> &rarr; new beta: <strong class="wi-new">' + simBeta + '</strong><br>' +
-    '&middot; <strong class="wi-new">' + Math.round((100-simTotal)*10)/10 + '%</strong> remaining unallocated';
+    '&middot; <strong class="wi-new">' + Math.round((100-simTotal)*10)/10 + '%</strong> remaining unallocated' +
+    '<br><button class="btn-whatif-add" onclick="addFromWhatIf()">+ Add ' + escapeHTML(ticker) + ' to Portfolio</button>';
+}
+
+function addFromWhatIf() {
+  const wiTicker = document.getElementById('whatifTicker');
+  const wiPct = document.getElementById('whatifPct');
+  if (!wiTicker || !wiPct) return;
+  const ticker = wiTicker.value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const pct = parseFloat(wiPct.value) || 0;
+  if (!ticker || pct <= 0) return;
+  if (holdings.find(h => h.ticker === ticker)) return;
+  if (totalAllocation() + pct > 100.05) return;
+  const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0};
+  holdings.push({ticker, pct: Math.round(pct*10)/10, sector: info.sector, beta: info.beta});
+  renderHoldings();
+  wiTicker.value = '';
+  wiPct.value = '';
+  document.getElementById('whatifResult').innerHTML = 'Enter a ticker to preview its impact on your portfolio.';
 }
 
 (function() {
@@ -1176,8 +1211,73 @@ function runWhatIf() {
   if (wp) wp.addEventListener('input', debouncedWhatIf);
 })();
 
+// ── WHAT-IF AUTOCOMPLETE ─────────────────────────────────
+(function initWhatifAutocomplete() {
+  const input = document.getElementById('whatifTicker');
+  const dd = document.getElementById('whatifAutocompleteDropdown');
+  if (!input || !dd) return;
+  const dbEntries = Object.entries(STOCK_DB);
+
+  input.addEventListener('input', function() {
+    const q = this.value.trim().toUpperCase();
+    if (q.length === 0) { dd.classList.remove('open'); return; }
+    const matches = dbEntries
+      .filter(([ticker, info]) => ticker.startsWith(q) || info.name.toUpperCase().includes(q))
+      .slice(0, 8);
+    if (matches.length === 0) { dd.classList.remove('open'); return; }
+    dd.innerHTML = matches.map(([ticker, info]) =>
+      '<div class="autocomplete-item" data-ticker="' + escapeHTML(ticker) + '">' +
+      '<span class="autocomplete-item-ticker">' + escapeHTML(ticker) + '</span>' +
+      '<span class="autocomplete-item-name">' + escapeHTML(info.name) + '</span>' +
+      '</div>'
+    ).join('');
+    dd.classList.add('open');
+  });
+
+  dd.addEventListener('click', function(e) {
+    const item = e.target.closest('.autocomplete-item');
+    if (item && item.dataset.ticker) {
+      input.value = item.dataset.ticker;
+      dd.classList.remove('open');
+      document.getElementById('whatifPct').focus();
+      runWhatIf();
+    }
+  });
+
+  input.addEventListener('keydown', function(e) {
+    const items = dd.querySelectorAll('.autocomplete-item');
+    const selIdx = [...items].findIndex(i => i.classList.contains('selected'));
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items.forEach(i => i.classList.remove('selected'));
+      const next = Math.min(selIdx + 1, items.length - 1);
+      if (items[next]) { items[next].classList.add('selected'); items[next].scrollIntoView({block:'nearest'}); }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items.forEach(i => i.classList.remove('selected'));
+      const prev = Math.max(selIdx - 1, 0);
+      if (items[prev]) { items[prev].classList.add('selected'); items[prev].scrollIntoView({block:'nearest'}); }
+    } else if (e.key === 'Enter') {
+      const sel = dd.querySelector('.autocomplete-item.selected');
+      if (sel && dd.classList.contains('open')) {
+        e.preventDefault();
+        input.value = sel.dataset.ticker;
+        dd.classList.remove('open');
+        document.getElementById('whatifPct').focus();
+        runWhatIf();
+      }
+    } else if (e.key === 'Escape') {
+      dd.classList.remove('open');
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.autocomplete-wrapper')) dd.classList.remove('open');
+  });
+})();
+
 // ── PORTFOLIO SAVE/LOAD ───────────────────────────────────
-const MAX_SLOTS = 3;
+const MAX_SLOTS = 10;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
@@ -1244,6 +1344,15 @@ function renderSidebarUser() {
   }
 }
 
+function getPortfolioRiskColor(holdingsArr) {
+  if (!holdingsArr || holdingsArr.length === 0) return 'var(--muted)';
+  let beta = 0, total = 0;
+  holdingsArr.forEach(h => { beta += (h.beta || (STOCK_DB[h.ticker]||{}).beta || 1.0) * h.pct; total += h.pct; });
+  if (total === 0) return 'var(--muted)';
+  const score = Math.round(Math.min(100, Math.max(0, ((beta / total) / 2.0) * 100)));
+  return score < 35 ? 'var(--conservative)' : score < 65 ? 'var(--moderate)' : 'var(--aggressive)';
+}
+
 function renderSidebarPortfolios() {
   const el = document.getElementById('sidebarPortfolios');
   const actionsEl = document.getElementById('sidebarPortfolioActions');
@@ -1253,24 +1362,22 @@ function renderSidebarPortfolios() {
   if (portfolios.length === 0) {
     el.innerHTML = '<div class="sidebar-empty">No saved portfolios</div>';
   } else {
-    el.innerHTML = portfolios.map((p, i) =>
-      '<div class="sidebar-slot' + (i === _activePortfolioIdx ? ' active' : '') + '" id="sb-slot-' + i + '" onclick="loadPortfolio(' + i + ')">' +
+    el.innerHTML = portfolios.map((p, i) => {
+      const riskColor = getPortfolioRiskColor(p.holdings);
+      return '<div class="sidebar-slot' + (i === _activePortfolioIdx ? ' active' : '') + '" id="sb-slot-' + i + '" onclick="loadPortfolio(' + i + ')" style="border-left:3px solid ' + riskColor + ';">' +
       '<span class="slot-name" id="sb-slot-name-' + i + '">' + escapeHTML(p.name) + '</span>' +
       '<span class="slot-count">' + p.holdings.length + '</span>' +
       '<div class="slot-actions">' +
       '<button class="slot-btn" onclick="event.stopPropagation();startRenameSlot(' + i + ',\'sb-\')" title="Rename">✎</button>' +
       '<button class="slot-btn danger" onclick="event.stopPropagation();deletePortfolio(' + i + ')" title="Delete">&times;</button>' +
-      '</div></div>'
-    ).join('');
+      '</div></div>';
+    }).join('');
   }
 
   if (actionsEl) {
-    let html = '<button class="sidebar-btn" onclick="savePortfolio()">＋ Save Current</button>';
+    let html = portfolios.length >= MAX_SLOTS ? '' : '<button class="sidebar-btn" onclick="savePortfolio()">＋ Save Current</button>';
     if (typeof currentUser !== 'undefined' && currentUser) {
       html += '<button class="sidebar-btn" onclick="syncPortfoliosFromCloud()">☁ Sync from Cloud</button>';
-    }
-    if (holdings.length > 0) {
-      html += '<button class="sidebar-btn sidebar-btn-danger" onclick="clearAllHoldings()">✕ Clear All</button>';
     }
     actionsEl.innerHTML = html;
   }
@@ -1309,6 +1416,7 @@ function renderSidebarAccount() {
 async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
+  if (portfolios.length >= MAX_SLOTS) { showToast('Max ' + MAX_SLOTS + ' portfolios — delete one to save a new one.'); return; }
   const name = 'Portfolio ' + (portfolios.length + 1);
   portfolios.push({name, holdings: JSON.parse(JSON.stringify(holdings))});
   savePortfoliosLS(portfolios);
@@ -1682,26 +1790,33 @@ function _renderProPicksForStrategy(type, proData) {
 // ── UPGRADE MODAL ────────────────────────────────────────
 function showPaywall(trigger) {
   const msgs = {
-    ai:       'You\'ve used your 3 free AI explanations.',
-    pdf:      'PDF export is a Pro feature.',
-    sync:     'Cloud sync is a Pro feature.',
-    showmore: 'Expanded picks are a Pro feature.',
-    header:   'Upgrade to unlock all Pro features.',
+    ai:        'You\'ve used your 3 free AI explanations.',
+    pdf:       'PDF export is a Pro feature.',
+    sync:      'Cloud sync is a Pro feature.',
+    showmore:  'Expanded picks are a Pro feature.',
+    header:    'Upgrade to unlock all Pro features.',
     screenshot:'Screenshot import is a Pro feature.',
   };
   const msgEl = document.getElementById('paywallMsg');
-  if (msgEl) msgEl.textContent = 'You must have Pro Access to access this.';
+  if (msgEl) msgEl.textContent = msgs[trigger] || 'Upgrade to unlock all Pro features.';
   const modal = document.getElementById('paywallModal');
 
-  // Inside iOS app: hide all payment references (Apple Guideline 3.1.1)
+  // Reset all elements to default (in case iOS mode was set on a previous open)
+  modal.querySelectorAll('[id^="tier-"]').forEach(function(el) { el.style.display = ''; });
+  modal.querySelectorAll('.pw-features').forEach(function(el) { el.style.display = ''; });
+  modal.querySelectorAll('.pw-restore').forEach(function(el) { el.style.display = ''; });
+  const confirmBtn = document.getElementById('paywallConfirmBtn');
+  if (confirmBtn) {
+    confirmBtn.style.background = '';
+    confirmBtn.style.color = '';
+    confirmBtn.style.cursor = '';
+  }
+
+  // Inside iOS app: hide purchase tiers & web payment links (Apple Guideline 3.1.1)
+  // But keep Restore Purchases visible (Apple requires it)
   if (typeof _isIOSApp !== 'undefined' && _isIOSApp) {
-    const tiers = modal.querySelectorAll('[id^="tier-"]');
-    tiers.forEach(function(el) { el.style.display = 'none'; });
-    // Hide feature list and "Unlock Pro" heading
-    modal.querySelectorAll('.pw-features, .pw-heading').forEach(function(el) { el.style.display = 'none'; });
-    // Hide Restore Purchases in paywall
-    modal.querySelectorAll('[onclick*="restorePurchases"]').forEach(function(el) { el.style.display = 'none'; });
-    const confirmBtn = document.getElementById('paywallConfirmBtn');
+    modal.querySelectorAll('[id^="tier-"]').forEach(function(el) { el.style.display = 'none'; });
+    modal.querySelectorAll('.pw-features').forEach(function(el) { el.style.display = 'none'; });
     if (confirmBtn) {
       confirmBtn.textContent = 'OK';
       confirmBtn.onclick = function() { closePaywall(); };
@@ -1709,24 +1824,17 @@ function showPaywall(trigger) {
       confirmBtn.style.color = '#8a9ab8';
       confirmBtn.style.cursor = 'default';
     }
-    if (msgEl) msgEl.textContent = 'This feature requires a Pro subscription.';
+    if (msgEl) msgEl.textContent = 'This feature requires a Pro subscription.\nManage subscriptions in Settings \u203a Apple ID \u203a Subscriptions.';
+    // Make Restore Purchases more prominent on iOS
+    modal.querySelectorAll('.pw-restore').forEach(function(el) { el.classList.add('pw-restore-ios'); });
   }
 
   modal.style.display = 'flex';
   modal.classList.add('open');
 }
-function showUpgradeModal() { showPaywall('ai'); }
 function closePaywall() {
   const pm2=document.getElementById('paywallModal');pm2.style.display='none';pm2.classList.remove('open');
 }
-function closeUpgradeModal() {
-  document.getElementById('upgradeModal').classList.remove('open');
-}
-// Close on backdrop click
-document.addEventListener('click', e => {
-  const modal = document.getElementById('upgradeModal');
-  if (modal && e.target === modal) closeUpgradeModal();
-});
 
 // ── ENTER KEY ─────────────────────────────────────────────
 document.getElementById('tickerInput').addEventListener('keydown', e => {

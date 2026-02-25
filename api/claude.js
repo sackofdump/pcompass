@@ -16,16 +16,14 @@ async function checkRateLimitDB(clientKey, endpoint, limitKey) {
   const limit = LIMITS[limitKey] || LIMITS.free;
   const windowStart = new Date(Date.now() - limit.windowMs).toISOString();
 
-  // Insert first (atomic — no race between check and insert)
-  await neonSQL(
-    `INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)`,
-    [clientKey, endpoint]
-  );
-
-  // Then count (includes the row we just inserted)
+  // Single atomic CTE: insert + count in one statement (no race condition)
   const countResult = await neonSQL(
-    `SELECT COUNT(*)::int AS cnt FROM api_usage
-     WHERE client_key = $1 AND endpoint = $2 AND created_at > $3`,
+    `WITH ins AS (
+      INSERT INTO api_usage (client_key, endpoint) VALUES ($1, $2)
+      RETURNING created_at
+    )
+    SELECT COUNT(*)::int AS cnt FROM api_usage
+    WHERE client_key = $1 AND endpoint = $2 AND created_at > $3`,
     [clientKey, endpoint, windowStart]
   );
   const count = countResult[0]?.cnt || 0;
@@ -137,6 +135,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Text block exceeds ' + MAX_TEXT_LENGTH + ' character limit' });
       }
       if (block.type === 'image' && block.source?.type === 'base64') {
+        const mime = block.source.media_type || '';
+        if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'].includes(mime)) {
+          return res.status(400).json({ error: 'Unsupported image type. Use PNG, JPEG, WebP, or GIF.' });
+        }
         const b64 = block.source.data || '';
         const decodedSize = Math.ceil(b64.length * 3 / 4);
         if (decodedSize > MAX_IMAGE_B64_BYTES) {

@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many authentication attempts' });
   }
 
-  const { id_token, user: appleUser } = req.body;
+  const { id_token, nonce: rawNonce, user: appleUser } = req.body;
 
   if (!id_token) {
     return res.status(400).json({ error: 'No id_token provided' });
@@ -56,6 +56,16 @@ export default async function handler(req, res) {
 
     if (!appleId || !email) {
       return res.status(401).json({ error: 'Token missing user info' });
+    }
+
+    // Verify nonce to prevent replay attacks (Apple recommended)
+    if (rawNonce && payload.nonce) {
+      const enc = new TextEncoder();
+      const hashBuf = await crypto.subtle.digest('SHA-256', enc.encode(rawNonce));
+      const expectedNonce = Array.from(new Uint8Array(hashBuf), b => b.toString(16).padStart(2, '0')).join('');
+      if (payload.nonce !== expectedNonce) {
+        return res.status(401).json({ error: 'Nonce mismatch — possible replay' });
+      }
     }
 
     // Apple requires email_verified check
