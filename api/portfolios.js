@@ -1,6 +1,7 @@
 import { getAllowedOrigin } from './lib/cors.js';
 import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── VERIFY USER IS WHO THEY CLAIM ─────────────────────────
 // Uses AUTH token (not Pro) — any signed-in user can access their own portfolios.
@@ -76,6 +77,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (!await checkRateLimit('email:' + authEmail, 'portfolios-write', 5)) {
+      return res.status(429).json({ error: 'Too many saves — try again later' });
+    }
     const { userId, name, holdings, portfolioId } = req.body;
     if (!userId || !name || !holdings) {
       return res.status(400).json({ error: 'userId, name, and holdings required' });
@@ -153,6 +157,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
+    if (!await checkRateLimit('email:' + authEmail, 'portfolios-write', 5)) {
+      return res.status(429).json({ error: 'Too many deletes — try again later' });
+    }
     const { userId, portfolioId } = req.query;
     if (!userId || !portfolioId) {
       return res.status(400).json({ error: 'userId and portfolioId required' });
