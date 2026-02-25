@@ -186,6 +186,7 @@ async function verifyProAccess(email) {
     window.renderHoldings = function() {
       origRender();
       checkSticky();
+      if (typeof updateSwitcherLabel === 'function') updateSwitcherLabel();
     };
   }
 
@@ -386,6 +387,9 @@ function updateUserUI() {
     signInBtn.style.display = 'flex';
     avatar.style.display = 'none';
   }
+  // Update switcher sync button visibility
+  const syncBtn = document.getElementById('btnSwitcherSync');
+  if (syncBtn) syncBtn.style.display = currentUser ? 'block' : 'none';
 }
 
 function toggleFreePlanInfo() {
@@ -402,11 +406,14 @@ function toggleUserMenu() {
   menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
-// Close menu when clicking outside
+// Close menu and switcher when clicking outside
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#userAvatar')) {
     const menu = document.getElementById('userMenu');
     if (menu) menu.style.display = 'none';
+  }
+  if (!e.target.closest('#portfolioSwitcher')) {
+    if (typeof closeSwitcherDropdown === 'function') closeSwitcherDropdown();
   }
 });
 
@@ -501,7 +508,10 @@ async function syncPortfoliosFromCloud() {
         cloudId: cp.id,
       }));
       localStorage.setItem('pc_portfolios', JSON.stringify(cloudPortfolios));
+      _activePortfolioIdx = -1;
+      _activePortfolioSnapshot = null;
       renderPortfolioSlots();
+      if (typeof closeSwitcherDropdown === 'function') closeSwitcherDropdown();
       showToast('☁️ Synced ' + cloudPortfolios.length + ' portfolio(s) from cloud');
     } else {
       showToast('No cloud portfolios found.');

@@ -104,6 +104,8 @@ async function fetchProPicks() {
 // ── STATE ────────────────────────────────────────────────
 let holdings = [];
 let previewHoldings = [];
+let _activePortfolioIdx = -1;
+let _activePortfolioSnapshot = null;
 
 // ── HOLDINGS LOGIC ───────────────────────────────────────
 function totalAllocation() {
@@ -170,18 +172,27 @@ function renderHoldings() {
   updateWhatIfPanel();
   renderPortfolioSlots();
 
-  // Show/hide Clear All button
-  const clearBtn = document.getElementById('btnClearAll');
+  // Show/hide Clear All button in switcher
+  const clearBtn = document.getElementById('btnSwitcherClear');
   if (clearBtn) clearBtn.style.display = holdings.length > 0 ? 'block' : 'none';
+
+  // Show/hide Sync button based on sign-in state
+  const syncBtn = document.getElementById('btnSwitcherSync');
+  if (syncBtn) syncBtn.style.display = (typeof currentUser !== 'undefined' && currentUser) ? 'block' : 'none';
+
+  updateSwitcherLabel();
 }
 
 function clearAllHoldings() {
   if (holdings.length === 0) return;
   if (!confirm('Clear all holdings? This will reset your current portfolio.')) return;
   holdings.length = 0;
+  _activePortfolioIdx = -1;
+  _activePortfolioSnapshot = null;
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="placeholder-icon">📊</div><div class="placeholder-text">Add your US stock holdings<br>on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
   expandInputSections();
+  closeSwitcherDropdown();
   // Re-enable sticky button visibility for next portfolio
   const stickyBtn = document.querySelector('.btn-analyze-sticky');
   if (stickyBtn) stickyBtn.dataset.analyzed = '';
@@ -1180,6 +1191,32 @@ const MAX_SLOTS = 3;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
+function isPortfolioModified() {
+  if (_activePortfolioIdx < 0 || !_activePortfolioSnapshot) return false;
+  return JSON.stringify(holdings) !== _activePortfolioSnapshot;
+}
+
+function updateSwitcherLabel() {
+  // Label is always "My Portfolios" — the dropdown shows individual slots
+}
+
+function toggleSwitcherDropdown() {
+  const el = document.getElementById('portfolioSwitcher');
+  if (!el) return;
+  const isOpen = el.classList.contains('open');
+  if (isOpen) {
+    closeSwitcherDropdown();
+  } else {
+    el.classList.add('open');
+    renderSwitcherSlots();
+  }
+}
+
+function closeSwitcherDropdown() {
+  const el = document.getElementById('portfolioSwitcher');
+  if (el) el.classList.remove('open');
+}
+
 async function savePortfolio() {
   if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
@@ -1195,7 +1232,10 @@ async function savePortfolio() {
   const name = 'Portfolio ' + (portfolios.length + 1);
   portfolios.push({name, holdings: JSON.parse(JSON.stringify(holdings))});
   savePortfoliosLS(portfolios);
+  _activePortfolioIdx = portfolios.length - 1;
+  _activePortfolioSnapshot = JSON.stringify(holdings);
   renderPortfolioSlots();
+  closeSwitcherDropdown();
   showToast('✓ Portfolio saved!');
 }
 
@@ -1203,9 +1243,12 @@ function loadPortfolio(idx) {
   const portfolios = getSavedPortfolios();
   if (!portfolios[idx]) return;
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
+  _activePortfolioIdx = idx;
+  _activePortfolioSnapshot = JSON.stringify(holdings);
   renderHoldings();
   collapseInputSections();
-  showToast('✓ Portfolio loaded!');
+  closeSwitcherDropdown();
+  showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
 }
 
 function deletePortfolio(idx) {
@@ -1214,6 +1257,13 @@ function deletePortfolio(idx) {
   if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
   const deleted = portfolios.splice(idx, 1)[0];
   savePortfoliosLS(portfolios);
+  // Adjust active index after deletion
+  if (_activePortfolioIdx === idx) {
+    _activePortfolioIdx = -1;
+    _activePortfolioSnapshot = null;
+  } else if (_activePortfolioIdx > idx) {
+    _activePortfolioIdx--;
+  }
   renderPortfolioSlots();
   showToast('Portfolio deleted.');
   // Also delete from cloud if it has a cloudId
@@ -1233,37 +1283,53 @@ function renamePortfolio(idx, newName) {
 }
 
 function renderPortfolioSlots() {
-  const el = document.getElementById('portfolioSlots');
+  renderSwitcherSlots();
+  updateSwitcherLabel();
+}
+
+function renderSwitcherSlots() {
+  const el = document.getElementById('switcherSlots');
   if (!el) return;
   const portfolios = getSavedPortfolios();
-  if (portfolios.length === 0) { el.innerHTML = ''; return; }
+
+  // Show/hide sync button
+  const syncBtn = document.getElementById('btnSwitcherSync');
+  if (syncBtn) syncBtn.style.display = (typeof currentUser !== 'undefined' && currentUser) ? 'block' : 'none';
+
+  // Show/hide clear button
+  const clearBtn = document.getElementById('btnSwitcherClear');
+  if (clearBtn) clearBtn.style.display = holdings.length > 0 ? 'block' : 'none';
+
+  if (portfolios.length === 0) {
+    el.innerHTML = '<div class="switcher-empty">No saved portfolios</div>';
+    return;
+  }
   el.innerHTML = portfolios.map((p, i) =>
-    '<div class="portfolio-slot" id="slot-' + i + '" onclick="loadPortfolio(' + i + ')">' +
-    '<span class="slot-name" id="slot-name-' + i + '">' + escapeHTML(p.name) + '</span>' +
+    '<div class="switcher-slot' + (i === _activePortfolioIdx ? ' active' : '') + '" id="sw-slot-' + i + '" onclick="loadPortfolio(' + i + ')">' +
+    '<span class="slot-name" id="sw-slot-name-' + i + '">' + escapeHTML(p.name) + '</span>' +
     '<span class="slot-count">' + p.holdings.length + ' holdings</span>' +
     '<div class="slot-actions">' +
-    '<button class="slot-btn" onclick="event.stopPropagation();startRenameSlot(' + i + ')" title="Rename">✎</button>' +
+    '<button class="slot-btn" onclick="event.stopPropagation();startRenameSlot(' + i + ',\'sw-\')" title="Rename">✎</button>' +
     '<button class="slot-btn danger" onclick="event.stopPropagation();deletePortfolio(' + i + ')" title="Delete">&times;</button>' +
     '</div></div>'
   ).join('');
 }
 
-function startRenameSlot(i) {
-  const nameEl = document.getElementById('slot-name-' + i);
-  const slot   = document.getElementById('slot-' + i);
+function startRenameSlot(i, prefix) {
+  prefix = prefix || '';
+  const nameEl = document.getElementById(prefix + 'slot-name-' + i);
   if (!nameEl) return;
   const current = nameEl.textContent;
-  // Replace span with input
   nameEl.outerHTML =
-    '<input class="slot-name-input" id="slot-name-' + i + '" value="' + escapeHTML(current) + '" maxlength="24"' +
+    '<input class="slot-name-input" id="' + prefix + 'slot-name-' + i + '" value="' + escapeHTML(current) + '" maxlength="24"' +
     ' onclick="event.stopPropagation()"' +
-    ' onblur="finishRenameSlot(' + i + ', this.value)"' +
+    ' onblur="finishRenameSlot(' + i + ', this.value, \'' + prefix + '\')"' +
     ' onkeydown="if(event.key===\'Enter\')this.blur();if(event.key===\'Escape\')this.blur();" />';
-  const input = document.getElementById('slot-name-' + i);
+  const input = document.getElementById(prefix + 'slot-name-' + i);
   if (input) { input.focus(); input.select(); }
 }
 
-function finishRenameSlot(i, newName) {
+function finishRenameSlot(i, newName, prefix) {
   renamePortfolio(i, newName.trim() || ('Portfolio ' + (i + 1)));
   renderPortfolioSlots();
 }
