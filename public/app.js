@@ -143,9 +143,8 @@ function renderHoldings() {
     const dbEntry = STOCK_DB[h.ticker] || {};
     const companyName = dbEntry.name || '';
     return `
-    <div class="stock-item" data-idx="${i}" draggable="true">
+    <div class="stock-item">
       <div class="stock-item-top">
-        <span class="drag-handle" title="Hold to rearrange">⠿</span>
         <div class="stock-info">
           <span class="stock-ticker">${escapeHTML(h.ticker)}</span>${companyName ? `<span class="stock-company">${escapeHTML(companyName)}</span>` : ''}
           <span class="stock-sector">${escapeHTML(h.sector)}</span>
@@ -159,7 +158,6 @@ function renderHoldings() {
       </div>
     </div>`;
   }).join('');
-  if (holdings.length > 1) initDragReorder();
 
   chip.textContent = total + '% allocated';
   btn.disabled = holdings.length === 0;
@@ -226,91 +224,6 @@ function updateSlider(i, val) {
   });
   updateRiskScore();
   updateCorrelationWarnings();
-}
-
-// ── DRAG REORDER HOLDINGS ─────────────────────────────────
-function initDragReorder() {
-  const list = document.getElementById('stockList');
-  if (!list) return;
-  let dragIdx = null;
-
-  list.querySelectorAll('.stock-item').forEach(item => {
-    item.addEventListener('dragstart', function(e) {
-      dragIdx = parseInt(this.dataset.idx);
-      this.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    item.addEventListener('dragend', function() {
-      this.classList.remove('dragging');
-      list.querySelectorAll('.stock-item').forEach(el => el.classList.remove('drag-over'));
-      dragIdx = null;
-    });
-    item.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const overIdx = parseInt(this.dataset.idx);
-      if (overIdx !== dragIdx) {
-        list.querySelectorAll('.stock-item').forEach(el => el.classList.remove('drag-over'));
-        this.classList.add('drag-over');
-      }
-    });
-    item.addEventListener('dragleave', function() { this.classList.remove('drag-over'); });
-    item.addEventListener('drop', function(e) {
-      e.preventDefault();
-      const dropIdx = parseInt(this.dataset.idx);
-      if (dragIdx !== null && dragIdx !== dropIdx) {
-        const moved = holdings.splice(dragIdx, 1)[0];
-        holdings.splice(dropIdx, 0, moved);
-        renderHoldings();
-      }
-    });
-  });
-
-  // Touch support (long-press to drag)
-  let touchItem = null, touchClone = null, touchIdx = null, holdTimer = null;
-  list.querySelectorAll('.stock-item').forEach(item => {
-    item.addEventListener('touchstart', function(e) {
-      if (e.target.closest('.stock-slider, .btn-remove')) return;
-      const self = this;
-      holdTimer = setTimeout(function() {
-        touchIdx = parseInt(self.dataset.idx);
-        touchItem = self;
-        self.classList.add('dragging');
-        touchClone = self.cloneNode(true);
-        touchClone.classList.add('drag-ghost');
-        touchClone.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;width:' + self.offsetWidth + 'px;opacity:0.85;';
-        document.body.appendChild(touchClone);
-      }, 400);
-    }, {passive: true});
-    item.addEventListener('touchmove', function(e) {
-      if (!touchClone) { clearTimeout(holdTimer); return; }
-      e.preventDefault();
-      const touch = e.touches[0];
-      touchClone.style.left = (touch.clientX - touchClone.offsetWidth / 2) + 'px';
-      touchClone.style.top = (touch.clientY - 20) + 'px';
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const over = el?.closest('.stock-item');
-      list.querySelectorAll('.stock-item').forEach(el => el.classList.remove('drag-over'));
-      if (over && over !== touchItem) over.classList.add('drag-over');
-    }, {passive: false});
-    item.addEventListener('touchend', function(e) {
-      clearTimeout(holdTimer);
-      if (!touchClone) return;
-      const touch = e.changedTouches[0];
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const dropTarget = el?.closest('.stock-item');
-      if (dropTarget && touchIdx !== null) {
-        const dropIdx = parseInt(dropTarget.dataset.idx);
-        if (dropIdx !== touchIdx) {
-          const moved = holdings.splice(touchIdx, 1)[0];
-          holdings.splice(dropIdx, 0, moved);
-        }
-      }
-      if (touchClone.parentNode) touchClone.remove();
-      touchClone = null; touchItem = null; touchIdx = null;
-      renderHoldings();
-    });
-  });
 }
 
 function getPortfolioProfile() {

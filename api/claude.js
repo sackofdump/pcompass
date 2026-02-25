@@ -97,6 +97,8 @@ export default async function handler(req, res) {
   const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
   const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
   let isPro = await verifyProToken(proEmail, proToken, proTs);
+  // Prevent privilege escalation: pro token email must match authenticated user
+  if (isPro && proEmail !== auth.email) isPro = false;
   if (isPro) {
     // DB validation: confirm license is still active (handles cancellations)
     try {

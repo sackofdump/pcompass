@@ -56,6 +56,10 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid or expired auth token' });
     }
 
+    // ── Invalidate all sessions before deleting ──
+    // Increment session_version so any outstanding tokens become invalid immediately
+    await neonSQL(`UPDATE users SET session_version = COALESCE(session_version, 1) + 1 WHERE LOWER(email) = $1`, [bodyEmail]);
+
     // ── Delete user data ──
     // portfolios are ON DELETE CASCADE from users table
     // Delete pro license first (no FK)

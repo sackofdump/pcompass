@@ -12,6 +12,12 @@ export async function checkRateLimit(clientKey, endpoint, maxRequests) {
       WHERE client_key = $1 AND endpoint = $2 AND created_at > NOW() - INTERVAL '1 hour'`,
       [clientKey, endpoint]
     );
+
+    // Probabilistic cleanup: ~2% of requests prune old entries (all endpoints)
+    if (Math.random() < 0.02) {
+      neonSQL(`DELETE FROM api_usage WHERE created_at < NOW() - INTERVAL '48 hours'`, []).catch(() => {});
+    }
+
     return (result[0]?.cnt || 0) <= maxRequests;
   } catch (e) {
     return false; // fail closed

@@ -58,7 +58,12 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Token missing user info' });
     }
 
-    // Verify nonce to prevent replay attacks (Apple recommended)
+    // Verify nonce to prevent replay attacks
+    // Nonce is mandatory for native app builds (iOS), optional for web Sign-in with Apple
+    const isNativeApp = (req.headers['user-agent'] || '').includes('pcompass-ios');
+    if (isNativeApp && (!rawNonce || !payload.nonce)) {
+      return res.status(401).json({ error: 'Nonce required for native app authentication' });
+    }
     if (rawNonce && payload.nonce) {
       const enc = new TextEncoder();
       const hashBuf = await crypto.subtle.digest('SHA-256', enc.encode(rawNonce));
