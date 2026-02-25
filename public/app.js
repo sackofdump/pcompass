@@ -180,6 +180,10 @@ function renderHoldings() {
   const syncBtn = document.getElementById('btnSwitcherSync');
   if (syncBtn) syncBtn.style.display = (typeof currentUser !== 'undefined' && currentUser) ? 'block' : 'none';
 
+  // Show/hide quick save button
+  const quickSave = document.getElementById('btnQuickSave');
+  if (quickSave) quickSave.style.display = holdings.length > 0 ? 'inline-block' : 'none';
+
   updateSwitcherLabel();
 }
 
@@ -680,18 +684,8 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Web: scroll to top of page. iOS app: scroll to Portfolio Health panel.
+  // Hide sticky analyze button after results show
   setTimeout(() => {
-    if (typeof isIOSApp === 'function' && isIOSApp()) {
-      const healthEl = document.querySelector('.health-panel');
-      if (healthEl) {
-        const y = healthEl.getBoundingClientRect().top + window.pageYOffset - 60;
-        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
-      }
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    // Hide sticky analyze button after results show
     const stickyBtn = document.querySelector('.btn-analyze-sticky');
     if (stickyBtn) stickyBtn.classList.remove('visible');
   }, 150);

@@ -606,6 +606,8 @@ async function appleSignIn() {
 // ── COLLAPSE HOLDINGS AFTER ANALYZE ───────────────────────────
 // After analysis, collapse the holdings editing panel and show "tap to edit"
 function collapseHoldingsPanel() {
+  // Only collapse on mobile — on desktop the two-column layout needs the left panel
+  if (window.innerWidth > 900) return;
   var body = document.getElementById('holdingsBody');
   var link = document.getElementById('editPortfolioLink');
   if (body) body.style.display = 'none';
