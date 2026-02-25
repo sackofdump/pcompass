@@ -1556,6 +1556,33 @@
   body.light .pstrip-change.up { color: #00a87a; }
   body.light .pstrip-change.down { color: #e02a4a; }
 
+  .pstrip-refresh {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+    align-self: center;
+  }
+  .pstrip-refresh:hover { color: var(--accent); border-color: var(--accent); }
+  .pstrip-refresh.spinning {
+    animation: pstrip-spin 0.8s linear infinite;
+    color: var(--accent);
+    pointer-events: none;
+  }
+  @keyframes pstrip-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
   @media (max-width: 900px) {
     .portfolio-strip { padding: 8px 16px; gap: 6px; }
   }

@@ -1066,14 +1066,13 @@ function renderPortfolioStrip(performanceMap) {
       + changeBadge
       + '</div>';
   }
+  html += '<button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">↻</button>';
   strip.innerHTML = html;
   strip.classList.add('visible');
 }
 
-async function fetchPortfolioPerformance() {
+function _collectPortfolioTickers() {
   var portfolios = getSavedPortfolios();
-  if (portfolios.length === 0) return {};
-  // Collect all unique tickers across all portfolios
   var tickerSet = {};
   for (var i = 0; i < portfolios.length; i++) {
     var h = portfolios[i].holdings;
@@ -1082,8 +1081,19 @@ async function fetchPortfolioPerformance() {
       if (h[j].ticker) tickerSet[h[j].ticker.toUpperCase()] = true;
     }
   }
-  var tickers = Object.keys(tickerSet);
+  return Object.keys(tickerSet);
+}
+
+async function fetchPortfolioPerformance(forceRefresh) {
+  var portfolios = getSavedPortfolios();
+  if (portfolios.length === 0) return {};
+  var tickers = _collectPortfolioTickers();
   if (tickers.length === 0) return {};
+  // Bust localStorage cache if force-refreshing
+  if (forceRefresh) {
+    var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
+    try { localStorage.removeItem(cacheKey); } catch(e) {}
+  }
   var marketData = await fetchMarketDataCached(tickers);
   if (!marketData) return {};
   // Calculate weighted daily change for each portfolio
@@ -1102,11 +1112,27 @@ async function fetchPortfolioPerformance() {
       }
       totalPct += pct;
     }
-    // If total allocation < 100%, scale to actual allocation
     perfMap[i] = totalPct > 0 ? weightedChange : 0;
   }
   return perfMap;
 }
+
+window.refreshPortfolioStrip = async function() {
+  var btn = document.getElementById('pstripRefresh');
+  if (btn) btn.classList.add('spinning');
+  renderPortfolioStrip(null); // show loading dots
+  // Re-add spinning class since renderPortfolioStrip rebuilt the DOM
+  btn = document.getElementById('pstripRefresh');
+  if (btn) btn.classList.add('spinning');
+  try {
+    var pm = await fetchPortfolioPerformance(true);
+    renderPortfolioStrip(pm);
+  } catch(e) {
+    renderPortfolioStrip(null);
+  }
+  btn = document.getElementById('pstripRefresh');
+  if (btn) btn.classList.remove('spinning');
+};
 
 // Initialize portfolio strip on page load
 (function initPortfolioStrip() {
