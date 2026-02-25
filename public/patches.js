@@ -243,7 +243,7 @@ initGoogleSignIn();
 // OAuth popup for iOS WebView (intercepted by native window.open override)
 function openGoogleOAuthPopup() {
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${nonce}`;
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=id_token&scope=openid%20email%20profile&nonce=${nonce}`;
   window.open(url, 'google-signin', 'width=500,height=600');
 }
 
