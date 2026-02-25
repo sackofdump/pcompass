@@ -71,7 +71,7 @@ async function verifyProToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 14400) return false; // expired
+  if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false; // expired
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
@@ -93,7 +93,7 @@ async function verifyAuthToken(email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
-  if (isNaN(ts) || now - ts > 14400) return false;
+  if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false;
 
   const secret = process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
@@ -175,6 +175,7 @@ export default async function handler(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pro-Token, X-Pro-Email, X-Pro-Ts, X-Auth-Token, X-Auth-Email, X-Auth-Ts');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     if (!allowedOrigin && origin) return res.status(403).json({ error: 'Origin not allowed' });

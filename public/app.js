@@ -410,24 +410,27 @@ function analyze() {
   }
 
   function buildItemHTML(item, type, marketData) {
-    const id = 'item-' + item.ticker + '-' + type;
+    const eTicker = escapeHTML(item.ticker);
+    const eName = escapeHTML(item.name);
+    const eDesc = escapeHTML(item.desc);
+    const id = 'item-' + eTicker + '-' + type;
     if (!item.isStock) {
-      return '<div class="etf-item" id="' + id + '" onclick="toggleDrawer(\'' + item.ticker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',false)">' +
+      return '<div class="etf-item" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',false)">' +
         '<div class="etf-item-header"><div class="ticker-name-group"><div class="ticker-with-tag">' +
-        '<span class="etf-ticker">' + item.ticker + '</span><span class="item-type-tag tag-etf">ETF</span></div>' +
-        '<div class="etf-details"><h4>' + item.name + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + item.desc + '</p></div></div>' +
-        '<div class="etf-meta"><div class="pick-sector-tag">' + (item.sectors[0] === 'all' ? 'Broad Market' : item.sectors[0]) + '</div>' + matchLabel(item.score) + '</div></div>' +
+        '<span class="etf-ticker">' + eTicker + '</span><span class="item-type-tag tag-etf">ETF</span></div>' +
+        '<div class="etf-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
+        '<div class="etf-meta"><div class="pick-sector-tag">' + escapeHTML(item.sectors[0] === 'all' ? 'Broad Market' : item.sectors[0]) + '</div>' + matchLabel(item.score) + '</div></div>' +
         '<div class="pick-hint">✦ Why this for my portfolio?</div>' +
         '<div class="etf-drawer" id="drawer-' + id + '"><div class="etf-drawer-inner">' +
         '<div class="etf-drawer-label">◈ Why this pick?</div>' +
         '<div class="etf-drawer-text" id="drawer-text-' + id + '"></div></div></div></div>';
     } else {
-      return '<div class="etf-item" id="' + id + '" onclick="toggleDrawer(\'' + item.ticker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',true)">' +
+      return '<div class="etf-item" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',true)">' +
         '<div class="etf-item-header"><div class="ticker-name-group"><div class="ticker-with-tag">' +
-        '<span class="pick-ticker">' + item.ticker + '</span><span class="item-type-tag tag-stock">STOCK</span></div>' +
-        '<div class="pick-details"><h4>' + item.name + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + item.desc + '</p></div></div>' +
-        '<div class="pick-meta"><div class="pick-sector-tag">' + item.sector + '</div>' +
-        '<div class="pick-risk" style="color:' + (RISK_COLORS[item.risk]||'#888') + '">' + item.risk + ' Risk</div></div></div>' +
+        '<span class="pick-ticker">' + eTicker + '</span><span class="item-type-tag tag-stock">STOCK</span></div>' +
+        '<div class="pick-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
+        '<div class="pick-meta"><div class="pick-sector-tag">' + escapeHTML(item.sector) + '</div>' +
+        '<div class="pick-risk" style="color:' + (RISK_COLORS[item.risk]||'#888') + '">' + escapeHTML(item.risk) + ' Risk</div></div></div>' +
         '<div class="pick-hint">✦ Why this for my portfolio?</div>' +
         '<div class="pick-drawer" id="drawer-' + id + '"><div class="pick-drawer-inner">' +
         '<div class="pick-drawer-label">◈ Why this pick?</div>' +
@@ -1330,13 +1333,13 @@ async function exportPDF() {
 
   const holdingRows = [...holdings]
     .sort((a, b) => b.pct - a.pct)
-    .map(h => `<tr><td style="font-weight:600;color:#00e5a0">${h.ticker}</td><td>${h.name}</td><td>${h.sector}</td><td style="text-align:right;font-weight:600">${h.pct}%</td></tr>`)
+    .map(h => `<tr><td style="font-weight:600;color:#00e5a0">${escapeHTML(h.ticker)}</td><td>${escapeHTML(h.name)}</td><td>${escapeHTML(h.sector)}</td><td style="text-align:right;font-weight:600">${h.pct}%</td></tr>`)
     .join('');
 
   const sectorRows = Object.entries(sectors)
     .filter(([,v]) => v > 0)
     .sort((a,b) => b[1] - a[1])
-    .map(([name, pct]) => `<tr><td>${name}</td><td style="text-align:right;font-weight:600">${pct}%</td><td><div style="background:#1e2430;border-radius:3px;height:8px;width:200px;display:inline-block"><div style="background:${SECTOR_COLORS[name]||'#64748b'};height:100%;border-radius:3px;width:${Math.min(100,pct*2.5)}%"></div></div></td></tr>`)
+    .map(([name, pct]) => `<tr><td>${escapeHTML(name)}</td><td style="text-align:right;font-weight:600">${pct}%</td><td><div style="background:#1e2430;border-radius:3px;height:8px;width:200px;display:inline-block"><div style="background:${SECTOR_COLORS[name]||'#64748b'};height:100%;border-radius:3px;width:${Math.min(100,pct*2.5)}%"></div></div></td></tr>`)
     .join('');
 
   const date = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
@@ -1637,9 +1640,9 @@ document.getElementById('pctInput').addEventListener('keydown', e => { if (e.key
     if (matches.length === 0) { dd.classList.remove('open'); return; }
 
     dd.innerHTML = matches.map(([ticker, info]) =>
-      '<div class="autocomplete-item" data-ticker="' + ticker + '" onclick="selectAutocomplete(\'' + ticker + '\')">' +
-      '<span class="autocomplete-item-ticker">' + ticker + '</span>' +
-      '<span class="autocomplete-item-name">' + info.name + '</span>' +
+      '<div class="autocomplete-item" data-ticker="' + escapeHTML(ticker) + '" onclick="selectAutocomplete(\'' + escapeHTML(ticker) + '\')">' +
+      '<span class="autocomplete-item-ticker">' + escapeHTML(ticker) + '</span>' +
+      '<span class="autocomplete-item-name">' + escapeHTML(info.name) + '</span>' +
       '</div>'
     ).join('');
     dd.classList.add('open');
