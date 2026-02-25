@@ -1162,8 +1162,8 @@ function runWhatIf() {
   const betaDelta = Math.round((simBeta - currentBeta)*100)/100;
   const betaDir = betaDelta > 0 ? '▲' : betaDelta < 0 ? '▼' : '—';
   result.innerHTML =
-    'Adding <strong>' + ticker + '</strong> (' + info.name + ') at <strong class="wi-new">' + pct + '%</strong>:<br>' +
-    '&middot; <strong>' + info.sector + '</strong> exposure &rarr; <strong class="wi-new">' + Math.round((simSectors[info.sector]||0)/simTotal*100) + '%</strong> of portfolio<br>' +
+    'Adding <strong>' + escapeHTML(ticker) + '</strong> (' + escapeHTML(info.name) + ') at <strong class="wi-new">' + pct + '%</strong>:<br>' +
+    '&middot; <strong>' + escapeHTML(info.sector) + '</strong> exposure &rarr; <strong class="wi-new">' + Math.round((simSectors[info.sector]||0)/simTotal*100) + '%</strong> of portfolio<br>' +
     '&middot; Beta shift <strong class="wi-new">' + betaDir + ' ' + Math.abs(betaDelta) + '</strong> &rarr; new beta: <strong class="wi-new">' + simBeta + '</strong><br>' +
     '&middot; <strong class="wi-new">' + Math.round((100-simTotal)*10)/10 + '%</strong> remaining unallocated';
 }
