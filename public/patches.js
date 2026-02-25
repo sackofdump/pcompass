@@ -1050,6 +1050,7 @@ function renderPortfolioStrip(performanceMap) {
     var p = portfolios[i];
     var count = p.holdings ? p.holdings.length : 0;
     var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
+    var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
     var changeBadge;
     if (performanceMap && performanceMap[i] != null) {
       var val = performanceMap[i];
@@ -1057,10 +1058,10 @@ function renderPortfolioStrip(performanceMap) {
       var sign = val > 0 ? '+' : '';
       changeBadge = '<span class="pstrip-change ' + cls + '">' + sign + val.toFixed(2) + '%</span>';
     } else {
-      changeBadge = '<span class="pstrip-change loading">...</span>';
+      changeBadge = '<span class="pstrip-change loading">\u2022\u2022\u2022</span>';
     }
-    html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '">'
-      + '<div><div class="pstrip-name">' + escapeHTML(p.name) + '</div>'
+    html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '" style="border-left-color:' + riskColor + '">'
+      + '<div class="pstrip-info"><div class="pstrip-name">' + escapeHTML(p.name) + '</div>'
       + '<div class="pstrip-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
       + changeBadge
       + '</div>';
