@@ -684,7 +684,7 @@ function analyze() {
   // Web: scroll to top of page. iOS app: scroll to Portfolio Health panel.
   setTimeout(() => {
     if (typeof isIOSApp === 'function' && isIOSApp()) {
-      const healthEl = document.querySelector('.health-panel');
+      const healthEl = document.querySelector('.health-panel .panel-toggle');
       if (healthEl) healthEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
