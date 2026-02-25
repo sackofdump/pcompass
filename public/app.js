@@ -681,9 +681,14 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Scroll to top of page
+  // Web: scroll to top of page. iOS app: scroll to Portfolio Health panel.
   setTimeout(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof isIOSApp === 'function' && isIOSApp()) {
+      const healthEl = document.querySelector('.health-panel');
+      if (healthEl) healthEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     // Hide sticky analyze button after results show
     const stickyBtn = document.querySelector('.btn-analyze-sticky');
     if (stickyBtn) stickyBtn.classList.remove('visible');
