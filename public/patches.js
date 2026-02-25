@@ -1098,11 +1098,21 @@ async function fetchPortfolioPerformance(forceRefresh) {
   if (tickers.length === 0) return null;
   // Bust localStorage cache if force-refreshing
   if (forceRefresh) {
-    var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
-    try { localStorage.removeItem(cacheKey); } catch(e) {}
+    // Clear all chunk caches
+    for (var ci = 0; ci < tickers.length; ci += 40) {
+      var chunk = tickers.slice(ci, ci + 40);
+      var cacheKey = 'pc_market_' + chunk.slice().sort().join(',');
+      try { localStorage.removeItem(cacheKey); } catch(e) {}
+    }
   }
-  var marketData = await fetchMarketDataCached(tickers);
-  if (!marketData) return null;
+  // Fetch in batches of 40 (API hard cap)
+  var marketData = {};
+  for (var ci = 0; ci < tickers.length; ci += 40) {
+    var chunk = tickers.slice(ci, ci + 40);
+    var chunkData = await fetchMarketDataCached(chunk);
+    if (chunkData) Object.assign(marketData, chunkData);
+  }
+  if (Object.keys(marketData).length === 0) return null;
   // Calculate weighted daily change for each portfolio
   var perfMap = {};
   for (var i = 0; i < portfolios.length; i++) {
