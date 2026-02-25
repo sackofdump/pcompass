@@ -1475,3 +1475,96 @@
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5), 0 -8px 30px rgba(0,229,160,0.2);
     }
   }
+
+  /* 14. Portfolio Strip */
+  .portfolio-strip {
+    display: none;
+    gap: 8px;
+    padding: 8px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .portfolio-strip.visible {
+    display: flex;
+  }
+  .portfolio-strip::-webkit-scrollbar { height: 4px; }
+  .portfolio-strip::-webkit-scrollbar-track { background: transparent; }
+  .portfolio-strip::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  body.light .portfolio-strip::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); }
+
+  .pstrip-card {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .pstrip-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--accent-glow-subtle);
+    border-color: rgba(0,229,160,0.15);
+  }
+  .pstrip-card.active {
+    border-color: var(--accent);
+    box-shadow: var(--accent-glow);
+  }
+
+  .pstrip-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pstrip-count {
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .pstrip-change {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    line-height: 1;
+  }
+  .pstrip-change.up {
+    color: #00e5a0;
+    background: rgba(0,229,160,0.1);
+  }
+  .pstrip-change.down {
+    color: #ff4d6d;
+    background: rgba(255,77,109,0.1);
+  }
+  .pstrip-change.flat {
+    color: var(--muted);
+    background: rgba(154,171,196,0.1);
+  }
+  .pstrip-change.loading {
+    color: var(--muted);
+    animation: pstrip-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pstrip-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  body.light .pstrip-change.up {
+    color: #00a87a;
+    background: rgba(0,168,122,0.1);
+  }
+  body.light .pstrip-change.down {
+    color: #e02a4a;
+    background: rgba(224,42,74,0.1);
+  }

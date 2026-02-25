@@ -1033,3 +1033,154 @@ if (!_isIOSApp) {
     }
   });
 }
+
+// ── PORTFOLIO STRIP ─────────────────────────────────────────
+
+function renderPortfolioStrip(performanceMap) {
+  var strip = document.getElementById('portfolioStrip');
+  if (!strip) return;
+  var portfolios = getSavedPortfolios();
+  if (portfolios.length === 0) {
+    strip.innerHTML = '';
+    strip.classList.remove('visible');
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < portfolios.length; i++) {
+    var p = portfolios[i];
+    var count = p.holdings ? p.holdings.length : 0;
+    var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
+    var changeBadge;
+    if (performanceMap && performanceMap[i] != null) {
+      var val = performanceMap[i];
+      var cls = val > 0.005 ? 'up' : val < -0.005 ? 'down' : 'flat';
+      var sign = val > 0 ? '+' : '';
+      changeBadge = '<span class="pstrip-change ' + cls + '">' + sign + val.toFixed(2) + '%</span>';
+    } else {
+      changeBadge = '<span class="pstrip-change loading">...</span>';
+    }
+    html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '">'
+      + '<div><div class="pstrip-name">' + escapeHTML(p.name) + '</div>'
+      + '<div class="pstrip-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
+      + changeBadge
+      + '</div>';
+  }
+  strip.innerHTML = html;
+  strip.classList.add('visible');
+}
+
+async function fetchPortfolioPerformance() {
+  var portfolios = getSavedPortfolios();
+  if (portfolios.length === 0) return {};
+  // Collect all unique tickers across all portfolios
+  var tickerSet = {};
+  for (var i = 0; i < portfolios.length; i++) {
+    var h = portfolios[i].holdings;
+    if (!h) continue;
+    for (var j = 0; j < h.length; j++) {
+      if (h[j].ticker) tickerSet[h[j].ticker.toUpperCase()] = true;
+    }
+  }
+  var tickers = Object.keys(tickerSet);
+  if (tickers.length === 0) return {};
+  var marketData = await fetchMarketDataCached(tickers);
+  if (!marketData) return {};
+  // Calculate weighted daily change for each portfolio
+  var perfMap = {};
+  for (var i = 0; i < portfolios.length; i++) {
+    var h = portfolios[i].holdings;
+    if (!h || h.length === 0) { perfMap[i] = 0; continue; }
+    var totalPct = 0;
+    var weightedChange = 0;
+    for (var j = 0; j < h.length; j++) {
+      var ticker = (h[j].ticker || '').toUpperCase();
+      var pct = Number(h[j].pct) || 0;
+      var md = marketData[ticker];
+      if (md && md.changePct != null) {
+        weightedChange += (pct / 100) * md.changePct;
+      }
+      totalPct += pct;
+    }
+    // If total allocation < 100%, scale to actual allocation
+    perfMap[i] = totalPct > 0 ? weightedChange : 0;
+  }
+  return perfMap;
+}
+
+// Initialize portfolio strip on page load
+(function initPortfolioStrip() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+  function boot() {
+    renderPortfolioStrip(null); // show cards with "..." immediately
+    fetchPortfolioPerformance().then(function(perfMap) {
+      renderPortfolioStrip(perfMap);
+    }).catch(function() {});
+  }
+})();
+
+// Hook into existing functions to refresh the strip
+(function hookPortfolioStrip() {
+  // Helper: re-render strip with fresh performance data
+  function refreshStrip() {
+    renderPortfolioStrip(null);
+    fetchPortfolioPerformance().then(function(pm) {
+      renderPortfolioStrip(pm);
+    }).catch(function() {});
+  }
+  // Helper: re-render strip without refetching (just update active highlight)
+  function refreshStripCheap() {
+    // Reuse last performance data if available
+    fetchPortfolioPerformance().then(function(pm) {
+      renderPortfolioStrip(pm);
+    }).catch(function() {
+      renderPortfolioStrip(null);
+    });
+  }
+
+  // Wrap savePortfolio (already wrapped once for cloud sync)
+  var prevSave = window.savePortfolio;
+  window.savePortfolio = async function() {
+    if (typeof prevSave === 'function') await prevSave();
+    refreshStrip();
+  };
+
+  // Wrap deletePortfolio
+  var prevDelete = window.deletePortfolio;
+  window.deletePortfolio = function(idx) {
+    if (typeof prevDelete === 'function') prevDelete(idx);
+    refreshStrip();
+  };
+
+  // Wrap loadPortfolio
+  var prevLoad = window.loadPortfolio;
+  window.loadPortfolio = function(idx) {
+    if (typeof prevLoad === 'function') prevLoad(idx);
+    refreshStripCheap();
+  };
+
+  // Wrap renamePortfolio
+  var prevRename = window.renamePortfolio;
+  window.renamePortfolio = function(idx, newName) {
+    if (typeof prevRename === 'function') prevRename(idx, newName);
+    refreshStripCheap();
+  };
+
+  // Wrap clearAllHoldings
+  var prevClear = window.clearAllHoldings;
+  window.clearAllHoldings = function() {
+    if (typeof prevClear === 'function') prevClear();
+    renderPortfolioStrip(null);
+    fetchPortfolioPerformance().then(function(pm) { renderPortfolioStrip(pm); }).catch(function() {});
+  };
+
+  // Wrap syncPortfoliosFromCloud
+  var prevSync = window.syncPortfoliosFromCloud;
+  window.syncPortfoliosFromCloud = async function() {
+    if (typeof prevSync === 'function') await prevSync();
+    refreshStrip();
+  };
+})();
