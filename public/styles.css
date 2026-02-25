@@ -1587,26 +1587,22 @@
     .portfolio-strip { padding: 8px 16px; gap: 6px; }
   }
 
-  /* 15. Bottom Navigation Bar */
+  /* 15. Navigation Bar */
   .bottom-bar {
     position: fixed;
-    bottom: 0;
     left: 0;
     right: 0;
-    z-index: 10000;
+    z-index: 10002;
     display: flex;
     justify-content: space-around;
     align-items: stretch;
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--glass-border);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .bottom-bar::before {
     content: '';
     position: absolute;
-    top: -1px;
     left: 0;
     right: 0;
     height: 1px;
@@ -1636,16 +1632,6 @@
   }
   .bottom-bar-tab:hover { color: var(--text); }
   .bottom-bar-tab.active { color: var(--accent); }
-  .bottom-bar-tab.active::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 25%;
-    right: 25%;
-    height: 2px;
-    background: var(--accent);
-    border-radius: 0 0 2px 2px;
-  }
   .bottom-bar-icon {
     width: 20px;
     height: 20px;
@@ -1653,10 +1639,49 @@
   #navPro .bottom-bar-icon { stroke: var(--accent); }
   #navPro span { color: var(--accent); }
 
-  /* Space for bottom bar */
-  body { padding-bottom: 56px; }
+  /* Desktop: top bar */
+  @media (min-width: 901px) {
+    .bottom-bar {
+      top: 0;
+      bottom: auto;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .bottom-bar::before { bottom: -1px; top: auto; }
+    .bottom-bar-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0; top: auto;
+      left: 25%; right: 25%;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+    header { top: 44px; }
+    body { padding-top: 44px; padding-bottom: 0; }
+  }
 
-  /* Hide old sticky analyze button — replaced by bottom bar */
+  /* Mobile: bottom bar */
+  @media (max-width: 900px) {
+    .bottom-bar {
+      bottom: 0;
+      top: auto;
+      border-top: 1px solid var(--glass-border);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .bottom-bar::before { top: -1px; bottom: auto; }
+    .bottom-bar-tab.active::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: auto;
+      left: 25%; right: 25%;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 0 0 2px 2px;
+    }
+    body { padding-bottom: 56px; }
+  }
+
+  /* Hide old sticky analyze button — replaced by nav bar */
   .btn-analyze-sticky { display: none !important; }
 
   @media print {
