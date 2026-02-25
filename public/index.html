@@ -62,12 +62,6 @@
       <span class="user-pill-chevron">▸</span>
     </button>
   </div>
-  <div class="theme-toggle" onclick="toggleTheme()" id="themeToggle">
-    <span id="themeLabel">DARK</span>
-    <div class="theme-toggle-track">
-      <div class="theme-toggle-thumb"></div>
-    </div>
-  </div>
 </header>
 
 <!-- Sidebar backdrop + panel -->
@@ -124,14 +118,21 @@
 
       <!-- Screenshot upload (collapsible) -->
       <div id="inputSections">
+      <div class="upload-compact-trigger" onclick="expandUploadZone(this)">
+        <span class="upload-compact-icon">📷</span>
+        <span>Import from screenshots</span>
+        <span class="upload-compact-chevron">▸</span>
+      </div>
+      <div class="upload-expanded" id="uploadExpanded">
       <div class="upload-zone" id="uploadZone">
         <input type="file" accept="image/*" multiple onchange="handleScreenshot(event)" />
         <div class="upload-icon">📷</div>
-        <div class="upload-text"><strong>Import from screenshots</strong><br>Upload one or multiple screenshots<br>Large portfolios? Just snap several pics!</div>
+        <div class="upload-text"><strong>Drop or tap to upload screenshots</strong><br>Large portfolios? Just snap several pics!</div>
         <div class="scanning-overlay" id="scanningOverlay">
           <div class="scan-spinner"></div>
           <div class="scan-text" id="scanText">Scanning portfolio...</div>
         </div>
+      </div>
       </div>
 
       <!-- Import preview -->
@@ -158,6 +159,10 @@
       </div>
       </div>
 
+      <div class="holdings-view-toggle" id="holdingsViewToggle" style="display:none">
+        <button class="view-btn active" onclick="setHoldingsView('list')" data-view="list">List</button>
+        <button class="view-btn" onclick="setHoldingsView('grid')" data-view="grid">Grid</button>
+      </div>
       <div class="stock-list" id="stockList"></div>
 
       <div class="portfolio-summary">
@@ -203,11 +208,13 @@
   <div>
     <div class="results-panel" id="resultsPanel">
       <div class="empty-state">
-        <div class="placeholder-icon">🧭</div>
-        <div class="placeholder-text">
-          Add your US stock holdings<br>on the left, then click<br>
-          <strong style="color:var(--text)">Analyze &amp; Recommend</strong>
+        <div class="empty-compass">
+          <div class="empty-compass-ring"></div>
+          <div class="empty-compass-needle"></div>
+          <div class="empty-compass-center"></div>
         </div>
+        <div class="empty-state-title">Ready to analyze</div>
+        <div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div>
       </div>
     </div>
   </div>

@@ -106,6 +106,7 @@ let holdings = [];
 let previewHoldings = [];
 let _activePortfolioIdx = -1;
 let _activePortfolioSnapshot = null;
+let _holdingsView = 'list';
 
 // ── HOLDINGS LOGIC ───────────────────────────────────────
 function totalAllocation() {
@@ -133,31 +134,64 @@ function removeStock(ticker) {
   renderHoldings();
 }
 
+function setHoldingsView(view) {
+  _holdingsView = view;
+  document.querySelectorAll('.view-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === view);
+  });
+  renderHoldings();
+}
+
+function expandUploadZone(trigger) {
+  var expanded = document.getElementById('uploadExpanded');
+  if (!expanded) return;
+  trigger.classList.toggle('expanded');
+  expanded.classList.toggle('expanded');
+}
+
 function renderHoldings() {
   const list = document.getElementById('stockList');
   const chip = document.getElementById('summaryChip');
   const btn  = document.getElementById('analyzeBtn');
   const total = totalAllocation();
 
-  list.innerHTML = holdings.map((h, i) => {
-    const dbEntry = STOCK_DB[h.ticker] || {};
-    const companyName = dbEntry.name || '';
-    return `
-    <div class="stock-item">
-      <div class="stock-item-top">
-        <div class="stock-info">
-          <span class="stock-ticker">${escapeHTML(h.ticker)}</span>${companyName ? `<span class="stock-company">${escapeHTML(companyName)}</span>` : ''}
-          <span class="stock-sector">${escapeHTML(h.sector)}</span>
+  // Show/hide grid view toggle for 5+ holdings
+  const viewToggle = document.getElementById('holdingsViewToggle');
+  if (viewToggle) {
+    viewToggle.style.display = holdings.length >= 5 ? 'flex' : 'none';
+    if (holdings.length < 5) _holdingsView = 'list';
+  }
+
+  if (_holdingsView === 'grid' && holdings.length >= 5) {
+    list.className = 'holdings-grid';
+    list.innerHTML = holdings.map(h =>
+      `<div class="holdings-grid-item" onclick="removeStock('${escapeHTML(h.ticker)}')" title="Click to remove">
+        <div class="grid-ticker">${escapeHTML(h.ticker)}</div>
+        <div class="grid-pct">${h.pct}%</div>
+      </div>`
+    ).join('');
+  } else {
+    list.className = 'stock-list';
+    list.innerHTML = holdings.map((h, i) => {
+      const dbEntry = STOCK_DB[h.ticker] || {};
+      const companyName = dbEntry.name || '';
+      return `
+      <div class="stock-item">
+        <div class="stock-item-top">
+          <div class="stock-info">
+            <span class="stock-ticker">${escapeHTML(h.ticker)}</span>${companyName ? `<span class="stock-company">${escapeHTML(companyName)}</span>` : ''}
+            <span class="stock-sector">${escapeHTML(h.sector)}</span>
+          </div>
+          <button class="btn-remove" onclick="removeStock('${escapeHTML(h.ticker)}')">×</button>
         </div>
-        <button class="btn-remove" onclick="removeStock('${escapeHTML(h.ticker)}')">×</button>
-      </div>
-      <div class="stock-slider-row">
-        <input type="range" class="stock-slider" id="slider-${i}" min="0.1" max="${Math.min(100, h.pct + (100 - total))}" step="0.1"
-          value="${h.pct}" oninput="updateSlider(${i}, this.value)" />
-        <span class="slider-pct" id="slider-pct-${i}">${h.pct}%</span>
-      </div>
-    </div>`;
-  }).join('');
+        <div class="stock-slider-row">
+          <input type="range" class="stock-slider" id="slider-${i}" min="0.1" max="${Math.min(100, h.pct + (100 - total))}" step="0.1"
+            value="${h.pct}" oninput="updateSlider(${i}, this.value)" />
+          <span class="slider-pct" id="slider-pct-${i}">${h.pct}%</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
 
   chip.textContent = total + '% allocated';
   btn.disabled = holdings.length === 0;
@@ -185,11 +219,12 @@ function renderHoldings() {
 
 function toggleHoldingsBody() {
   const body = document.getElementById('holdingsBody');
-  const chevron = document.getElementById('holdingsChevron');
   if (!body) return;
-  const isHidden = body.style.display === 'none';
-  body.style.display = isHidden ? '' : 'none';
-  if (chevron) chevron.textContent = isHidden ? '▾' : '▸';
+  if (body.classList.contains('collapsed')) {
+    expandHoldingsPanel();
+  } else {
+    collapseHoldingsPanel();
+  }
 }
 
 function clearAllHoldings() {
@@ -198,7 +233,7 @@ function clearAllHoldings() {
   holdings.length = 0;
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
-  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="placeholder-icon">📊</div><div class="placeholder-text">Add your US stock holdings<br>on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
+  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
   expandInputSections();
   closeSidebar();
@@ -429,7 +464,7 @@ function analyze() {
     const eDesc = escapeHTML(item.desc);
     const id = 'item-' + eTicker + '-' + type;
     if (!item.isStock) {
-      return '<div class="etf-item" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',false)">' +
+      return '<div class="etf-item etf-type-etf" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',false)">' +
         '<div class="etf-item-header"><div class="ticker-name-group"><div class="ticker-with-tag">' +
         '<span class="etf-ticker">' + eTicker + '</span><span class="item-type-tag tag-etf">ETF</span></div>' +
         '<div class="etf-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
@@ -439,7 +474,7 @@ function analyze() {
         '<div class="etf-drawer-label">◈ Why this pick?</div>' +
         '<div class="etf-drawer-text" id="drawer-text-' + id + '"></div></div></div></div>';
     } else {
-      return '<div class="etf-item" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',true)">' +
+      return '<div class="etf-item etf-type-stock" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',true)">' +
         '<div class="etf-item-header"><div class="ticker-name-group"><div class="ticker-with-tag">' +
         '<span class="pick-ticker">' + eTicker + '</span><span class="item-type-tag tag-stock">STOCK</span></div>' +
         '<div class="pick-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
@@ -624,9 +659,9 @@ function analyze() {
     document.getElementById('resultsPanel').innerHTML =
       healthHTML +
       rebalanceHTML +
-      '<div class="share-export-row" style="display:flex;gap:8px;margin-bottom:16px;">' +
-        '<button class="btn-share" onclick="sharePortfolio()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);cursor:pointer;">🔗 Share Portfolio</button>' +
-        '<button class="btn-export-pdf" onclick="exportPDF()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);cursor:pointer;">📄 Download PDF Report</button>' +
+      '<div class="share-export-row">' +
+        '<button class="btn-share" onclick="sharePortfolio()">🔗 Share Portfolio</button>' +
+        '<button class="btn-export-pdf" onclick="exportPDF()">📄 Download PDF Report</button>' +
       '</div>' +
       '<div class="analysis-bar">' +
         '<div class="analysis-bar-header panel-toggle" onclick="togglePanel(this)">' +
@@ -674,6 +709,24 @@ function analyze() {
       el.addEventListener('mouseleave', () => hideStrategy(s));
       el.addEventListener('click',      () => toggleStrategy(s));
     });
+
+    // Auto-expand best-matched strategy card
+    (function() {
+      var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
+      var cards = document.querySelectorAll('.strategy-card');
+      cards.forEach(function(card) {
+        var badge = card.querySelector('.strategy-badge');
+        if (badge && badge.classList.contains('badge-' + matchType)) {
+          var list = card.querySelector('.etf-list');
+          if (list) list.classList.remove('strategy-collapsed');
+          var hint = card.querySelector('.strategy-expand-hint');
+          if (hint) hint.textContent = 'tap to collapse';
+          var chevron = card.querySelector('.strategy-chevron');
+          if (chevron) chevron.classList.add('strategy-chevron-open');
+          badge.insertAdjacentHTML('afterend', '<span class="strategy-best-match">Best match</span>');
+        }
+      });
+    })();
   }
 
   // Collect only the tickers actually rendered (max ~15)
@@ -1086,7 +1139,8 @@ function importAll() {
 // ── THEME TOGGLE ─────────────────────────────────────────
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
-  document.getElementById('themeLabel').textContent = isLight ? 'LIGHT' : 'DARK';
+  const el = document.getElementById('themeLabel');
+  if (el) el.textContent = isLight ? 'LIGHT' : 'DARK';
   localStorage.setItem('pc_theme', isLight ? 'light' : 'dark');
 }
 

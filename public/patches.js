@@ -435,7 +435,7 @@ function signOut() {
   holdings.length = 0;
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
-  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="placeholder-icon">📊</div><div class="placeholder-text">Add your US stock holdings<br>on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
+  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
   if (typeof expandInputSections === 'function') expandInputSections();
   updateUserUI();
@@ -621,30 +621,53 @@ async function appleSignIn() {
 }
 
 // ── COLLAPSE HOLDINGS AFTER ANALYZE ───────────────────────────
-// After analysis, collapse the holdings editing panel and show "tap to edit"
-function collapseHoldingsPanel() {
-  // Only collapse on mobile — on desktop the two-column layout needs the left panel
-  if (window.innerWidth > 900) return;
+// After analysis, collapse the holdings editing panel with smooth animation
+function collapseHoldingsPanel(mobileOnly) {
+  if (mobileOnly && window.innerWidth > 900) return;
   var body = document.getElementById('holdingsBody');
   var link = document.getElementById('editPortfolioLink');
-  if (body) body.style.display = 'none';
+  var chevron = document.getElementById('holdingsChevron');
+  if (!body || body.classList.contains('collapsed')) return;
+  body.style.maxHeight = body.scrollHeight + 'px';
+  body.offsetHeight; // force reflow
+  body.classList.add('collapsed');
+  body.style.maxHeight = '0';
   if (link) link.style.display = 'inline';
+  if (chevron) chevron.textContent = '▸';
 }
 
 function expandHoldingsPanel() {
   var body = document.getElementById('holdingsBody');
   var link = document.getElementById('editPortfolioLink');
-  if (body) body.style.display = '';
+  var chevron = document.getElementById('holdingsChevron');
+  if (!body || !body.classList.contains('collapsed')) return;
+  body.classList.remove('collapsed');
+  body.style.maxHeight = body.scrollHeight + 'px';
+  var done = function() { body.style.maxHeight = ''; body.removeEventListener('transitionend', done); };
+  body.addEventListener('transitionend', done);
   if (link) link.style.display = 'none';
+  if (chevron) chevron.textContent = '▾';
 }
 
-// Hook into analyze() to collapse after analysis completes
+// Briefly highlight the What-If simulator after first analysis
+function highlightWhatIf() {
+  var panel = document.getElementById('whatifPanel');
+  if (!panel || panel.dataset.promoted) return;
+  panel.dataset.promoted = '1';
+  panel.classList.add('whatif-promoted');
+  setTimeout(function() {
+    panel.classList.remove('whatif-promoted');
+  }, 5000);
+}
+
+// Hook into analyze() to collapse after analysis completes + highlight what-if
 (function() {
   var origAnalyze = window.analyze;
   if (typeof origAnalyze === 'function') {
     window.analyze = function() {
       origAnalyze.apply(this, arguments);
-      collapseHoldingsPanel();
+      collapseHoldingsPanel(true);
+      highlightWhatIf();
     };
   }
 })();
