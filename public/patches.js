@@ -660,13 +660,12 @@ function highlightWhatIf() {
   }, 5000);
 }
 
-// Hook into analyze() to collapse after analysis completes + highlight what-if
+// Hook into analyze() to highlight what-if after analysis completes
 (function() {
   var origAnalyze = window.analyze;
   if (typeof origAnalyze === 'function') {
     window.analyze = function() {
       origAnalyze.apply(this, arguments);
-      collapseHoldingsPanel(true);
       highlightWhatIf();
     };
   }

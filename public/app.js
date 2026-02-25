@@ -710,19 +710,13 @@ function analyze() {
       el.addEventListener('click',      () => toggleStrategy(s));
     });
 
-    // Auto-expand best-matched strategy card
+    // Add "Best match" badge to matching strategy card (but don't auto-expand)
     (function() {
       var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
       var cards = document.querySelectorAll('.strategy-card');
       cards.forEach(function(card) {
         var badge = card.querySelector('.strategy-badge');
         if (badge && badge.classList.contains('badge-' + matchType)) {
-          var list = card.querySelector('.etf-list');
-          if (list) list.classList.remove('strategy-collapsed');
-          var hint = card.querySelector('.strategy-expand-hint');
-          if (hint) hint.textContent = 'tap to collapse';
-          var chevron = card.querySelector('.strategy-chevron');
-          if (chevron) chevron.classList.add('strategy-chevron-open');
           badge.insertAdjacentHTML('afterend', '<span class="strategy-best-match">Best match</span>');
         }
       });
@@ -741,15 +735,8 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Scroll to results so user sees output (mobile: scroll to results, desktop: scroll to top)
-  if (window.scrollY > 100) {
-    if (window.innerWidth <= 900) {
-      var resultsEl = document.getElementById('resultsPanel');
-      if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }
+  // Always scroll to top after analysis
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   // Hide sticky analyze button after results show
   setTimeout(() => {

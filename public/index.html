@@ -90,15 +90,13 @@
   <!-- Left: Input Panel -->
   <div>
     <div class="panel">
-      <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleHoldingsBody()">
+      <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
         <h2 class="section-title">Your Holdings</h2>
         <div style="display:flex;gap:6px;align-items:center;">
-          <span id="editPortfolioLink" style="display:none;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);cursor:pointer;letter-spacing:0.3px;" onclick="event.stopPropagation();expandHoldingsPanel()">tap to edit</span>
-          <button class="slot-btn" id="btnClearAll" onclick="event.stopPropagation();clearAllHoldings()" title="Clear all holdings" style="display:none;">🗑</button>
-          <button class="slot-btn" id="btnQuickSave" onclick="event.stopPropagation();savePortfolio()" title="Save portfolio" style="display:none;">💾</button>
-          <button class="slot-btn" onclick="event.stopPropagation();sharePortfolio()" title="Share portfolio link">🔗</button>
-          <button class="slot-btn" onclick="event.stopPropagation();exportPDF()" title="Export PDF">⬇</button>
-          <span class="holdings-chevron" id="holdingsChevron" style="font-size:12px;color:var(--muted);transition:transform 0.2s;">▾</span>
+          <button class="slot-btn" id="btnClearAll" onclick="clearAllHoldings()" title="Clear all holdings" style="display:none;">🗑</button>
+          <button class="slot-btn" id="btnQuickSave" onclick="savePortfolio()" title="Save portfolio" style="display:none;">💾</button>
+          <button class="slot-btn" onclick="sharePortfolio()" title="Share portfolio link">🔗</button>
+          <button class="slot-btn" onclick="exportPDF()" title="Export PDF">⬇</button>
         </div>
       </div>
 
