@@ -121,7 +121,8 @@
         </div>
       </div>
 
-      <!-- Screenshot upload -->
+      <!-- Screenshot upload (collapsible) -->
+      <div id="inputSections">
       <div class="upload-zone" id="uploadZone">
         <input type="file" accept="image/*" multiple onchange="handleScreenshot(event)" />
         <div class="upload-icon">📷</div>
@@ -153,6 +154,7 @@
         </div>
         <button class="btn-add" onclick="addStock()">+</button>
         <div class="error-msg" id="errorMsg"></div>
+      </div>
       </div>
 
       <div class="stock-list" id="stockList"></div>

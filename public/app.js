@@ -193,6 +193,7 @@ function clearAllHoldings() {
   holdings.length = 0;
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="placeholder-icon">📊</div><div class="placeholder-text">Add your US stock holdings<br>on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
+  expandInputSections();
   // Re-enable sticky button visibility for next portfolio
   const stickyBtn = document.querySelector('.btn-analyze-sticky');
   if (stickyBtn) stickyBtn.dataset.analyzed = '';
@@ -684,8 +685,11 @@ function analyze() {
   // Web: scroll to top of page. iOS app: scroll to Portfolio Health panel.
   setTimeout(() => {
     if (typeof isIOSApp === 'function' && isIOSApp()) {
-      const healthEl = document.querySelector('.health-panel .panel-toggle');
-      if (healthEl) healthEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const healthEl = document.querySelector('.health-panel');
+      if (healthEl) {
+        const y = healthEl.getBoundingClientRect().top + window.pageYOffset - 60;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      }
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1213,6 +1217,7 @@ function loadPortfolio(idx) {
   if (!portfolios[idx]) return;
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   renderHoldings();
+  collapseInputSections();
   showToast('✓ Portfolio loaded!');
 }
 
@@ -1277,13 +1282,22 @@ function finishRenameSlot(i, newName) {
 }
 
 
+function collapseInputSections() {
+  const el = document.getElementById('inputSections');
+  if (el) el.style.display = 'none';
+}
+function expandInputSections() {
+  const el = document.getElementById('inputSections');
+  if (el) el.style.display = '';
+}
+
 function loadExample(key) {
   if (!requireAuth()) return;
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
   holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
   renderHoldings();
-  // onboarding hidden by renderHoldings when holdings exist
+  collapseInputSections();
 }
 
 // ── SHARE PORTFOLIO ───────────────────────────────────────
