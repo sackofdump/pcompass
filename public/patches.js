@@ -148,13 +148,38 @@ function renderPortfolioDrawer() {
         + '<div class="pdrawer-info"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
         + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
         + perfHtml
-        + '<button class="pdrawer-delete" onclick="event.stopPropagation();deletePortfolio(' + i + ');renderPortfolioDrawer()" title="Delete">&times;</button>'
+        + '<button class="pdrawer-delete" onclick="event.stopPropagation();quickDeletePortfolio(' + i + ')" title="Delete">&times;</button>'
         + '</div>';
     }
     html += '</div>';
   }
   html += '</div>';
   drawer.innerHTML = html;
+}
+
+// Direct delete without confirm (for drawer - small button = intentional)
+function quickDeletePortfolio(idx) {
+  var portfolios = getSavedPortfolios();
+  if (!portfolios[idx]) return;
+  var name = portfolios[idx].name || 'Portfolio';
+  var deleted = portfolios.splice(idx, 1)[0];
+  savePortfoliosLS(portfolios);
+  if (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === idx) {
+    _activePortfolioIdx = -1;
+    _activePortfolioSnapshot = null;
+  } else if (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx > idx) {
+    _activePortfolioIdx--;
+  }
+  if (typeof renderSidebarPortfolios === 'function') renderSidebarPortfolios();
+  renderPortfolioDrawer();
+  renderPortfolioStrip(null);
+  showToast('Deleted "' + name + '"');
+  // Cloud delete
+  if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
+    fetch('/api/portfolios?userId=' + currentUser.id + '&portfolioId=' + deleted.cloudId, {
+      method: 'DELETE', credentials: 'include',
+    }).catch(function() {});
+  }
 }
 
 function togglePortfolioDrawer() {
@@ -528,6 +553,7 @@ function signOut() {
   localStorage.removeItem('pc_pro_expiry');
   localStorage.removeItem('pc_pro_email');
   localStorage.removeItem('pc_pro_plan');
+  localStorage.removeItem('pc_portfolios');
   // Clear HttpOnly cookies server-side
   fetch('/api/signout', { method: 'POST' }).catch(() => {});
   // Reset holdings to blank state
@@ -537,6 +563,9 @@ function signOut() {
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
   if (typeof expandInputSections === 'function') expandInputSections();
+  // Clear portfolio strip and sidebar
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+  if (typeof renderSidebarPortfolios === 'function') renderSidebarPortfolios();
   updateUserUI();
   showToast('Signed out.');
 }
@@ -1149,46 +1178,98 @@ if (!_isIOSApp) {
 // ── PORTFOLIO STRIP ─────────────────────────────────────────
 
 var _lastPerfMap = null; // cache last successful performance data
+var _topMoversCache = null; // cached top movers data
+
+// Top movers: popular high-volume tickers to check
+var _moverTickers = ['NVDA','TSLA','AAPL','MSFT','AMD','META','AMZN','GOOGL','COIN','PLTR','SOFI','RIVN','MARA','AI','SOUN','RDDT','APP','HOOD'];
+
+function _renderMoversHTML(movers) {
+  if (!movers || movers.length === 0) return '';
+  var html = '<div class="pstrip-movers-label">Top Movers</div>';
+  for (var i = 0; i < movers.length; i++) {
+    var m = movers[i];
+    var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
+    var sign = m.changePct > 0 ? '+' : '';
+    html += '<div class="pstrip-mover" title="' + escapeHTML(m.name || m.ticker) + '">'
+      + '<span class="pstrip-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
+      + '<span class="pstrip-change ' + cls + '">' + sign + m.changePct.toFixed(1) + '%</span>'
+      + '</div>';
+  }
+  return html;
+}
+
+function fetchTopMovers() {
+  // Use cached data if fresh (15 min)
+  if (_topMoversCache && (Date.now() - _topMoversCache.ts < 15 * 60 * 1000)) {
+    return Promise.resolve(_topMoversCache.data);
+  }
+  return (typeof fetchMarketDataCached === 'function'
+    ? fetchMarketDataCached(_moverTickers)
+    : Promise.resolve(null)
+  ).then(function(md) {
+    if (!md) return null;
+    var movers = [];
+    for (var t in md) {
+      if (md[t] && md[t].changePct != null) {
+        movers.push({ ticker: t, changePct: md[t].changePct, name: md[t].name || t });
+      }
+    }
+    // Sort by absolute change descending
+    movers.sort(function(a, b) { return Math.abs(b.changePct) - Math.abs(a.changePct); });
+    var top = movers.slice(0, 6);
+    _topMoversCache = { data: top, ts: Date.now() };
+    return top;
+  }).catch(function() { return null; });
+}
 
 function renderPortfolioStrip(performanceMap) {
   var strip = document.getElementById('portfolioStrip');
   if (!strip) return;
   var portfolios = getSavedPortfolios();
-  if (portfolios.length === 0) {
-    strip.innerHTML = '';
-    strip.classList.remove('visible');
-    _lastPerfMap = null;
-    return;
-  }
+
   // Use last known data as fallback so we don't flash "•••"
   var pm = performanceMap || _lastPerfMap;
   if (performanceMap) _lastPerfMap = performanceMap;
+
   var html = '';
-  for (var i = 0; i < portfolios.length; i++) {
-    var p = portfolios[i];
-    var count = p.holdings ? p.holdings.length : 0;
-    var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
-    var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
-    var changeBadge;
-    if (pm && pm[i] != null) {
-      var val = pm[i];
-      var cls = val > 0.005 ? 'up' : val < -0.005 ? 'down' : 'flat';
-      var sign = val > 0 ? '+' : '';
-      changeBadge = '<span class="pstrip-change ' + cls + '">' + sign + val.toFixed(2) + '%</span>';
-    } else {
-      changeBadge = '<span class="pstrip-change loading">\u2022\u2022\u2022</span>';
-    }
-    html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '" style="border-left-color:' + riskColor + '">'
-      + '<div class="pstrip-info"><div class="pstrip-name">' + escapeHTML(p.name) + '</div>'
-      + '<div class="pstrip-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
-      + changeBadge
-      + '</div>';
+
+  // Top movers section (always shown)
+  if (_topMoversCache && _topMoversCache.data) {
+    html += _renderMoversHTML(_topMoversCache.data);
   }
+
+  // Portfolio cards (if any)
+  if (portfolios.length > 0) {
+    if (_topMoversCache && _topMoversCache.data) {
+      html += '<div class="pstrip-divider"></div>';
+    }
+    for (var i = 0; i < portfolios.length; i++) {
+      var p = portfolios[i];
+      var count = p.holdings ? p.holdings.length : 0;
+      var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
+      var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
+      var changeBadge;
+      if (pm && pm[i] != null) {
+        var val = pm[i];
+        var cls = val > 0.005 ? 'up' : val < -0.005 ? 'down' : 'flat';
+        var sign = val > 0 ? '+' : '';
+        changeBadge = '<span class="pstrip-change ' + cls + '">' + sign + val.toFixed(2) + '%</span>';
+      } else {
+        changeBadge = '<span class="pstrip-change loading">\u2022\u2022\u2022</span>';
+      }
+      html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '" style="border-left-color:' + riskColor + '">'
+        + '<div class="pstrip-info"><div class="pstrip-name">' + escapeHTML(p.name) + '</div>'
+        + '<div class="pstrip-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
+        + changeBadge
+        + '</div>';
+    }
+  }
+
   // Market status + last refreshed
   var mkt = typeof getMarketStatus === 'function' ? getMarketStatus() : {};
   var mktLabel = mkt.isOpen ? 'Market Open' : mkt.isPrePost ? 'Pre/Post' : 'Market Closed';
   var mktDot = mkt.isOpen ? 'live' : '';
-  var lastRefresh = _lastPerfMap ? new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+  var lastRefresh = (_lastPerfMap || _topMoversCache) ? new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
   html += '<div class="pstrip-status">'
     + '<span class="pstrip-market ' + mktDot + '">&#9679; ' + mktLabel + '</span>'
     + (lastRefresh ? '<span class="pstrip-updated">' + lastRefresh + '</span>' : '')
@@ -1263,6 +1344,9 @@ window.refreshPortfolioStrip = async function() {
     btn.disabled = true;
   }
   try {
+    // Refresh top movers
+    _topMoversCache = null;
+    await fetchTopMovers();
     var tickers = _collectPortfolioTickers();
     console.log('[portfolio-strip] refreshing', tickers.length, 'tickers');
     var pm = await fetchPortfolioPerformance(true);
@@ -1270,8 +1354,8 @@ window.refreshPortfolioStrip = async function() {
       renderPortfolioStrip(pm);
       showToast('\u2713 Prices updated');
     } else {
-      console.warn('[portfolio-strip] fetchPortfolioPerformance returned null');
-      showToast('Could not fetch prices — check console');
+      renderPortfolioStrip(null);
+      showToast('\u2713 Movers updated');
     }
   } catch(e) {
     console.warn('[portfolio-strip] refresh failed:', e);
@@ -1289,8 +1373,12 @@ window.refreshPortfolioStrip = async function() {
     boot();
   }
   function boot() {
-    renderPortfolioStrip(null); // show cards (uses _lastPerfMap if available)
-    fetchPortfolioPerformance().then(function(perfMap) {
+    renderPortfolioStrip(null);
+    // Fetch top movers first (always), then portfolio performance
+    fetchTopMovers().then(function() {
+      renderPortfolioStrip(null);
+      return fetchPortfolioPerformance();
+    }).then(function(perfMap) {
       if (perfMap) renderPortfolioStrip(perfMap);
     }).catch(function() {});
   }

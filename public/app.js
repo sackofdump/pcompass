@@ -213,9 +213,12 @@ function renderHoldings() {
   chip.textContent = total + '% allocated';
   btn.disabled = holdings.length === 0;
 
-  // Hide onboarding only when user has holdings, show it when empty
+  // Hide onboarding when user has holdings OR has saved portfolios
   const ob = document.getElementById('onboardingBanner');
-  if (ob) ob.style.display = holdings.length > 0 ? 'none' : 'block';
+  if (ob) {
+    const hasSaved = getSavedPortfolios().length > 0;
+    ob.style.display = (holdings.length > 0 || hasSaved) ? 'none' : 'block';
+  }
 
   // Show/hide what-if simulator
   const wiPanel = document.getElementById('whatifPanel');
@@ -2052,7 +2055,7 @@ function fetchAndRenderSparklines() {
 
   Promise.all([
     typeof fetchMarketDataCached === 'function' ? fetchMarketDataCached(tickers) : Promise.resolve(null),
-    fetchSparklineData(tickers, '1mo')
+    fetchSparklineData(tickers, '1d')
   ]).then(function(results) {
     var marketData = results[0];
     var sparkData = results[1];
@@ -2115,9 +2118,9 @@ function _ensureChartModal() {
         '<button class="chart-modal-close" onclick="closeExpandedChart()">×</button>' +
       '</div>' +
       '<div class="chart-modal-ranges" id="chartModalRanges">' +
-        '<button class="chart-range-btn" data-range="1d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1d\')">1D</button>' +
+        '<button class="chart-range-btn active" data-range="1d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'5d\')">1W</button>' +
-        '<button class="chart-range-btn active" data-range="1mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1mo\')">1M</button>' +
+        '<button class="chart-range-btn" data-range="1mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'3mo\')">3M</button>' +
       '</div>' +
       '<div class="chart-modal-chart" id="chartModalChart">' +
@@ -2148,7 +2151,7 @@ function showExpandedChart(ticker) {
 
   // Reset range buttons — 1M active by default
   document.querySelectorAll('.chart-range-btn').forEach(function(b) {
-    b.classList.toggle('active', b.dataset.range === '1mo');
+    b.classList.toggle('active', b.dataset.range === '1d');
   });
 
   // Set price from market data if available (from sparkline cards)
@@ -2174,7 +2177,7 @@ function showExpandedChart(ticker) {
   });
 
   // Load chart data
-  loadChartRange(ticker, '1mo');
+  loadChartRange(ticker, '1d');
 }
 
 function loadChartRange(ticker, range) {
