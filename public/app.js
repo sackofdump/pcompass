@@ -681,11 +681,13 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Scroll to results on mobile
+  // Scroll to Portfolio Health panel
   setTimeout(() => {
+    const healthEl = document.querySelector('.health-panel');
     const resultsEl = document.getElementById('resultsPanel');
-    if (resultsEl && resultsEl.innerHTML.trim()) {
-      resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = healthEl || resultsEl;
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     // Hide sticky analyze button after results show
     const stickyBtn = document.querySelector('.btn-analyze-sticky');
