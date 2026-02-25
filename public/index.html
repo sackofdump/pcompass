@@ -221,6 +221,26 @@
 </div>
 
 
+<!-- Bottom Nav Bar -->
+<nav class="bottom-bar" id="bottomBar">
+  <button class="bottom-bar-tab active" onclick="navTo('holdings')" id="navHoldings">
+    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z"/></svg>
+    <span>Holdings</span>
+  </button>
+  <button class="bottom-bar-tab" onclick="navTo('analyze')" id="navAnalyze">
+    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>
+    <span>Analyze</span>
+  </button>
+  <button class="bottom-bar-tab" onclick="navTo('pro')" id="navPro">
+    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+    <span>Pro</span>
+  </button>
+  <button class="bottom-bar-tab" onclick="navTo('menu')" id="navMenu">
+    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <span>Menu</span>
+  </button>
+</nav>
+
   <div class="share-toast" id="shareToast">🔗 Link copied to clipboard!</div>
 
 <!-- AUTH MODAL -->

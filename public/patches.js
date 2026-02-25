@@ -95,6 +95,25 @@ function requireAuth() {
   return false;
 }
 
+// ── BOTTOM NAV BAR ────────────────────────────────────────
+window.navTo = function(tab) {
+  // Update active tab
+  var tabs = document.querySelectorAll('.bottom-bar-tab');
+  tabs.forEach(function(t) { t.classList.remove('active'); });
+  var active = document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (active) active.classList.add('active');
+
+  if (tab === 'holdings') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (tab === 'analyze') {
+    if (typeof analyzeDebounced === 'function') analyzeDebounced();
+  } else if (tab === 'pro') {
+    if (typeof showPaywall === 'function') showPaywall('bottom-bar');
+  } else if (tab === 'menu') {
+    if (typeof toggleSidebar === 'function') toggleSidebar();
+  }
+};
+
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
