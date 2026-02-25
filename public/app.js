@@ -1215,10 +1215,17 @@ function deletePortfolio(idx) {
   const portfolios = getSavedPortfolios();
   const name = portfolios[idx]?.name || 'this portfolio';
   if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
-  portfolios.splice(idx, 1);
+  const deleted = portfolios.splice(idx, 1)[0];
   savePortfoliosLS(portfolios);
   renderPortfolioSlots();
   showToast('Portfolio deleted.');
+  // Also delete from cloud if it has a cloudId
+  if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
+    fetch('/api/portfolios?userId=' + currentUser.id + '&portfolioId=' + deleted.cloudId, {
+      method: 'DELETE',
+      credentials: 'include',
+    }).catch(() => {});
+  }
 }
 
 function renamePortfolio(idx, newName) {

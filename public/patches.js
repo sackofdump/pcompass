@@ -463,7 +463,8 @@ async function savePortfolioToCloud(name, holdingsData) {
   try {
     const res = await fetch('/api/portfolios', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         userId: currentUser.id,
         name: name,
@@ -492,7 +493,7 @@ async function syncPortfoliosFromCloud() {
   }
   try {
     const res = await fetch('/api/portfolios?userId=' + currentUser.id, {
-      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     const data = await res.json();
     if (data.portfolios && data.portfolios.length > 0) {
