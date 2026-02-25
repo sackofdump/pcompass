@@ -1,6 +1,7 @@
 import { getAllowedOrigin } from './lib/cors.js';
 import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 export default async function handler(req, res) {
   // ── CORS ──
@@ -33,6 +34,11 @@ export default async function handler(req, res) {
     const authEmail = (authCk?.email || req.headers['x-auth-email'] || '').toLowerCase().trim();
     const authTs    = authCk?.ts || req.headers['x-auth-ts'] || '';
     const bodyEmail = (req.body.email || '').toLowerCase().trim();
+
+    // Rate limit: 5 attempts per hour per email
+    if (bodyEmail && !await checkRateLimit('email:' + bodyEmail, 'delete-account', 5)) {
+      return res.status(429).json({ error: 'Too many attempts — try again later' });
+    }
 
     if (!bodyEmail) return res.status(400).json({ error: 'Email required' });
 

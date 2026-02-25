@@ -57,6 +57,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
+    if (!await checkRateLimit('email:' + authEmail, 'portfolios-read', 60)) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
     const userId = req.query.userId;
     if (!userId) return res.status(400).json({ error: 'userId required' });
 

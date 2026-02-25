@@ -1,6 +1,7 @@
 import { getAllowedOrigin } from './lib/cors.js';
 import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── PRO-ONLY STOCK PICKS (indices 5-25 from original STOCK_PICKS) ──
 const PRO_STOCK_PICKS = [
@@ -68,6 +69,12 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Rate limit by IP (30 req/hr)
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
+  if (!await checkRateLimit('ip:' + ip, 'pro-picks', 30)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
 
   // ── Require valid auth token (cookie-first, header fallback) ──
   const authCk = getAuthFromCookie(req);

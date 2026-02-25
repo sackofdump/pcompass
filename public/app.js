@@ -618,7 +618,7 @@ function analyze() {
       '</div>' +
       '<div class="analysis-bar">' +
         '<div class="analysis-bar-header panel-toggle" onclick="togglePanel(this)">' +
-          '<h3 class="section-title">Portfolio Breakdown &amp; Strategies</h3>' +
+          '<h2 class="section-title">Portfolio Breakdown &amp; Strategies</h2>' +
           '<span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span>' +
         '</div>' +
         '<div class="panel-body">' +
@@ -681,6 +681,16 @@ function analyze() {
 
   // Render immediately with loading placeholders
   renderResultsPanel(null);
+
+  // Scroll to results so user sees output (mobile: scroll to results, desktop: scroll to top)
+  if (window.scrollY > 100) {
+    if (window.innerWidth <= 900) {
+      var resultsEl = document.getElementById('resultsPanel');
+      if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
 
   // Hide sticky analyze button after results show
   setTimeout(() => {

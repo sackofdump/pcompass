@@ -171,13 +171,24 @@ async function verifyProAccess(email) {
   sticky.textContent = 'Analyze & Recommend';
   sticky.onclick = function() { analyzeDebounced(); };
   document.body.appendChild(sticky);
+  window._stickyAnalyzed = false;
 
   function checkSticky() {
-    if (holdings.length > 0 && window.innerWidth <= 900) {
+    if (holdings.length > 0 && window.innerWidth <= 900 && !window._stickyAnalyzed) {
       sticky.classList.add('visible');
     } else {
       sticky.classList.remove('visible');
     }
+  }
+
+  // Hook analyze to hide sticky permanently until holdings change
+  const origAnalyze = window.analyze;
+  if (typeof origAnalyze === 'function') {
+    window.analyze = function() {
+      window._stickyAnalyzed = true;
+      sticky.classList.remove('visible');
+      return origAnalyze.apply(this, arguments);
+    };
   }
 
   // Check on holdings change
@@ -187,6 +198,22 @@ async function verifyProAccess(email) {
       origRender();
       checkSticky();
       if (typeof updateSwitcherLabel === 'function') updateSwitcherLabel();
+    };
+  }
+
+  // Reset analyzed flag when holdings change
+  const origAddStock = window.addStock;
+  if (typeof origAddStock === 'function') {
+    window.addStock = function() {
+      window._stickyAnalyzed = false;
+      return origAddStock.apply(this, arguments);
+    };
+  }
+  const origRemoveStock = window.removeStock;
+  if (typeof origRemoveStock === 'function') {
+    window.removeStock = function(t) {
+      window._stickyAnalyzed = false;
+      return origRemoveStock.apply(this, arguments);
     };
   }
 
@@ -702,12 +729,44 @@ async function fetchMarketDataCached(tickersToFetch) {
   }
 }
 
-// ── PATCH 2: ANALYZE DEBOUNCE ─────────────────────────────────
+// ── PATCH 2: ANALYZE DEBOUNCE + BUTTON LOCK ──────────────────
 let analyzeDebounceTimer = null;
+let _analyzeLocked = false;
 function analyzeDebounced() {
+  if (_analyzeLocked) return;
   clearTimeout(analyzeDebounceTimer);
-  analyzeDebounceTimer = setTimeout(() => analyze(), 300);
+  analyzeDebounceTimer = setTimeout(() => {
+    _analyzeLocked = true;
+    var selectors = ['#analyzeBtn', '.btn-analyze-sticky', '#refreshMarketBtn'];
+    selectors.forEach(function(s) {
+      var el = document.querySelector(s);
+      if (el) { el.disabled = true; el.style.opacity = '0.5'; }
+    });
+    try { analyze(); } catch(e) { console.error(e); }
+    // Unlock after market data fetch completes (max 8s safety timeout)
+    setTimeout(function() {
+      _analyzeLocked = false;
+      selectors.forEach(function(s) {
+        var el = document.querySelector(s);
+        if (el) { el.disabled = false; el.style.opacity = ''; }
+      });
+    }, 8000);
+  }, 300);
 }
+
+// ── SAVE BUTTON LOCK ─────────────────────────────────────────
+(function lockSaveButtons() {
+  var origSave = window.savePortfolio;
+  if (typeof origSave !== 'function') return;
+  window.savePortfolio = function() {
+    var btns = document.querySelectorAll('#btnQuickSave, #btnSwitcherSave');
+    btns.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
+    try { origSave.apply(this, arguments); } catch(e) { console.error(e); }
+    setTimeout(function() {
+      btns.forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
+    }, 2000);
+  };
+})();
 
 // ── PATCH 4: LAZY GOOGLE SIGN-IN ─────────────────────────────
 function loadGoogleSignInScript() {

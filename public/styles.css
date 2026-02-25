@@ -101,14 +101,23 @@
     display:flex; align-items:center; justify-content:space-between;
     padding:6px 0 8px; width:100%;
     border-top:1px solid var(--border); margin-top:8px;
-    max-height:40px; overflow:hidden;
+    max-height:40px; overflow:visible;
     transition: max-height 0.25s ease, padding 0.25s ease, margin 0.25s ease, opacity 0.25s ease, border-color 0.25s ease;
     opacity:1;
   }
   .header-sub.collapsed {
     max-height:0; padding:0; margin-top:0; opacity:0; border-color:transparent;
+    overflow:hidden;
   }
   .header-sub-left { flex:1; }
+  .switcher-save-btn {
+    background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); border-radius: 8px;
+    padding: 5px 12px; cursor: pointer;
+    font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; color: var(--accent);
+    letter-spacing: 0.5px; transition: border-color 0.2s, background 0.2s;
+    white-space: nowrap;
+  }
+  .switcher-save-btn:hover { border-color: var(--accent); background: rgba(0,229,160,0.18); }
   .logo { display:flex; align-items:center; gap:12px; }
   .logo-icon {
     width:42px; height:42px;
@@ -208,7 +217,7 @@
   /* Empty state */
   .empty-state { padding:60px 24px; text-align:center; }
   .placeholder-icon { font-size:48px; margin-bottom:16px; opacity:0.3; }
-  .placeholder-text { color:var(--muted); font-family:'Space Mono',monospace; font-size:12px; line-height:1.7; }
+  .placeholder-text { color:var(--muted); font-family:'Space Mono',monospace; font-size:13px; line-height:1.7; }
 
   /* Strategy card */
   .strategy-card { animation:fadeUp 0.4s ease backwards; }
@@ -227,7 +236,7 @@
   .badge-aggressive { background:rgba(255,77,109,0.15); color:var(--aggressive); border:1px solid rgba(255,77,109,0.3); }
   .badge-moderate { background:rgba(255,209,102,0.15); color:var(--moderate); border:1px solid rgba(255,209,102,0.3); }
   .badge-conservative { background:rgba(6,214,160,0.15); color:var(--conservative); border:1px solid rgba(6,214,160,0.3); }
-  .strategy-desc { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; max-width:200px; text-align:right; line-height:1.5; }
+  .strategy-desc { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; max-width:200px; text-align:right; line-height:1.5; }
   .strategy-toggle { cursor:pointer; user-select:none; }
   .strategy-chevron { font-size:12px; color:var(--muted); transition:transform 0.25s ease; display:inline-block; }
   .strategy-chevron-open { transform:rotate(180deg); }
@@ -256,8 +265,8 @@
     .item-type-tag { font-family:'Space Mono',monospace; font-size:8px; font-weight:700; letter-spacing:1px; padding:1px 5px; border-radius:3px; }
   .tag-etf { background:rgba(77,159,255,0.15); color:#4d9fff; border:1px solid rgba(77,159,255,0.3); }
   .tag-stock { background:rgba(255,77,109,0.12); color:var(--aggressive); border:1px solid rgba(255,77,109,0.25); }
-  .etf-details h4, .pick-details h4 { font-size:12px; font-weight:600; color:var(--text); margin-bottom:2px; }
-  .etf-details p,.pick-details p { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; }
+  .etf-details h4, .pick-details h4 { font-size:13px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .etf-details p,.pick-details p { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; }
     .etf-meta,.pick-meta { text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
     .match-score { font-family:'Space Mono',monospace; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:700; }
   .match-high { background:rgba(0,229,160,0.15); color:var(--accent); }
@@ -289,7 +298,7 @@
     color:var(--accent); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:7px;
   }
   .pick-drawer-label { color:var(--aggressive); }
-  .etf-drawer-text,.pick-drawer-text { font-family:'Space Mono',monospace; font-size:11px; color:var(--text); line-height:1.7; opacity:0.85; }
+  .etf-drawer-text,.pick-drawer-text { font-family:'Space Mono',monospace; font-size:12px; color:var(--text); line-height:1.7; opacity:0.85; }
   .etf-drawer-loading { display:flex; align-items:center; gap:8px; font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); }
   .mini-spinner { width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -297,7 +306,7 @@
   /* Analysis bar */
   .analysis-bar { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 24px 16px; animation:fadeUp 0.3s ease; }
   .analysis-bar-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
-  .analysis-bar-header h3 { font-size:11px; margin:0; }
+  .analysis-bar-header h2 { margin:0; }
   .breakdown-legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   .legend-item { display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
   .legend-hint { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); opacity:0.45; font-style:italic; margin-left:2px; }
@@ -338,8 +347,8 @@
   .tooltip-label.agg { color:var(--aggressive); }
   .tooltip-label.mod { color:var(--moderate); }
   .tooltip-label.con { color:var(--conservative); }
-  .tooltip-body { font-family:'Space Mono',monospace; font-size:10px; color:var(--text); line-height:1.65; opacity:0.8; }
-  .tooltip-note { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); font-style:italic; line-height:1.5; }
+  .tooltip-body { font-family:'Space Mono',monospace; font-size:11px; color:var(--text); line-height:1.65; opacity:0.8; }
+  .tooltip-note { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); font-style:italic; line-height:1.5; }
 
   /* Sector bars */
   .sector-bars { display:flex; flex-direction:column; gap:7px; }
@@ -407,7 +416,7 @@
   .results-panel { display:flex; flex-direction:column; gap:16px; }
 
   /* ── PORTFOLIO HEALTH PANEL ─── */
-  .health-alert { display:flex; align-items:center; gap:10px; padding:12px 20px; background:rgba(255,209,102,0.06); border-bottom:1px solid var(--border); font-family:'Space Mono',monospace; font-size:11px; color:var(--moderate); }
+  .health-alert { display:flex; align-items:center; gap:10px; padding:12px 20px; background:rgba(255,209,102,0.06); border-bottom:1px solid var(--border); font-family:'Space Mono',monospace; font-size:12px; color:var(--moderate); }
   .health-cards { display:grid; grid-template-columns:1fr 1fr; gap:0; }
   .health-card { padding:20px 24px; text-align:center; }
   .health-card:first-child { border-right:1px solid var(--border); }
@@ -421,7 +430,7 @@
   .health-card-bar-fill { height:100%; border-radius:2px; }
   .health-compare { padding:16px 20px; border-top:1px solid var(--border); }
   .health-compare-title { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
-  .health-compare-row { display:grid; grid-template-columns:140px 1fr 100px 60px; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(30,36,48,0.5); font-family:'Space Mono',monospace; font-size:11px; }
+  .health-compare-row { display:grid; grid-template-columns:140px 1fr 100px 60px; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(30,36,48,0.5); font-family:'Space Mono',monospace; font-size:12px; }
   .health-compare-row:last-child { border-bottom:none; }
   .health-compare-label { color:var(--muted); }
   .health-compare-val { color:var(--text); font-weight:700; text-align:center; }
@@ -433,9 +442,9 @@
 
   /* ── REBALANCING SUGGESTIONS ─── */
   .rebalance-list { padding:12px 20px 16px; display:flex; flex-direction:column; gap:8px; }
-  .rebalance-item { font-family:'Space Mono',monospace; font-size:12px; color:var(--text); display:flex; align-items:center; gap:8px; }
+  .rebalance-item { font-family:'Space Mono',monospace; font-size:13px; color:var(--text); display:flex; align-items:center; gap:8px; }
   .rebalance-item .sector-link { color:var(--accent); cursor:default; }
-  .rebalance-item .rebalance-note { color:var(--muted); font-size:11px; }
+  .rebalance-item .rebalance-note { color:var(--muted); font-size:12px; }
 
   /* ── POSITION SIZING ─── */
   .position-input-row { padding:16px 20px; display:flex; align-items:center; gap:10px; }

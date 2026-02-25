@@ -1,5 +1,6 @@
 import { getAllowedOrigin } from './lib/cors.js';
 import { neonSQL } from './lib/neon.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 
 export default async function handler(req, res) {
   // ── CORS ──
@@ -22,6 +23,12 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit by IP (30 req/hr — this endpoint is edge-cached so mostly warm hits)
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
+  if (!await checkRateLimit('ip:' + ip, 'stock-data', 30)) {
+    return res.status(429).json({ error: 'Too many requests' });
   }
 
   try {
