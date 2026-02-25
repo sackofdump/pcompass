@@ -50,13 +50,9 @@
     <h1>Portfolio <span>Compass</span></h1>
     <span class="tagline">Portfolio Diversification &amp; Strategy Analyzer</span>
   </div>
-  <div class="header-actions">
-    <!-- Pro button - always visible -->
-    <button onclick="showPaywall('header')" id="btnPro" style="background:linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06));border:1px solid rgba(0,229,160,0.3);border-radius:7px;padding:5px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00e5a0;cursor:pointer;display:flex;align-items:center;gap:5px;transition:border-color 0.2s,background 0.2s;" onmouseover="this.style.background='rgba(0,229,160,0.18)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(0,229,160,0.12),rgba(0,229,160,0.06))'">
-      ✦ Get Pro
-    </button>
-    <!-- User pill — opens sidebar -->
-    <button class="user-pill" id="userPill" onclick="event.stopPropagation();toggleSidebar()">
+  <div class="header-actions" style="display:none;">
+    <button onclick="showPaywall('header')" id="btnPro" style="display:none;">✦ Get Pro</button>
+    <button class="user-pill" id="userPill" onclick="event.stopPropagation();toggleSidebar()" style="display:none;">
       <span class="user-pill-name" id="userPillName">☰ Menu</span>
       <span class="user-pill-avatar" id="userPillAvatar"></span>
       <span class="user-pill-chevron">▸</span>
@@ -93,7 +89,7 @@
       <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
         <h2 class="section-title">Your Holdings</h2>
         <div style="display:flex;gap:6px;align-items:center;">
-          <button class="slot-btn" id="btnClearAll" onclick="clearAllHoldings()" title="Clear all holdings" style="display:none;">🗑</button>
+          <button class="slot-btn" id="btnClearAll" onclick="clearAllHoldings()" title="Clear all holdings">🗑</button>
           <button class="slot-btn" id="btnQuickSave" onclick="savePortfolio()" title="Save portfolio" style="display:none;">💾</button>
           <button class="slot-btn" onclick="sharePortfolio()" title="Share portfolio link">🔗</button>
           <button class="slot-btn" onclick="exportPDF()" title="Export PDF">⬇</button>
@@ -223,21 +219,17 @@
 
 <!-- Bottom Nav Bar -->
 <nav class="bottom-bar" id="bottomBar">
-  <button class="bottom-bar-tab active" onclick="navTo('holdings')" id="navHoldings">
-    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z"/></svg>
-    <span>Holdings</span>
-  </button>
-  <button class="bottom-bar-tab" onclick="navTo('analyze')" id="navAnalyze">
-    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>
-    <span>Analyze</span>
+  <button class="bottom-bar-tab active" onclick="navTo('portfolios')" id="navPortfolios">
+    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    <span>Portfolios</span>
   </button>
   <button class="bottom-bar-tab" onclick="navTo('pro')" id="navPro">
     <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
     <span>Pro</span>
   </button>
-  <button class="bottom-bar-tab" onclick="navTo('menu')" id="navMenu">
-    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    <span>Menu</span>
+  <button class="bottom-bar-tab" onclick="navTo('user')" id="navUser">
+    <svg class="bottom-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Account</span>
   </button>
 </nav>
 

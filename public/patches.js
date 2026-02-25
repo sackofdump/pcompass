@@ -97,21 +97,78 @@ function requireAuth() {
 
 // ── BOTTOM NAV BAR ────────────────────────────────────────
 window.navTo = function(tab) {
-  // Update active tab
-  var tabs = document.querySelectorAll('.bottom-bar-tab');
-  tabs.forEach(function(t) { t.classList.remove('active'); });
-  var active = document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1));
-  if (active) active.classList.add('active');
-
-  if (tab === 'holdings') {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  } else if (tab === 'analyze') {
-    if (typeof analyzeDebounced === 'function') analyzeDebounced();
+  if (tab === 'portfolios') {
+    togglePortfolioDrawer();
   } else if (tab === 'pro') {
+    closePortfolioDrawer();
     if (typeof showPaywall === 'function') showPaywall('bottom-bar');
-  } else if (tab === 'menu') {
+  } else if (tab === 'user') {
+    closePortfolioDrawer();
     if (typeof toggleSidebar === 'function') toggleSidebar();
   }
+};
+
+// ── PORTFOLIO DRAWER (popover above Portfolios tab) ──────────
+function _buildPortfolioDrawer() {
+  var drawer = document.getElementById('portfolioDrawer');
+  if (drawer) return drawer;
+  drawer = document.createElement('div');
+  drawer.id = 'portfolioDrawer';
+  drawer.className = 'portfolio-drawer';
+  document.body.appendChild(drawer);
+  drawer.addEventListener('click', function(e) {
+    if (e.target === drawer) closePortfolioDrawer();
+  });
+  return drawer;
+}
+
+function renderPortfolioDrawer() {
+  var drawer = _buildPortfolioDrawer();
+  var portfolios = getSavedPortfolios();
+  var html = '<div class="pdrawer-panel">';
+  html += '<div class="pdrawer-header"><span class="pdrawer-title">My Portfolios</span>'
+    + '<button class="pdrawer-close" onclick="closePortfolioDrawer()">\u2715</button></div>';
+  if (portfolios.length === 0) {
+    html += '<div class="pdrawer-empty">No saved portfolios yet.<br>Add holdings and tap <strong>Save</strong>.</div>';
+  } else {
+    html += '<div class="pdrawer-list">';
+    for (var i = 0; i < portfolios.length; i++) {
+      var p = portfolios[i];
+      var count = p.holdings ? p.holdings.length : 0;
+      var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
+      var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
+      var perf = _lastPerfMap && _lastPerfMap[i] != null ? _lastPerfMap[i] : null;
+      var perfHtml = '';
+      if (perf != null) {
+        var cls = perf > 0.005 ? 'up' : perf < -0.005 ? 'down' : 'flat';
+        var sign = perf > 0 ? '+' : '';
+        perfHtml = '<span class="pstrip-change ' + cls + '">' + sign + perf.toFixed(2) + '%</span>';
+      }
+      html += '<div class="pdrawer-item' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()" style="border-left-color:' + riskColor + '">'
+        + '<div class="pdrawer-info"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
+        + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
+        + perfHtml
+        + '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  drawer.innerHTML = html;
+}
+
+function togglePortfolioDrawer() {
+  var drawer = _buildPortfolioDrawer();
+  if (drawer.classList.contains('open')) {
+    closePortfolioDrawer();
+  } else {
+    renderPortfolioDrawer();
+    requestAnimationFrame(function() { drawer.classList.add('open'); });
+  }
+}
+
+window.closePortfolioDrawer = function() {
+  var drawer = document.getElementById('portfolioDrawer');
+  if (drawer) drawer.classList.remove('open');
 };
 
 // Register service worker for PWA
@@ -742,7 +799,15 @@ async function fetchMarketDataCached(tickersToFetch) {
   } catch(e) { /* ignore stale/corrupt cache */ }
   try {
     const res = await fetch('/api/market-data?tickers=' + tickersToFetch.join(','));
+    if (!res.ok) {
+      console.warn('[market-data] API returned', res.status);
+      return null;
+    }
     const raw = await res.json();
+    if (raw.error) {
+      console.warn('[market-data] API error:', raw.error);
+      return null;
+    }
     const marketData = {};
     for (const [ticker, val] of Object.entries(raw)) {
       if (!val) { marketData[ticker] = null; continue; }
@@ -769,6 +834,10 @@ let analyzeDebounceTimer = null;
 let _analyzeLocked = false;
 function analyzeDebounced() {
   if (_analyzeLocked) return;
+  if (typeof holdings !== 'undefined' && holdings.length === 0) {
+    showToast('Please add holdings first');
+    return;
+  }
   clearTimeout(analyzeDebounceTimer);
   analyzeDebounceTimer = setTimeout(() => {
     _analyzeLocked = true;
@@ -1157,12 +1226,15 @@ window.refreshPortfolioStrip = async function() {
   var btn = document.getElementById('pstripRefresh');
   if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
   try {
+    var tickers = _collectPortfolioTickers();
+    console.log('[portfolio-strip] refreshing', tickers.length, 'tickers');
     var pm = await fetchPortfolioPerformance(true);
     if (pm) {
       renderPortfolioStrip(pm);
-      showToast('Prices updated');
+      showToast('\u2713 Prices updated');
     } else {
-      showToast('Could not fetch prices');
+      console.warn('[portfolio-strip] fetchPortfolioPerformance returned null');
+      showToast('Could not fetch prices — check console');
     }
   } catch(e) {
     console.warn('[portfolio-strip] refresh failed:', e);
