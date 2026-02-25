@@ -133,7 +133,7 @@ export default async function handler(req, res) {
 
     // Set HttpOnly auth cookie (format: userId|email|sv|ts|token)
     const cookieVal = encodeURIComponent(`${user.id}|${email.toLowerCase().trim()}|${sv}|${authTs}|${authToken}`);
-    const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+    const secure = process.env.NODE_ENV === 'development' ? '' : '; Secure';
     res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 
     res.status(200).json({

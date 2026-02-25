@@ -9,9 +9,15 @@ export function getAllowedOrigin(req) {
 }
 
 // Request body size guard — call at top of POST handlers
+// Checks both Content-Length header AND actual parsed body size
 export function checkBodySize(req, maxBytes = 1_000_000) {
-  const len = parseInt(req.headers['content-length'] || '0');
-  return len <= maxBytes;
+  const headerLen = parseInt(req.headers['content-length'] || '0');
+  if (headerLen > maxBytes) return false;
+  if (req.body) {
+    const bodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (bodyStr.length > maxBytes) return false;
+  }
+  return true;
 }
 
 // Security headers — call at top of every handler

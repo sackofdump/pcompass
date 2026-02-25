@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     } catch (e) { /* best-effort — cookie is cleared regardless */ }
   }
 
-  const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+  const secure = process.env.NODE_ENV === 'development' ? '' : '; Secure';
   res.setHeader('Set-Cookie', [
     `pc_auth=; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=0`,
     `pc_pro=; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=0`,

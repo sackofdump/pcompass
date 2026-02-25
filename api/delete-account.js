@@ -79,7 +79,7 @@ export default async function handler(req, res) {
     }
 
     // Clear auth cookie so it can't be reused
-    const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+    const secure = process.env.NODE_ENV === 'development' ? '' : '; Secure';
     res.setHeader('Set-Cookie', `pc_auth=; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=0`);
 
     res.status(200).json({ success: true });

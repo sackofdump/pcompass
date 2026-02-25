@@ -83,7 +83,7 @@ export default async function handler(req, res) {
 
     // Set HttpOnly pro cookie
     const cookieVal = encodeURIComponent(`${email}|${timestamp}|${token}`);
-    const secure = process.env.VERCEL_ENV ? '; Secure' : '';
+    const secure = process.env.NODE_ENV === 'development' ? '' : '; Secure';
     res.setHeader('Set-Cookie', `pc_pro=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 
     // Don't cache this — it contains a fresh signed token each time
