@@ -1770,6 +1770,284 @@
     line-height: 1.6;
   }
 
+  /* ── SPARKLINE CHART GRID ──────────────────────────────── */
+  .sparkline-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    padding: 12px 24px;
+  }
+  .sparkline-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 10px 12px 8px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    animation: slideIn 0.25s ease backwards;
+  }
+  .sparkline-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--glass-shadow), var(--accent-glow-subtle);
+    border-color: var(--accent);
+  }
+  .spark-card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 2px;
+  }
+  .spark-card-ticker {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .spark-card-alloc {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .spark-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 6px;
+  }
+  .spark-chart {
+    width: 100%;
+    height: 50px;
+    overflow: hidden;
+    position: relative;
+  }
+  .spark-chart svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .spark-shimmer {
+    width: 100%;
+    height: 50px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .spark-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+  .spark-price {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .spark-change {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .spark-change.up {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+  }
+  .spark-change.down {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+  }
+  .spark-sector-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+  }
+
+  /* ── EXPANDED CHART MODAL ────────────────────────────── */
+  .chart-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    background: rgba(0, 0, 0, 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: background 0.25s;
+    padding: 16px;
+  }
+  .chart-modal-overlay.open {
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+  }
+  .chart-modal-card {
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 24px 20px 20px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .chart-modal-overlay.open .chart-modal-card {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .chart-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .chart-modal-ticker {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .chart-modal-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .chart-modal-sector {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .chart-modal-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .chart-modal-price {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .chart-modal-change {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .chart-modal-change.up { color: #22c55e; background: rgba(34,197,94,0.1); }
+  .chart-modal-change.down { color: #ef4444; background: rgba(239,68,68,0.1); }
+  .chart-modal-alloc {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+  .chart-modal-close {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .chart-modal-close:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .chart-modal-ranges {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .chart-range-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .chart-range-btn:hover { border-color: var(--accent); color: var(--text); }
+  .chart-range-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.08); }
+  .chart-modal-chart {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .chart-modal-chart svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .chart-modal-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+  }
+  .chart-stat {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+  }
+  .chart-stat-label { color: var(--muted); }
+  .chart-stat-value { color: var(--text); font-weight: 700; }
+
+  /* ── SPARKLINE MOBILE ────────────────────────────────── */
+  @media (max-width: 600px) {
+    .sparkline-grid {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+      padding: 10px 16px;
+    }
+    .sparkline-card { padding: 8px 10px 6px; }
+    .spark-chart, .spark-shimmer { height: 40px; }
+    .chart-modal-card {
+      padding: 18px 14px 14px;
+      border-radius: 12px;
+    }
+    .chart-modal-ticker { font-size: 18px; }
+    .chart-modal-price { font-size: 15px; }
+    .chart-modal-chart { height: 160px; }
+    .chart-modal-overlay { padding: 10px; }
+  }
+
   @media print {
     .bottom-bar, .portfolio-drawer { display: none !important; }
   }

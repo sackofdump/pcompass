@@ -140,6 +140,9 @@ function setHoldingsView(view) {
     b.classList.toggle('active', b.dataset.view === view);
   });
   renderHoldings();
+  if (view === 'chart' && holdings.length > 0) {
+    fetchAndRenderSparklines();
+  }
 }
 
 function expandUploadZone(trigger) {
@@ -155,14 +158,36 @@ function renderHoldings() {
   const btn  = document.getElementById('analyzeBtn');
   const total = totalAllocation();
 
-  // Show/hide grid view toggle for 5+ holdings
+  // Show/hide view toggle for 3+ holdings
   const viewToggle = document.getElementById('holdingsViewToggle');
   if (viewToggle) {
-    viewToggle.style.display = holdings.length >= 5 ? 'flex' : 'none';
-    if (holdings.length < 5) _holdingsView = 'list';
+    viewToggle.style.display = holdings.length >= 3 ? 'flex' : 'none';
+    if (holdings.length < 3 && _holdingsView !== 'list') _holdingsView = 'list';
   }
 
-  if (_holdingsView === 'grid' && holdings.length >= 5) {
+  if (_holdingsView === 'chart' && holdings.length >= 3) {
+    list.className = 'sparkline-grid';
+    list.innerHTML = holdings.map(h => {
+      const dbEntry = STOCK_DB[h.ticker] || {};
+      const companyName = dbEntry.name || h.ticker;
+      const sectorColor = SECTOR_COLORS[h.sector] || SECTOR_COLORS['Other'] || '#475569';
+      return `<div class="sparkline-card" onclick="showExpandedChart('${escapeHTML(h.ticker)}')" id="spark-card-${escapeHTML(h.ticker)}">
+        <div class="spark-card-header">
+          <span class="spark-card-ticker">${escapeHTML(h.ticker)}</span>
+          <span class="spark-card-alloc">${h.pct}%</span>
+        </div>
+        <div class="spark-name">${escapeHTML(companyName)}</div>
+        <div class="spark-chart" id="spark-svg-${escapeHTML(h.ticker)}">
+          <div class="spark-shimmer"></div>
+        </div>
+        <div class="spark-card-footer">
+          <span class="spark-price" id="spark-price-${escapeHTML(h.ticker)}">--</span>
+          <span class="spark-change" id="spark-change-${escapeHTML(h.ticker)}"></span>
+        </div>
+        <div class="spark-sector-dot" style="background:${sectorColor}"></div>
+      </div>`;
+    }).join('');
+  } else if (_holdingsView === 'grid' && holdings.length >= 3) {
     list.className = 'holdings-grid';
     list.innerHTML = holdings.map(h =>
       `<div class="holdings-grid-item" onclick="removeStock('${escapeHTML(h.ticker)}')" title="Click to remove">
@@ -1488,7 +1513,17 @@ function loadPortfolio(idx) {
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   _activePortfolioIdx = idx;
   _activePortfolioSnapshot = JSON.stringify(holdings);
+  // Auto-switch to chart view when loading a portfolio with 3+ holdings
+  if (holdings.length >= 3) {
+    _holdingsView = 'chart';
+    document.querySelectorAll('.view-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === 'chart');
+    });
+  }
   renderHoldings();
+  if (_holdingsView === 'chart' && holdings.length >= 3) {
+    fetchAndRenderSparklines();
+  }
   collapseInputSections();
   closeSidebar();
   showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
@@ -1959,4 +1994,251 @@ function selectAutocomplete(ticker) {
   document.getElementById('tickerInput').value = ticker;
   document.getElementById('autocompleteDropdown').classList.remove('open');
   document.getElementById('pctInput').focus();
+}
+
+// ── SPARKLINE CHART VIEW ─────────────────────────────────────
+
+function fetchSparklineData(tickers, range) {
+  range = range || '1mo';
+  var CACHE_KEY = 'pc_sparkline_' + range + '_' + tickers.slice().sort().join(',');
+  var CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+  try {
+    var cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      if (Date.now() - parsed.ts < CACHE_TTL) {
+        return Promise.resolve(parsed.data);
+      }
+    }
+  } catch(e) { /* ignore */ }
+  return fetch('/api/sparkline?tickers=' + tickers.join(',') + '&range=' + range)
+    .then(function(res) {
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data || data.error) return null;
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: data, ts: Date.now() }));
+      } catch(e) { /* quota exceeded */ }
+      return data;
+    })
+    .catch(function() { return null; });
+}
+
+function renderSparklineSVG(closes, width, height, positive) {
+  if (!closes || closes.length < 2) return '';
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < closes.length; i++) {
+    if (closes[i] < min) min = closes[i];
+    if (closes[i] > max) max = closes[i];
+  }
+  var range = max - min || 1;
+  var padY = height * 0.08;
+  var usableH = height - padY * 2;
+  var stepX = width / (closes.length - 1);
+
+  var points = [];
+  for (var i = 0; i < closes.length; i++) {
+    var x = Math.round(i * stepX * 100) / 100;
+    var y = Math.round((padY + usableH - ((closes[i] - min) / range) * usableH) * 100) / 100;
+    points.push(x + ',' + y);
+  }
+  var polyPoints = points.join(' ');
+
+  var color = positive ? '#22c55e' : '#ef4444';
+  var fillColor = positive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+  var gradId = 'sg' + Math.random().toString(36).substr(2, 6);
+
+  // Build fill polygon (close the path at bottom)
+  var fillPoints = polyPoints + ' ' + width + ',' + height + ' 0,' + height;
+
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs><linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.2"/>' +
+    '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/>' +
+    '</linearGradient></defs>' +
+    '<polygon points="' + fillPoints + '" fill="url(#' + gradId + ')"/>' +
+    '<polyline points="' + polyPoints + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+}
+
+function fetchAndRenderSparklines() {
+  var tickers = holdings.map(function(h) { return h.ticker; });
+  if (tickers.length === 0) return;
+
+  Promise.all([
+    typeof fetchMarketDataCached === 'function' ? fetchMarketDataCached(tickers) : Promise.resolve(null),
+    fetchSparklineData(tickers, '1mo')
+  ]).then(function(results) {
+    var marketData = results[0];
+    var sparkData = results[1];
+
+    holdings.forEach(function(h) {
+      // Inject market data (price + change)
+      if (marketData && marketData[h.ticker]) {
+        var md = marketData[h.ticker];
+        var priceEl = document.getElementById('spark-price-' + h.ticker);
+        var changeEl = document.getElementById('spark-change-' + h.ticker);
+        if (priceEl) priceEl.textContent = '$' + md.price.toFixed(2);
+        if (changeEl) {
+          var pct = md.changePct;
+          var isUp = pct >= 0;
+          changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '%';
+          changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
+        }
+      }
+
+      // Inject sparkline SVG
+      if (sparkData && sparkData[h.ticker]) {
+        var sd = sparkData[h.ticker];
+        var svgEl = document.getElementById('spark-svg-' + h.ticker);
+        if (svgEl && sd.closes && sd.closes.length >= 2) {
+          var first = sd.closes[0];
+          var last = sd.closes[sd.closes.length - 1];
+          var positive = last >= first;
+          svgEl.innerHTML = renderSparklineSVG(sd.closes, 200, 50, positive);
+        }
+      }
+    });
+  });
+}
+
+// ── EXPANDED CHART MODAL ────────────────────────────────────
+
+var _chartModalEl = null;
+
+function _ensureChartModal() {
+  if (_chartModalEl) return _chartModalEl;
+  var overlay = document.createElement('div');
+  overlay.className = 'chart-modal-overlay';
+  overlay.id = 'chartModalOverlay';
+  overlay.onclick = function(e) {
+    if (e.target === overlay) closeExpandedChart();
+  };
+  overlay.innerHTML =
+    '<div class="chart-modal-card">' +
+      '<div class="chart-modal-header">' +
+        '<div>' +
+          '<div class="chart-modal-ticker" id="chartModalTicker"></div>' +
+          '<div class="chart-modal-name" id="chartModalName"></div>' +
+          '<div class="chart-modal-sector" id="chartModalSector"></div>' +
+          '<div class="chart-modal-price-row">' +
+            '<span class="chart-modal-price" id="chartModalPrice">--</span>' +
+            '<span class="chart-modal-change" id="chartModalChange"></span>' +
+          '</div>' +
+          '<div class="chart-modal-alloc" id="chartModalAlloc"></div>' +
+        '</div>' +
+        '<button class="chart-modal-close" onclick="closeExpandedChart()">×</button>' +
+      '</div>' +
+      '<div class="chart-modal-ranges" id="chartModalRanges">' +
+        '<button class="chart-range-btn" data-range="5d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'5d\')">1W</button>' +
+        '<button class="chart-range-btn active" data-range="1mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1mo\')">1M</button>' +
+        '<button class="chart-range-btn" data-range="3mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'3mo\')">3M</button>' +
+      '</div>' +
+      '<div class="chart-modal-chart" id="chartModalChart">' +
+        '<div class="spark-shimmer" style="height:200px"></div>' +
+      '</div>' +
+      '<div class="chart-modal-stats" id="chartModalStats"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  _chartModalEl = overlay;
+  return overlay;
+}
+
+function showExpandedChart(ticker) {
+  var overlay = _ensureChartModal();
+  var holding = holdings.find(function(h) { return h.ticker === ticker; });
+  if (!holding) return;
+  var dbEntry = STOCK_DB[ticker] || {};
+  var sectorColor = SECTOR_COLORS[holding.sector] || SECTOR_COLORS['Other'] || '#475569';
+
+  document.getElementById('chartModalTicker').textContent = ticker;
+  document.getElementById('chartModalName').textContent = dbEntry.name || ticker;
+  document.getElementById('chartModalSector').textContent = holding.sector;
+  document.getElementById('chartModalSector').style.color = sectorColor;
+  document.getElementById('chartModalAlloc').textContent = holding.pct + '% of portfolio';
+  document.getElementById('chartModalRanges').dataset.ticker = ticker;
+  document.getElementById('chartModalChart').innerHTML = '<div class="spark-shimmer" style="height:200px"></div>';
+  document.getElementById('chartModalStats').innerHTML = '';
+
+  // Reset range buttons — 1M active by default
+  document.querySelectorAll('.chart-range-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.range === '1mo');
+  });
+
+  // Set price from market data if available (from sparkline cards)
+  var priceEl = document.getElementById('spark-price-' + ticker);
+  if (priceEl && priceEl.textContent !== '--') {
+    document.getElementById('chartModalPrice').textContent = priceEl.textContent;
+  } else {
+    document.getElementById('chartModalPrice').textContent = '--';
+  }
+  var changeEl = document.getElementById('spark-change-' + ticker);
+  if (changeEl && changeEl.textContent) {
+    var mc = document.getElementById('chartModalChange');
+    mc.textContent = changeEl.textContent;
+    mc.className = 'chart-modal-change ' + (changeEl.classList.contains('up') ? 'up' : 'down');
+  } else {
+    document.getElementById('chartModalChange').textContent = '';
+    document.getElementById('chartModalChange').className = 'chart-modal-change';
+  }
+
+  // Show the modal
+  requestAnimationFrame(function() {
+    overlay.classList.add('open');
+  });
+
+  // Load chart data
+  loadChartRange(ticker, '1mo');
+}
+
+function loadChartRange(ticker, range) {
+  var chartEl = document.getElementById('chartModalChart');
+  var statsEl = document.getElementById('chartModalStats');
+  chartEl.innerHTML = '<div class="spark-shimmer" style="height:200px"></div>';
+  statsEl.innerHTML = '';
+
+  // Update active range button
+  document.querySelectorAll('.chart-range-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.range === range);
+  });
+
+  fetchSparklineData([ticker], range).then(function(data) {
+    if (!data || !data[ticker] || !data[ticker].closes || data[ticker].closes.length < 2) {
+      chartEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:12px;">No data available</div>';
+      return;
+    }
+    var sd = data[ticker];
+    var closes = sd.closes;
+    var first = closes[0];
+    var last = closes[closes.length - 1];
+    var positive = last >= first;
+    chartEl.innerHTML = renderSparklineSVG(closes, 500, 200, positive);
+
+    // Compute stats
+    var high = -Infinity, low = Infinity;
+    for (var i = 0; i < closes.length; i++) {
+      if (closes[i] > high) high = closes[i];
+      if (closes[i] < low) low = closes[i];
+    }
+    var rangeChange = ((last - first) / first * 100);
+
+    statsEl.innerHTML =
+      '<div class="chart-stat"><span class="chart-stat-label">High</span><span class="chart-stat-value">$' + high.toFixed(2) + '</span></div>' +
+      '<div class="chart-stat"><span class="chart-stat-label">Low</span><span class="chart-stat-value">$' + low.toFixed(2) + '</span></div>' +
+      '<div class="chart-stat"><span class="chart-stat-label">Open</span><span class="chart-stat-value">$' + first.toFixed(2) + '</span></div>' +
+      '<div class="chart-stat"><span class="chart-stat-label">Change</span><span class="chart-stat-value" style="color:' + (rangeChange >= 0 ? '#22c55e' : '#ef4444') + '">' + (rangeChange >= 0 ? '+' : '') + rangeChange.toFixed(2) + '%</span></div>';
+
+    // Also update the modal price to last close if market data wasn't available
+    var modalPrice = document.getElementById('chartModalPrice');
+    if (modalPrice && modalPrice.textContent === '--') {
+      modalPrice.textContent = '$' + last.toFixed(2);
+    }
+  });
+}
+
+function closeExpandedChart() {
+  var overlay = document.getElementById('chartModalOverlay');
+  if (overlay) overlay.classList.remove('open');
 }
