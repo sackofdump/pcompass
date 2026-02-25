@@ -223,12 +223,15 @@ function goToPurchase(stripeUrl) {
 // ── GOOGLE SIGN-IN & CLOUD SYNC ─────────────────────────
 const GOOGLE_CLIENT_ID = '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
 
-// Initialize Google Sign-In on page load
+// Initialize Google Identity Services
+let _googleInitialized = false;
 function initGoogleSignIn() {
   if (typeof google === 'undefined' || !google.accounts) {
     setTimeout(initGoogleSignIn, 500);
     return;
   }
+  if (_googleInitialized) return;
+  _googleInitialized = true;
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback: handleGoogleResponse,
@@ -237,49 +240,40 @@ function initGoogleSignIn() {
 }
 initGoogleSignIn();
 
-
-
-function buildGoogleOAuthURL(state) {
-  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-  let url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${nonce}`;
-  if (state) url += `&state=${encodeURIComponent(state)}`;
-  return url;
-}
-
+// OAuth popup for iOS WebView (intercepted by native window.open override)
 function openGoogleOAuthPopup() {
-  const url = buildGoogleOAuthURL();
-  const popup = window.open(url, 'google-signin', 'width=500,height=600,left=200,top=100');
-
-  if (!popup || popup.closed) {
-    // Popup blocked — fall back to redirect flow (navigates away, comes back with token in hash)
-    window.location.href = url;
-    return;
-  }
-
-  const checkPopup = setInterval(() => {
-    try {
-      if (popup.closed) { clearInterval(checkPopup); return; }
-      if (popup.location.origin === window.location.origin) {
-        const hash = popup.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const idToken = params.get('id_token');
-        popup.close();
-        clearInterval(checkPopup);
-        if (idToken) {
-          handleGoogleResponse({ credential: idToken });
-        }
-      }
-    } catch(e) { /* cross-origin, keep waiting */ }
-  }, 500);
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token%20id_token&scope=email%20profile&nonce=${nonce}`;
+  window.open(url, 'google-signin', 'width=500,height=600');
 }
 
 function googleSignIn() {
-  // Go straight to OAuth popup/redirect — this preserves user gesture context
-  // so popup won't be blocked. One Tap is unreliable (often suppressed by browser).
-  openGoogleOAuthPopup();
-  // Load SDK in background for future One Tap
+  // iOS WebView: GIS doesn't work, use OAuth popup (intercepted by native app)
+  if (isIOSApp()) {
+    openGoogleOAuthPopup();
+    return;
+  }
+
+  // Web: use Google Identity Services renderButton (no popup/redirect needed)
   if (typeof google === 'undefined' || !google.accounts) {
-    loadGoogleSignInScript();
+    loadGoogleSignInScript().then(() => googleSignIn());
+    return;
+  }
+  if (!_googleInitialized) initGoogleSignIn();
+
+  const container = document.getElementById('googleSignInContainer');
+  const fallback = document.getElementById('googleSignInFallback');
+  if (container) {
+    container.innerHTML = '';
+    google.accounts.id.renderButton(container, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'large',
+      width: container.offsetWidth || 300,
+      text: 'continue_with',
+    });
+    container.style.display = 'block';
+    if (fallback) fallback.style.display = 'none';
   }
 }
 
@@ -657,7 +651,13 @@ function loadGoogleSignInScript() {
 }
 function showAuthModalOptimized() {
   document.getElementById('authModal').style.display = 'flex';
-  loadGoogleSignInScript();
+  // Reset: show fallback button, hide GIS container until rendered
+  const fallback = document.getElementById('googleSignInFallback');
+  const container = document.getElementById('googleSignInContainer');
+  if (fallback) fallback.style.display = 'flex';
+  if (container) container.style.display = 'none';
+  // Load GIS SDK and render Google button
+  loadGoogleSignInScript().then(() => googleSignIn()).catch(() => {});
 }
 
 // ── PATCH 5: callClaudeAPI is defined at the top of the main script block ────
