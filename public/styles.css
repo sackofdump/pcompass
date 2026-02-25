@@ -210,7 +210,7 @@
   .logo h1 { font-size:32px; font-weight:400; letter-spacing:2px; color:var(--text); font-family:'Bebas Neue',sans-serif; line-height:1; text-transform:uppercase; }
   .logo h1 span { background:var(--accent-gradient-text); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; font-family:'Bebas Neue',sans-serif; letter-spacing:2px; }
   .tagline { color:var(--muted); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.3px; margin-left:0; white-space:nowrap; }
-  .main-grid { display:grid; grid-template-columns:1fr 1.6fr; gap:24px; padding:28px 2%; position:relative; }
+  .main-grid { display:grid; grid-template-columns:1fr; gap:24px; padding:28px 2%; position:relative; max-width:800px; margin:0 auto; }
   .panel, .strategy-card, .health-panel, .rebalance-panel, .position-panel { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:16px; overflow:hidden; box-shadow:var(--glass-shadow); backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur)); transition:transform var(--transition-med), box-shadow var(--transition-med); }
   .panel-header { padding:16px 20px 12px; border-bottom:1px solid var(--border); }
   .section-title { font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); font-family:'Space Mono',monospace; }
@@ -594,7 +594,7 @@
 
   /* Large desktop (1400px+) */
   @media (min-width: 1400px) {
-    .main-grid { grid-template-columns: 1fr 2fr; gap: 32px; padding: 36px 2%; }
+    .main-grid { gap: 32px; padding: 36px 2%; }
     .panel-header { padding: 20px 28px 14px; }
     .stock-form { padding: 24px 28px; }
     .stock-list { padding: 16px 28px 14px; }
@@ -616,7 +616,7 @@
 
   /* Small desktop / large tablet (900–1100px) */
   @media (min-width: 901px) and (max-width: 1099px) {
-    .main-grid { grid-template-columns: 1fr 1.4fr; gap: 20px; padding: 24px 2%; }
+    .main-grid { gap: 20px; padding: 24px 2%; }
     .sector-row { grid-template-columns: 120px 1fr 32px; }
     .strategy-desc { max-width: 150px; font-size: 10px; }
   }
@@ -1064,7 +1064,7 @@
     .pick-hint, .etf-hint, .etf-drawer, .pick-drawer,
     .market-refresh-row, .sidebar, .sidebar-backdrop { display:none !important; }
     body { background:#fff !important; color:#000 !important; }
-    .main-grid { grid-template-columns: 1fr 1.8fr !important; }
+    .main-grid { grid-template-columns: 1fr !important; }
     .panel, .strategy-card, .analysis-bar { border:1px solid #ddd !important; }
   }
 
