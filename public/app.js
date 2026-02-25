@@ -1709,8 +1709,13 @@ async function toggleShowMore(type) {
   const btn   = document.getElementById('show-more-btn-' + type);
   if (!panel || !btn) return;
 
-  // If panel is still empty, fetch pro picks and render them all as hidden
+  // If panel is still empty, check Pro status then fetch picks
   if (panel.querySelectorAll(':scope > .etf-item').length === 0) {
+    // Gate behind Pro check — show paywall for free users
+    const access = await callCheckFeature('showmore');
+    if (access === 'auth_expired') { showToast('Session expired — please sign in again.'); return; }
+    if (access !== 'allowed') { showPaywall('showmore'); return; }
+
     btn.innerHTML = '<span class="mini-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle;"></span> Loading...';
     const proData = await fetchProPicks();
     if (!proData) {

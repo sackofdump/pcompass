@@ -3,7 +3,7 @@ import { extractAuth, getProFromCookie, verifyAuthToken, verifyProToken } from '
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
-const VALID_FEATURES = ['pdf', 'picks', 'slots'];
+const VALID_FEATURES = ['pdf', 'picks', 'slots', 'showmore'];
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
