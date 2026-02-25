@@ -469,7 +469,7 @@ function analyze() {
     return '<div class="strategy-card"><div class="strategy-header strategy-toggle" onclick="toggleStrategyCard(this)">' +
       '<div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span>' +
-      '<span class="strategy-chevron">&#9662;</span></div>' +
+      '<span class="strategy-chevron">&#9662;</span><span class="strategy-expand-hint">tap to expand</span></div>' +
       '<span class="strategy-desc">' + desc + '</span></div>' +
       '<div class="etf-list strategy-collapsed">' + primaryHTML + extraHTML + '</div></div>';
   }
@@ -1437,8 +1437,10 @@ function toggleStrategyCard(headerEl) {
   const list = headerEl.nextElementSibling;
   if (!list) return;
   const chevron = headerEl.querySelector('.strategy-chevron');
+  const hint = headerEl.querySelector('.strategy-expand-hint');
   list.classList.toggle('strategy-collapsed');
   if (chevron) chevron.classList.toggle('strategy-chevron-open');
+  if (hint) hint.textContent = list.classList.contains('strategy-collapsed') ? 'tap to expand' : 'tap to collapse';
 }
 
 // ── SHOW MORE TOGGLE ─────────────────────────────────────

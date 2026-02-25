@@ -295,6 +295,9 @@ async function handleGoogleResponse(response) {
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
 
+      // Auto-check Pro status (refreshes cookie, sets pc_pro_expiry)
+      await verifyProAccess(data.user.email);
+
       // Auto-sync portfolios from cloud
       await syncPortfoliosFromCloud();
     } else {
@@ -571,6 +574,7 @@ async function appleSignIn() {
       localStorage.setItem('pc_pro_email', data.user.email);
       updateUserUI();
       showToast('Signed in as ' + data.user.name + '!');
+      await verifyProAccess(data.user.email);
       await syncPortfoliosFromCloud();
     } else {
       showToast('Sign in failed: ' + (data.error || 'Unknown error'));

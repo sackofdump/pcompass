@@ -220,6 +220,7 @@
   .strategy-toggle { cursor:pointer; user-select:none; }
   .strategy-chevron { font-size:12px; color:var(--muted); transition:transform 0.25s ease; display:inline-block; }
   .strategy-chevron-open { transform:rotate(180deg); }
+  .strategy-expand-hint { font-size:10px; color:var(--muted); margin-left:6px; font-weight:400; }
   .etf-list { padding:12px 16px 16px; display:flex; flex-direction:column; gap:8px; }
   .etf-list.strategy-collapsed { display:none; }
 
