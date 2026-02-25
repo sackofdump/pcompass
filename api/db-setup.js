@@ -2,8 +2,8 @@ import { timingSafeEqual } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 
 export default async function handler(req, res) {
-  // Block in production — schema mutations should not be exposed
-  if (process.env.VERCEL_ENV === 'production') {
+  // Block in production and preview — schema mutations should never be publicly accessible
+  if (process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview') {
     return res.status(403).json({ error: 'Disabled in production' });
   }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

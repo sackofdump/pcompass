@@ -1,4 +1,4 @@
-import { getAllowedOrigin } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
 import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
@@ -9,6 +9,7 @@ export default async function handler(req, res) {
   // ── CORS ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
+  setSecurityHeaders(res);
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Vary', 'Origin');

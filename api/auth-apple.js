@@ -1,5 +1,5 @@
 import * as jose from 'jose';
-import { getAllowedOrigin } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
@@ -10,6 +10,7 @@ export default async function handler(req, res) {
   // ── CORS ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
+  setSecurityHeaders(res);
 
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -56,6 +57,11 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Token missing user info' });
     }
 
+    // Apple requires email_verified check
+    if (payload.email_verified === false || payload.email_verified === 'false') {
+      return res.status(401).json({ error: 'Unverified email' });
+    }
+
     // Name is only sent on first sign-in (from the user object, not the JWT)
     let name = email.split('@')[0];
     if (appleUser && appleUser.name) {
@@ -91,7 +97,7 @@ export default async function handler(req, res) {
     // Generate HMAC-signed auth token (4hr expiry)
     // 'auth:' prefix prevents cross-use with Pro tokens
     const authTs = Math.floor(Date.now() / 1000);
-    const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
+    const secret = process.env.AUTH_TOKEN_SECRET;
     if (!secret) throw new Error('AUTH_TOKEN_SECRET not configured');
     const enc = new TextEncoder();
     const authKey = await crypto.subtle.importKey(
@@ -108,7 +114,7 @@ export default async function handler(req, res) {
     // Set HttpOnly auth cookie
     const cookieVal = encodeURIComponent(`${email.toLowerCase().trim()}|${authTs}|${authToken}`);
     const secure = process.env.VERCEL_ENV ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=14400`);
+    res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 
     res.status(200).json({
       success: true,

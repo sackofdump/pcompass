@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getAllowedOrigin } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
 import { getAuthFromCookie, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 
@@ -63,6 +63,7 @@ export default async function handler(req, res) {
   // ── CORS with origin allowlist ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
+  setSecurityHeaders(res);
 
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);

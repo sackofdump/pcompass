@@ -1,16 +1,17 @@
 import * as jose from 'jose';
-import { getAllowedOrigin } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── GOOGLE JWKS (cached) ────────────────────────────────
 const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
-const GOOGLE_CLIENT_ID = '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
 
 export default async function handler(req, res) {
   // ── CORS with origin allowlist ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
+  setSecurityHeaders(res);
 
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -110,7 +111,7 @@ export default async function handler(req, res) {
     // Generate HMAC-signed auth token (4hr expiry)
     // 'auth:' prefix prevents cross-use with Pro tokens
     const authTs = Math.floor(Date.now() / 1000);
-    const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
+    const secret = process.env.AUTH_TOKEN_SECRET;
     if (!secret) throw new Error('AUTH_TOKEN_SECRET not configured');
     const enc = new TextEncoder();
     const authKey = await crypto.subtle.importKey(
@@ -127,7 +128,7 @@ export default async function handler(req, res) {
     // Set HttpOnly auth cookie
     const cookieVal = encodeURIComponent(`${email.toLowerCase().trim()}|${authTs}|${authToken}`);
     const secure = process.env.VERCEL_ENV ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=14400`);
+    res.setHeader('Set-Cookie', `pc_auth=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 
     res.status(200).json({
       success: true,

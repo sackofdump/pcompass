@@ -1,4 +1,4 @@
-import { getAllowedOrigin } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
 import { getAuthFromCookie, verifyAuthToken } from './lib/auth.js';
 import { neonSQL } from './lib/neon.js';
 import { checkRateLimit } from './lib/rate-limit.js';
@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   // ── CORS ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
+  setSecurityHeaders(res);
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Vary', 'Origin');
@@ -86,7 +87,7 @@ export default async function handler(req, res) {
     // Set HttpOnly pro cookie
     const cookieVal = encodeURIComponent(`${email}|${timestamp}|${token}`);
     const secure = process.env.VERCEL_ENV ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `pc_pro=${cookieVal}; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=14400`);
+    res.setHeader('Set-Cookie', `pc_pro=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 
     // Don't cache this — it contains a fresh signed token each time
     res.setHeader('Cache-Control', 'no-store');

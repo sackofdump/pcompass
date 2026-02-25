@@ -1,8 +1,9 @@
-import { getAllowedOrigin } from './lib/cors.js';
+import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
+  setSecurityHeaders(res);
 
   if (allowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -25,8 +26,8 @@ export default async function handler(req, res) {
 
   const secure = process.env.VERCEL_ENV ? '; Secure' : '';
   res.setHeader('Set-Cookie', [
-    `pc_auth=; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=0`,
-    `pc_pro=; HttpOnly${secure}; SameSite=Lax; Path=/api; Max-Age=0`,
+    `pc_auth=; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=0`,
+    `pc_pro=; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=0`,
   ]);
 
   return res.status(200).json({ success: true });
