@@ -463,7 +463,7 @@ function getAuthHeaders() {
 }
 
 async function savePortfolioToCloud(name, holdingsData) {
-  if (!currentUser || !isProUser()) return null;
+  if (!currentUser) return null;
   try {
     const res = await fetch('/api/portfolios', {
       method: 'POST',
@@ -489,10 +489,6 @@ async function savePortfolioToCloud(name, holdingsData) {
 async function syncPortfoliosFromCloud() {
   if (!currentUser) {
     showToast('Sign in to sync portfolios.');
-    return;
-  }
-  if (!isProUser()) {
-    showPaywall('sync');
     return;
   }
   try {

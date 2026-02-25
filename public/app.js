@@ -113,7 +113,6 @@ function totalAllocation() {
 }
 
 function addStock() {
-  if (!requireAuth()) return;
   const ticker = document.getElementById('tickerInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
   const pct = parseFloat(document.getElementById('pctInput').value);
   const err = document.getElementById('errorMsg');
@@ -327,7 +326,6 @@ function matchLabel(score) {
 }
 
 function analyze() {
-  if (!requireAuth()) return;
   pinnedStrategy = null;
   document.querySelectorAll('.legend-item.hoverable').forEach(e => e.classList.remove('active','active-agg','active-mod','active-con'));
   const profile = getPortfolioProfile();
@@ -1046,7 +1044,6 @@ function removePreviewItem(i) {
 }
 
 function importAll() {
-  if (!requireAuth()) return;
   // Clear existing holdings when importing a full portfolio from screenshots
   if (previewHoldings.length >= 3) {
     holdings.length = 0;
@@ -1212,17 +1209,8 @@ function closeSwitcherDropdown() {
 }
 
 async function savePortfolio() {
-  if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
-  if (portfolios.length >= MAX_SLOTS) {
-    const result = await callCheckFeature('slots');
-    if (result === 'auth_expired') { showToast('Session expired — please sign out and back in.'); return; }
-    if (result !== 'allowed') {
-      showUpgradeModal();
-      return;
-    }
-  }
   const name = 'Portfolio ' + (portfolios.length + 1);
   portfolios.push({name, holdings: JSON.parse(JSON.stringify(holdings))});
   savePortfoliosLS(portfolios);
@@ -1339,7 +1327,6 @@ function expandInputSections() {
 }
 
 function loadExample(key) {
-  if (!requireAuth()) return;
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
   holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
@@ -1349,7 +1336,6 @@ function loadExample(key) {
 
 // ── SHARE PORTFOLIO ───────────────────────────────────────
 async function sharePortfolio() {
-  if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const encoded = holdings.map(h => h.ticker + '-' + h.pct).join('_');
   const url = window.location.origin + window.location.pathname + '?p=' + encoded;
@@ -1396,12 +1382,7 @@ function showToast(msg) {
 
 // ── EXPORT PDF ────────────────────────────────────────────
 async function exportPDF() {
-  if (!requireAuth()) return;
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
-
-  const result = await callCheckFeature('pdf');
-  if (result === 'auth_expired') { showToast('Session expired — please sign out and back in.'); return; }
-  if (result !== 'allowed') { showPaywall('pdf'); return; }
 
   const profile = getPortfolioProfile();
   const {sectors} = profile;
@@ -1557,11 +1538,6 @@ async function toggleShowMore(type) {
     if (btn2) { btn2.classList.remove('open'); btn2.innerHTML = '✦ Show more picks'; }
     return;
   }
-
-  // First expansion: verify Pro server-side
-  const result = await callCheckFeature('picks');
-  if (result === 'auth_expired') { showToast('Session expired — please sign out and back in.'); return; }
-  if (result !== 'allowed') { showPaywall('showmore'); return; }
 
   // If panel is still empty, fetch pro picks and render them
   if (panel.querySelectorAll(':scope > .etf-item').length === 0) {
