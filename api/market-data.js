@@ -18,26 +18,40 @@ function setCached(key, data) {
 
 // ── FETCH QUOTES VIA FMP STABLE API ─────────────────────
 // FMP deprecated the v3 batch endpoint for free-tier keys (Aug 2025).
-// Use stable/quote per ticker in parallel, with in-memory cache.
+// Use stable/quote per ticker (stocks), with stable/profile fallback (ETFs).
+function parseQuote(quote) {
+  if (!quote || quote.price == null) return null;
+  const changePct = quote.changePercentage ?? 0;
+  const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+  return {
+    price: Math.round(quote.price * 100) / 100,
+    changePct: Math.round(changePct * 100) / 100,
+    change: Math.round(changePct * 100) / 100,
+    momentum: Math.round(momentum),
+    marketState: 'REGULAR',
+    name: quote.name || quote.companyName || quote.symbol || '',
+  };
+}
+
 async function fetchOne(ticker, apiKey) {
   try {
+    // Try stable/quote first (works for stocks on free tier)
     const url = `https://financialmodelingprep.com/stable/quote?symbol=${ticker}&apikey=${apiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!r.ok) return null;
-    const data = await r.json();
-    if (!Array.isArray(data) || data.length === 0) return null;
-    const quote = data[0];
-    if (!quote.symbol || quote.price == null) return null;
-    const changePct = quote.changePercentage ?? 0;
-    const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
-    return {
-      price: Math.round(quote.price * 100) / 100,
-      changePct: Math.round(changePct * 100) / 100,
-      change: Math.round(changePct * 100) / 100,
-      momentum: Math.round(momentum),
-      marketState: 'REGULAR',
-      name: quote.name || quote.symbol,
-    };
+    if (r.ok) {
+      const data = await r.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const result = parseQuote(data[0]);
+        if (result) return result;
+      }
+    }
+    // Fallback to stable/profile (works for ETFs on free tier)
+    const pUrl = `https://financialmodelingprep.com/stable/profile?symbol=${ticker}&apikey=${apiKey}`;
+    const pr = await fetch(pUrl, { signal: AbortSignal.timeout(6000) });
+    if (!pr.ok) return null;
+    const pData = await pr.json();
+    if (!Array.isArray(pData) || pData.length === 0) return null;
+    return parseQuote(pData[0]);
   } catch {
     return null;
   }

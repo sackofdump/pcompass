@@ -348,10 +348,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Verify this is a Vercel cron call or manual trigger
-  // In production, Vercel sets this header for cron invocations
+  // Verify this is a Vercel cron call or authorized manual trigger
+  // In production, Vercel sets x-vercel-cron for cron invocations (stripped from external requests)
+  // Manual triggers must provide CRON_SECRET in Authorization header
   const isCron = req.headers['x-vercel-cron'] === '1';
-  const isManual = req.headers['x-manual-trigger'] === 'true';
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization || '';
+  const isManual = cronSecret && authHeader === `Bearer ${cronSecret}`;
   if (process.env.VERCEL_ENV === 'production' && !isCron && !isManual) {
     return res.status(403).json({ error: 'Forbidden' });
   }

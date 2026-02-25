@@ -236,6 +236,7 @@ function clearAllHoldings() {
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
   expandInputSections();
+  if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
   closeSidebar();
   // Re-enable sticky button visibility for next portfolio
   const stickyBtn = document.querySelector('.btn-analyze-sticky');
@@ -544,6 +545,7 @@ function analyze() {
     // Risk level label
     const riskLabel = profile.beta >= 1.3 ? 'Aggressive' : profile.beta >= 0.85 ? 'Moderate' : 'Conservative';
     const riskClass = riskLabel.toLowerCase();
+    const riskDesc = riskLabel === 'Aggressive' ? 'High growth, high risk' : riskLabel === 'Moderate' ? 'Growth with stability' : 'Low risk, steady returns';
     const riskBarColor = riskLabel === 'Aggressive' ? 'var(--aggressive)' : riskLabel === 'Moderate' ? 'var(--moderate)' : 'var(--conservative)';
     const riskBarPct = Math.min(100, Math.round(profile.beta * 60));
 
@@ -585,7 +587,8 @@ function analyze() {
           '<div class="health-card">' +
             '<div class="health-card-label">Risk Level</div>' +
             '<div class="health-card-value ' + riskClass + '">' + riskLabel + '</div>' +
-            '<div class="health-card-sub">Beta ' + profile.beta.toFixed(2) + '</div>' +
+            '<div class="health-card-sub">' + riskDesc + '</div>' +
+            '<div class="health-card-sub" style="opacity:0.5;margin-top:2px">Beta ' + profile.beta.toFixed(2) + '</div>' +
             '<div class="health-card-bar"><div class="health-card-bar-fill" style="width:' + riskBarPct + '%;background:' + riskBarColor + '"></div></div>' +
           '</div>' +
           '<div class="health-card">' +
@@ -699,7 +702,7 @@ function analyze() {
       strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
       strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
       strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
-      '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from Polygon.io &middot; Ranked by portfolio fit + live momentum.</span></div>';
+      '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from FMP &middot; Ranked by portfolio fit + live momentum.</span></div>';
 
     // Re-attach strategy legend listeners
     document.querySelectorAll('.legend-item.hoverable').forEach(el => {
@@ -710,7 +713,7 @@ function analyze() {
       el.addEventListener('click',      () => toggleStrategy(s));
     });
 
-    // Add "Best match" badge to matching strategy card (but don't auto-expand)
+    // Add "Best match" badge + auto-expand the matching strategy card
     (function() {
       var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
       var cards = document.querySelectorAll('.strategy-card');
@@ -718,6 +721,13 @@ function analyze() {
         var badge = card.querySelector('.strategy-badge');
         if (badge && badge.classList.contains('badge-' + matchType)) {
           badge.insertAdjacentHTML('afterend', '<span class="strategy-best-match">Best match</span>');
+          // Auto-expand best match card
+          var list = card.querySelector('.etf-list');
+          var chevron = card.querySelector('.strategy-chevron');
+          var hint = card.querySelector('.strategy-expand-hint');
+          if (list) list.classList.remove('strategy-collapsed');
+          if (chevron) chevron.classList.add('strategy-chevron-open');
+          if (hint) hint.textContent = 'tap to collapse';
         }
       });
     })();
@@ -735,8 +745,9 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Always scroll to top after analysis
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Scroll to results panel after analysis
+  var resultsEl = document.getElementById('resultsPanel');
+  if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   // Hide sticky analyze button after results show
   setTimeout(() => {

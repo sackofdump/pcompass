@@ -1,5 +1,6 @@
 import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
-import { extractAuth } from './lib/auth.js';
+import { extractAuth, verifyAuthToken } from './lib/auth.js';
+import { checkRateLimit } from './lib/rate-limit.js';
 import { neonSQL } from './lib/neon.js';
 
 export default async function handler(req, res) {
@@ -26,15 +27,24 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Increment session_version to invalidate all existing tokens
+  // Rate limit by IP
+  const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
+  if (!await checkRateLimit(ip, 'signout', 20)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  // Verify auth token before performing DB write to prevent forced logout of other users
   const auth = extractAuth(req);
-  if (auth.userId) {
-    try {
-      await neonSQL(
-        'UPDATE users SET session_version = COALESCE(session_version, 1) + 1 WHERE id = $1',
-        [auth.userId]
-      );
-    } catch (e) { /* best-effort — cookie is cleared regardless */ }
+  if (auth.userId && auth.token && auth.email && auth.ts) {
+    const valid = await verifyAuthToken(auth.email, auth.token, auth.ts, auth.userId, auth.sv);
+    if (valid) {
+      try {
+        await neonSQL(
+          'UPDATE users SET session_version = COALESCE(session_version, 1) + 1 WHERE id = $1',
+          [auth.userId]
+        );
+      } catch (e) { /* best-effort — cookie is cleared regardless */ }
+    }
   }
 
   const secure = process.env.NODE_ENV === 'development' ? '' : '; Secure';
