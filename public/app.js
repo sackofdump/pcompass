@@ -529,7 +529,8 @@ function analyze() {
 
     const healthHTML =
       '<div class="health-panel">' +
-        '<div class="panel-header"><h2 class="section-title">Portfolio Health</h2></div>' +
+        '<div class="panel-header panel-toggle" onclick="togglePanel(this)"><h2 class="section-title">Portfolio Health</h2><span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span></div>' +
+        '<div class="panel-body">' +
         alertHTML +
         '<div class="health-cards">' +
           '<div class="health-card">' +
@@ -566,6 +567,7 @@ function analyze() {
             diffBadge(holdDiff, '%', true) +
           '</div>' +
         '</div>' +
+      '</div>' +
       '</div>';
 
     // ── Rebalancing Suggestions ──
@@ -585,21 +587,23 @@ function analyze() {
       }).join('');
       rebalanceHTML =
         '<div class="rebalance-panel">' +
-          '<div class="panel-header"><h2 class="section-title">Rebalancing Suggestions</h2></div>' +
-          '<div class="rebalance-list">' + items + '</div>' +
+          '<div class="panel-header panel-toggle" onclick="togglePanel(this)"><h2 class="section-title">Rebalancing Suggestions</h2><span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span></div>' +
+          '<div class="panel-body"><div class="rebalance-list">' + items + '</div></div>' +
         '</div>';
     }
 
     // ── Position Sizing ──
     const positionHTML =
       '<div class="position-panel">' +
-        '<div class="panel-header"><h2 class="section-title">Position Sizing</h2></div>' +
+        '<div class="panel-header panel-toggle" onclick="togglePanel(this)"><h2 class="section-title">Position Sizing</h2><span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span></div>' +
+        '<div class="panel-body">' +
         '<div class="position-input-row">' +
           '<label>$</label>' +
           '<input type="number" id="positionAmountInput" value="" min="1" placeholder="Enter your budget">' +
           '<button class="btn-calc" onclick="calcPositionSizing()" title="Calculate">&#8862;</button>' +
         '</div>' +
         '<div class="position-table" id="positionTableEl">' +
+        '</div>' +
         '</div>' +
       '</div>';
 
@@ -611,9 +615,12 @@ function analyze() {
         '<button class="btn-export-pdf" onclick="exportPDF()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);cursor:pointer;">📄 Download PDF Report</button>' +
       '</div>' +
       '<div class="analysis-bar">' +
-        '<div class="analysis-bar-header">' +
+        '<div class="analysis-bar-header panel-toggle" onclick="togglePanel(this)">' +
           '<h3 class="section-title">Portfolio Breakdown &amp; Strategies</h3>' +
-          '<div class="breakdown-legend">' +
+          '<span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span>' +
+        '</div>' +
+        '<div class="panel-body">' +
+        '<div class="breakdown-legend">' +
             '<div class="legend-item"><div class="legend-dot legend-dot-current"></div>You Own</div>' +
             '<div class="legend-hint">&#8212; hover/click to show</div>' +
             '<div class="legend-item hoverable" data-strategy="agg">' +
@@ -635,8 +642,8 @@ function analyze() {
               '<div class="tooltip-note">Best for: near retirement, income needs, or simply sleeping well at night. Boring is underrated.</div></div>' +
             '</div>' +
           '</div>' +
-        '</div>' +
         '<div class="sector-bars" id="sectorBarsEl">' + sectorBars + '</div>' +
+        '</div>' +
       '</div>' +
       '<div class="market-refresh-row">' +
         statusHTML +
@@ -1431,6 +1438,17 @@ async function exportPDF() {
 })();
 
 renderPortfolioSlots();
+
+// ── PANEL COLLAPSE/EXPAND ────────────────────────────────
+function togglePanel(headerEl) {
+  const body = headerEl.nextElementSibling;
+  if (!body || !body.classList.contains('panel-body')) return;
+  const chevron = headerEl.querySelector('.panel-chevron');
+  const hint = headerEl.querySelector('.panel-expand-hint');
+  body.classList.toggle('panel-body-collapsed');
+  if (chevron) chevron.classList.toggle('panel-chevron-open');
+  if (hint) hint.textContent = body.classList.contains('panel-body-collapsed') ? 'tap to expand' : 'tap to collapse';
+}
 
 // ── STRATEGY CARD COLLAPSE/EXPAND ────────────────────────
 function toggleStrategyCard(headerEl) {
