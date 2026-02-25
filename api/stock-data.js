@@ -33,8 +33,12 @@ export default async function handler(req, res) {
       result[row.key + '_updated'] = row.updated_at;
     }
 
-    // Edge cache for 1 hour
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
+    // Only edge-cache when we have actual data; don't cache empty responses
+    if (rows.length > 0) {
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
+    } else {
+      res.setHeader('Cache-Control', 'no-store');
+    }
     return res.status(200).json(result);
   } catch (err) {
     console.error('[stock-data] Error:', err.message);
