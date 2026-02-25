@@ -169,21 +169,10 @@ function renderHoldings() {
   updateRiskScore();
   updateCorrelationWarnings();
   updateWhatIfPanel();
-  renderPortfolioSlots();
 
-  // Show/hide Clear All button in switcher
-  const clearBtn = document.getElementById('btnSwitcherClear');
-  if (clearBtn) clearBtn.style.display = holdings.length > 0 ? 'block' : 'none';
-
-  // Show/hide Sync button based on sign-in state
-  const syncBtn = document.getElementById('btnSwitcherSync');
-  if (syncBtn) syncBtn.style.display = (typeof currentUser !== 'undefined' && currentUser) ? 'block' : 'none';
-
-  // Show/hide quick save button
+  // Show/hide quick save button in header
   const quickSave = document.getElementById('btnQuickSave');
   if (quickSave) quickSave.style.display = holdings.length > 0 ? 'inline-block' : 'none';
-
-  updateSwitcherLabel();
 }
 
 function clearAllHoldings() {
@@ -195,7 +184,7 @@ function clearAllHoldings() {
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="placeholder-icon">📊</div><div class="placeholder-text">Add your US stock holdings<br>on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
   renderHoldings();
   expandInputSections();
-  closeSwitcherDropdown();
+  closeSidebar();
   // Re-enable sticky button visibility for next portfolio
   const stickyBtn = document.querySelector('.btn-analyze-sticky');
   if (stickyBtn) stickyBtn.dataset.analyzed = '';
@@ -1192,30 +1181,129 @@ const MAX_SLOTS = 3;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
-function isPortfolioModified() {
-  if (_activePortfolioIdx < 0 || !_activePortfolioSnapshot) return false;
-  return JSON.stringify(holdings) !== _activePortfolioSnapshot;
+// ── SIDEBAR ───────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarBackdrop').classList.add('open');
+  renderSidebarContent();
 }
 
-function updateSwitcherLabel() {
-  // Label is always "My Portfolios" — the dropdown shows individual slots
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
 }
 
-function toggleSwitcherDropdown() {
-  const el = document.getElementById('portfolioSwitcher');
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar.classList.contains('open')) closeSidebar();
+  else openSidebar();
+}
+
+// Close sidebar on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeSidebar();
+});
+
+function renderSidebarContent() {
+  renderSidebarUser();
+  renderSidebarPortfolios();
+  renderSidebarSettings();
+  renderSidebarAccount();
+}
+
+function renderSidebarUser() {
+  const el = document.getElementById('sidebarUser');
   if (!el) return;
-  const isOpen = el.classList.contains('open');
-  if (isOpen) {
-    closeSwitcherDropdown();
+  if (typeof currentUser !== 'undefined' && currentUser) {
+    const name = currentUser.name || currentUser.email.split('@')[0];
+    const email = currentUser.email || '';
+    let avatarHTML;
+    if (currentUser.picture) {
+      avatarHTML = '<img class="sidebar-user-avatar" src="' + escapeHTML(currentUser.picture) + '" onerror="this.style.display=\'none\'" />';
+    } else {
+      const initial = (name || email || '?')[0].toUpperCase();
+      avatarHTML = '<div class="sidebar-user-avatar initials">' + initial + '</div>';
+    }
+    const proBadge = isProUser() ? '<div class="sidebar-pro-badge">✦ Pro Member</div>' : '';
+    el.innerHTML =
+      '<div class="sidebar-user-info">' +
+        avatarHTML +
+        '<div class="sidebar-user-details">' +
+          '<div class="sidebar-user-name">' + escapeHTML(name) + '</div>' +
+          '<div class="sidebar-user-email">' + escapeHTML(email) + '</div>' +
+        '</div>' +
+      '</div>' +
+      proBadge;
   } else {
-    el.classList.add('open');
-    renderSwitcherSlots();
+    el.innerHTML =
+      '<div class="sidebar-user-name" style="margin-bottom:4px;">Guest</div>' +
+      '<button class="sidebar-signin-btn" onclick="closeSidebar();showAuthModalOptimized();">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" fill="currentColor"/></svg>' +
+        'Sign In' +
+      '</button>';
   }
 }
 
-function closeSwitcherDropdown() {
-  const el = document.getElementById('portfolioSwitcher');
-  if (el) el.classList.remove('open');
+function renderSidebarPortfolios() {
+  const el = document.getElementById('sidebarPortfolios');
+  const actionsEl = document.getElementById('sidebarPortfolioActions');
+  if (!el) return;
+  const portfolios = getSavedPortfolios();
+
+  if (portfolios.length === 0) {
+    el.innerHTML = '<div class="sidebar-empty">No saved portfolios</div>';
+  } else {
+    el.innerHTML = portfolios.map((p, i) =>
+      '<div class="sidebar-slot' + (i === _activePortfolioIdx ? ' active' : '') + '" id="sb-slot-' + i + '" onclick="loadPortfolio(' + i + ')">' +
+      '<span class="slot-name" id="sb-slot-name-' + i + '">' + escapeHTML(p.name) + '</span>' +
+      '<span class="slot-count">' + p.holdings.length + '</span>' +
+      '<div class="slot-actions">' +
+      '<button class="slot-btn" onclick="event.stopPropagation();startRenameSlot(' + i + ',\'sb-\')" title="Rename">✎</button>' +
+      '<button class="slot-btn danger" onclick="event.stopPropagation();deletePortfolio(' + i + ')" title="Delete">&times;</button>' +
+      '</div></div>'
+    ).join('');
+  }
+
+  if (actionsEl) {
+    let html = '<button class="sidebar-btn" onclick="savePortfolio()">＋ Save Current</button>';
+    if (typeof currentUser !== 'undefined' && currentUser) {
+      html += '<button class="sidebar-btn" onclick="syncPortfoliosFromCloud()">☁ Sync from Cloud</button>';
+    }
+    if (holdings.length > 0) {
+      html += '<button class="sidebar-btn sidebar-btn-danger" onclick="clearAllHoldings()">✕ Clear All</button>';
+    }
+    actionsEl.innerHTML = html;
+  }
+}
+
+function renderSidebarSettings() {
+  const el = document.getElementById('sidebarSettings');
+  if (!el) return;
+  const isDark = !document.body.classList.contains('light');
+  el.innerHTML =
+    '<div class="sidebar-settings-row">' +
+      '<span class="sidebar-settings-label">' + (isDark ? '🌙' : '☀️') + ' Theme</span>' +
+      '<div class="theme-toggle" onclick="toggleTheme();renderSidebarSettings();" style="position:static;transform:none;">' +
+        '<span>' + (isDark ? 'DARK' : 'LIGHT') + '</span>' +
+        '<div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="sidebar-settings-row">' +
+      '<button class="sidebar-btn" onclick="restorePurchases()" style="width:100%;">🔄 Restore Purchases</button>' +
+    '</div>';
+}
+
+function renderSidebarAccount() {
+  const el = document.getElementById('sidebarAccount');
+  if (!el) return;
+  if (typeof currentUser !== 'undefined' && currentUser) {
+    el.innerHTML =
+      '<div class="sidebar-section-title">Account</div>' +
+      '<button class="sidebar-account-btn sign-out" onclick="signOut();closeSidebar();">Sign Out</button>' +
+      '<button class="sidebar-account-btn delete-account" onclick="deleteAccount()">Delete Account</button>';
+  } else {
+    el.innerHTML = '';
+  }
 }
 
 async function savePortfolio() {
@@ -1226,8 +1314,7 @@ async function savePortfolio() {
   savePortfoliosLS(portfolios);
   _activePortfolioIdx = portfolios.length - 1;
   _activePortfolioSnapshot = JSON.stringify(holdings);
-  renderPortfolioSlots();
-  closeSwitcherDropdown();
+  renderSidebarPortfolios();
   showToast('✓ Portfolio saved!');
 }
 
@@ -1239,7 +1326,7 @@ function loadPortfolio(idx) {
   _activePortfolioSnapshot = JSON.stringify(holdings);
   renderHoldings();
   collapseInputSections();
-  closeSwitcherDropdown();
+  closeSidebar();
   showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
 }
 
@@ -1249,16 +1336,14 @@ function deletePortfolio(idx) {
   if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
   const deleted = portfolios.splice(idx, 1)[0];
   savePortfoliosLS(portfolios);
-  // Adjust active index after deletion
   if (_activePortfolioIdx === idx) {
     _activePortfolioIdx = -1;
     _activePortfolioSnapshot = null;
   } else if (_activePortfolioIdx > idx) {
     _activePortfolioIdx--;
   }
-  renderPortfolioSlots();
+  renderSidebarPortfolios();
   showToast('Portfolio deleted.');
-  // Also delete from cloud if it has a cloudId
   if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
     fetch('/api/portfolios?userId=' + currentUser.id + '&portfolioId=' + deleted.cloudId, {
       method: 'DELETE',
@@ -1272,39 +1357,6 @@ function renamePortfolio(idx, newName) {
   if (!portfolios[idx]) return;
   portfolios[idx].name = newName || portfolios[idx].name;
   savePortfoliosLS(portfolios);
-}
-
-function renderPortfolioSlots() {
-  renderSwitcherSlots();
-  updateSwitcherLabel();
-}
-
-function renderSwitcherSlots() {
-  const el = document.getElementById('switcherSlots');
-  if (!el) return;
-  const portfolios = getSavedPortfolios();
-
-  // Show/hide sync button
-  const syncBtn = document.getElementById('btnSwitcherSync');
-  if (syncBtn) syncBtn.style.display = (typeof currentUser !== 'undefined' && currentUser) ? 'block' : 'none';
-
-  // Show/hide clear button
-  const clearBtn = document.getElementById('btnSwitcherClear');
-  if (clearBtn) clearBtn.style.display = holdings.length > 0 ? 'block' : 'none';
-
-  if (portfolios.length === 0) {
-    el.innerHTML = '<div class="switcher-empty">No saved portfolios</div>';
-    return;
-  }
-  el.innerHTML = portfolios.map((p, i) =>
-    '<div class="switcher-slot' + (i === _activePortfolioIdx ? ' active' : '') + '" id="sw-slot-' + i + '" onclick="loadPortfolio(' + i + ')">' +
-    '<span class="slot-name" id="sw-slot-name-' + i + '">' + escapeHTML(p.name) + '</span>' +
-    '<span class="slot-count">' + p.holdings.length + ' holdings</span>' +
-    '<div class="slot-actions">' +
-    '<button class="slot-btn" onclick="event.stopPropagation();startRenameSlot(' + i + ',\'sw-\')" title="Rename">✎</button>' +
-    '<button class="slot-btn danger" onclick="event.stopPropagation();deletePortfolio(' + i + ')" title="Delete">&times;</button>' +
-    '</div></div>'
-  ).join('');
 }
 
 function startRenameSlot(i, prefix) {
@@ -1323,7 +1375,7 @@ function startRenameSlot(i, prefix) {
 
 function finishRenameSlot(i, newName, prefix) {
   renamePortfolio(i, newName.trim() || ('Portfolio ' + (i + 1)));
-  renderPortfolioSlots();
+  renderSidebarPortfolios();
 }
 
 
@@ -1507,7 +1559,7 @@ async function exportPDF() {
   if (holdings.length > 0) banner.style.display = 'none';
 })();
 
-renderPortfolioSlots();
+// Sidebar portfolios are rendered on-demand when sidebar opens
 
 // ── PANEL COLLAPSE/EXPAND ────────────────────────────────
 function togglePanel(headerEl) {

@@ -197,7 +197,6 @@ async function verifyProAccess(email) {
     window.renderHoldings = function() {
       origRender();
       checkSticky();
-      if (typeof updateSwitcherLabel === 'function') updateSwitcherLabel();
     };
   }
 
@@ -355,94 +354,73 @@ async function handleGoogleResponse(response) {
 }
 
 function updateUserUI() {
-  const signInBtn = document.getElementById('btnSignIn');
-  const avatar = document.getElementById('userAvatar');
-  const avatarImg = document.getElementById('userAvatarImg');
-  const menuName = document.getElementById('userMenuName');
-  const menuEmail = document.getElementById('userMenuEmail');
-  const proStatus = document.getElementById('userMenuProStatus');
+  const pillName = document.getElementById('userPillName');
+  const pillAvatar = document.getElementById('userPillAvatar');
 
   if (currentUser) {
-    signInBtn.style.display = 'none';
-    avatar.style.display = 'flex';
-    if (currentUser.picture) {
-      avatarImg.src = currentUser.picture;
-      avatarImg.style.display = 'block';
-      avatar.querySelector('.avatar-initials')?.remove();
-    } else {
-      // Show initials circle for email users
-      avatarImg.style.display = 'none';
-      const initials = (currentUser.name || currentUser.email || '?')[0].toUpperCase();
-      avatar.querySelector('.avatar-initials')?.remove();
-      const initialsEl = document.createElement('div');
-      initialsEl.className = 'avatar-initials';
-      initialsEl.textContent = initials;
-      initialsEl.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);background:var(--surface2);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:DM Sans,sans-serif;';
-      avatar.insertBefore(initialsEl, avatar.firstChild);
-    }
-    avatarImg.onerror = function() { this.style.display='none'; };
-    menuName.textContent = currentUser.name || currentUser.email.split('@')[0];
-    menuEmail.textContent = currentUser.email;
-    const headerBadge = document.getElementById('proBadgeHeader');
-    if (proStatus) {
-      if (isProUser()) {
-        const pb = document.getElementById('btnPro');
-        proStatus.innerHTML = '<span style="color:#00e5a0;">✦ Pro Member</span>';
-        if (pb) pb.style.display = 'none';
-        if (headerBadge) headerBadge.style.display = 'inline-block';
-      } else {
-        if (_isIOSApp) {
-          proStatus.innerHTML = '<span style="color:var(--muted);">Free Plan</span>';
+    // Update pill — show first name + avatar
+    const fullName = currentUser.name || currentUser.email.split('@')[0];
+    const firstName = fullName.split(' ')[0];
+    const lastInitial = fullName.split(' ').length > 1 ? ' ' + fullName.split(' ').slice(-1)[0][0] + '.' : '';
+    if (pillName) pillName.textContent = firstName + lastInitial;
+    if (pillAvatar) {
+      if (currentUser.picture) {
+        if (pillAvatar.tagName !== 'IMG') {
+          const img = document.createElement('img');
+          img.id = 'userPillAvatar';
+          img.className = 'user-pill-avatar visible';
+          img.src = currentUser.picture;
+          img.onerror = function() { this.style.display = 'none'; };
+          pillAvatar.replaceWith(img);
         } else {
-          proStatus.innerHTML = '<span style="color:var(--muted);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="event.stopPropagation();toggleFreePlanInfo();">Free Plan</span> · <a href="#" onclick="showPaywall(\'sync\');toggleUserMenu();return false;" style="color:#00e5a0;text-decoration:none;">Upgrade</a>' +
-            '<div id="freePlanInfo" style="display:none;margin-top:8px;background:#0a0c10;border:1px solid #1e2430;border-radius:8px;padding:10px 12px;">' +
-              '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your free plan</div>' +
-              '<div style="display:flex;flex-direction:column;gap:4px;font-family:\'Space Mono\',monospace;font-size:10px;color:#e8ecf0;">' +
-                '<div><span style="color:#00e5a0;">✓</span> Portfolio analysis &amp; scoring</div>' +
-                '<div><span style="color:#00e5a0;">✓</span> 5 stock picks per strategy</div>' +
-                '<div><span style="color:#00e5a0;">✓</span> 4 ETF picks per strategy</div>' +
-                '<div><span style="color:#00e5a0;">✓</span> 3 AI explanations per hour</div>' +
-                '<div><span style="color:#00e5a0;">✓</span> 3 saved portfolios</div>' +
-              '</div>' +
-              '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #1e2430;font-family:\'Space Mono\',monospace;font-size:9px;color:#8a9ab8;">Upgrade to unlock unlimited AI, expanded picks, PDF export, cloud sync &amp; more</div>' +
-            '</div>';
+          pillAvatar.className = 'user-pill-avatar visible';
+          pillAvatar.src = currentUser.picture;
+          pillAvatar.onerror = function() { this.style.display = 'none'; };
         }
-        if (headerBadge) headerBadge.style.display = 'none';
+      } else {
+        const initial = (fullName || '?')[0].toUpperCase();
+        if (pillAvatar.tagName === 'IMG') {
+          const span = document.createElement('span');
+          span.id = 'userPillAvatar';
+          span.className = 'user-pill-avatar initials';
+          span.textContent = initial;
+          pillAvatar.replaceWith(span);
+        } else {
+          pillAvatar.className = 'user-pill-avatar initials';
+          pillAvatar.textContent = initial;
+        }
       }
     }
+    // Hide Pro button if pro
+    if (isProUser()) {
+      const pb = document.getElementById('btnPro');
+      if (pb) pb.style.display = 'none';
+    }
   } else {
-    signInBtn.style.display = 'flex';
-    avatar.style.display = 'none';
+    if (pillName) pillName.textContent = '☰ Menu';
+    if (pillAvatar) {
+      if (pillAvatar.tagName === 'IMG') {
+        const span = document.createElement('span');
+        span.id = 'userPillAvatar';
+        span.className = 'user-pill-avatar';
+        pillAvatar.replaceWith(span);
+      } else {
+        pillAvatar.className = 'user-pill-avatar';
+        pillAvatar.textContent = '';
+      }
+    }
+    // Show Pro button again
+    const pb = document.getElementById('btnPro');
+    if (pb) pb.style.display = '';
   }
-  // Update switcher sync button visibility
-  const syncBtn = document.getElementById('btnSwitcherSync');
-  if (syncBtn) syncBtn.style.display = currentUser ? 'block' : 'none';
-}
-
-function toggleFreePlanInfo() {
-  const el = document.getElementById('freePlanInfo');
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 function closeAuthModal() {
   document.getElementById('authModal').style.display = 'none';
 }
 
-function toggleUserMenu() {
-  const menu = document.getElementById('userMenu');
-  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-}
-
-// Close menu and switcher when clicking outside
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('#userAvatar')) {
-    const menu = document.getElementById('userMenu');
-    if (menu) menu.style.display = 'none';
-  }
-  if (!e.target.closest('#portfolioSwitcher')) {
-    if (typeof closeSwitcherDropdown === 'function') closeSwitcherDropdown();
-  }
-});
+// Sidebar has its own close mechanisms (backdrop click, close button, Escape key)
+// No outside-click handler needed.
 
 function signOut() {
   currentUser = null;
@@ -533,8 +511,8 @@ async function syncPortfoliosFromCloud() {
       localStorage.setItem('pc_portfolios', JSON.stringify(cloudPortfolios));
       _activePortfolioIdx = -1;
       _activePortfolioSnapshot = null;
-      renderPortfolioSlots();
-      if (typeof closeSwitcherDropdown === 'function') closeSwitcherDropdown();
+      if (typeof renderSidebarPortfolios === 'function') renderSidebarPortfolios();
+      closeSidebar();
       showToast('☁️ Synced ' + cloudPortfolios.length + ' portfolio(s) from cloud');
     } else {
       showToast('No cloud portfolios found.');
@@ -759,7 +737,7 @@ function analyzeDebounced() {
   var origSave = window.savePortfolio;
   if (typeof origSave !== 'function') return;
   window.savePortfolio = function() {
-    var btns = document.querySelectorAll('#btnQuickSave, #btnSwitcherSave');
+    var btns = document.querySelectorAll('#btnQuickSave');
     btns.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
     try { origSave.apply(this, arguments); } catch(e) { console.error(e); }
     setTimeout(function() {
@@ -949,27 +927,7 @@ function selectPaywallTier(tier) {
   }
 })();
 
-// ── HEADER SUB-BAR COLLAPSE ON SCROLL ─────────────────────────────
-(function initSubBarCollapse() {
-  var lastY = 0;
-  var ticking = false;
-  window.addEventListener('scroll', function() {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(function() {
-      var sub = document.querySelector('.header-sub');
-      if (!sub) { ticking = false; return; }
-      var y = window.scrollY || window.pageYOffset;
-      if (y > 60) {
-        sub.classList.add('collapsed');
-      } else {
-        sub.classList.remove('collapsed');
-      }
-      lastY = y;
-      ticking = false;
-    });
-  });
-})();
+// Sub-bar removed — portfolios are now in the sidebar.
 
 // ── DYNAMIC PRICING INJECTION (web only) ─────────────────────────
 // Stripe URLs and dollar amounts are NOT in the HTML source.
