@@ -58,7 +58,7 @@ async function verifyAuthToken(email, token, timestamp) {
   const ts = parseInt(timestamp);
   if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false;
 
-  const secret = process.env.PRO_TOKEN_SECRET;
+  const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
 
   const encoder = new TextEncoder();
@@ -93,6 +93,21 @@ async function verifyProToken(email, token, timestamp) {
     .map(b => b.toString(16).padStart(2, '0')).join('');
 
   return timingSafeEqual(token, expected);
+}
+
+// ── NEON SQL HELPER ──────────────────────────────────────
+async function neonSQL(sql, params = []) {
+  const connStr = process.env.POSTGRES_URL;
+  if (!connStr) throw new Error('POSTGRES_URL not set');
+  const host = new URL(connStr).hostname;
+  const r = await fetch(`https://${host}/sql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connStr },
+    body: JSON.stringify({ query: sql, params }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const data = await r.json();
+  return data.rows || [];
 }
 
 // ── PRO-ONLY STOCK PICKS (indices 5–25 from original STOCK_PICKS) ──
@@ -177,7 +192,13 @@ export default async function handler(req, res) {
   const proToken = proCk?.token || req.headers['x-pro-token'] || '';
   const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
   const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
-  const isPro = await verifyProToken(proEmail, proToken, proTs);
+  let isPro = await verifyProToken(proEmail, proToken, proTs);
+  if (isPro) {
+    try {
+      const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail]);
+      if (lic.length === 0) isPro = false;
+    } catch { isPro = false; }
+  }
 
   if (!isPro) {
     return res.status(403).json({ error: 'Pro subscription required' });

@@ -54,7 +54,7 @@ async function verifyAuthToken(email, token, timestamp) {
   const ts = parseInt(timestamp);
   if (isNaN(ts) || now - ts > 14400 || ts - now > 300) return false;
 
-  const secret = process.env.PRO_TOKEN_SECRET;
+  const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
   if (!secret) return false;
 
   const encoder = new TextEncoder();
@@ -187,7 +187,13 @@ export default async function handler(req, res) {
   const proToken = proCk?.token || req.headers['x-pro-token'] || '';
   const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
   const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
-  const isPro = await verifyProToken(proEmail, proToken, proTs);
+  let isPro = await verifyProToken(proEmail, proToken, proTs);
+  if (isPro) {
+    try {
+      const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail]);
+      if (!lic.rows || lic.rows.length === 0) isPro = false;
+    } catch { isPro = false; }
+  }
 
   return res.status(200).json({ allowed: isPro });
 }

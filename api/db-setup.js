@@ -26,6 +26,10 @@ function timingSafeEqual(a, b) {
 }
 
 export default async function handler(req, res) {
+  // Block in production — schema mutations should not be exposed
+  if (process.env.VERCEL_ENV === 'production') {
+    return res.status(403).json({ error: 'Disabled in production' });
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ── Admin-only: require secret to run schema setup ──

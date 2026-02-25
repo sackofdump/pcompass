@@ -114,8 +114,8 @@ export default async function handler(req, res) {
     // Generate HMAC-signed auth token (24hr expiry)
     // 'auth:' prefix prevents cross-use with Pro tokens
     const authTs = Math.floor(Date.now() / 1000);
-    const secret = process.env.PRO_TOKEN_SECRET;
-    if (!secret) throw new Error('PRO_TOKEN_SECRET not configured');
+    const secret = process.env.AUTH_TOKEN_SECRET || process.env.PRO_TOKEN_SECRET;
+    if (!secret) throw new Error('AUTH_TOKEN_SECRET not configured');
     const enc = new TextEncoder();
     const authKey = await crypto.subtle.importKey(
       'raw', enc.encode(secret),
