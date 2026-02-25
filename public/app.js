@@ -106,7 +106,7 @@ let holdings = [];
 let previewHoldings = [];
 let _activePortfolioIdx = -1;
 let _activePortfolioSnapshot = null;
-let _holdingsView = 'list';
+let _holdingsView = 'chart';
 
 // ── HOLDINGS LOGIC ───────────────────────────────────────
 function totalAllocation() {
@@ -187,14 +187,6 @@ function renderHoldings() {
         <div class="spark-sector-dot" style="background:${sectorColor}"></div>
       </div>`;
     }).join('');
-  } else if (_holdingsView === 'grid' && holdings.length >= 3) {
-    list.className = 'holdings-grid';
-    list.innerHTML = holdings.map(h =>
-      `<div class="holdings-grid-item" onclick="removeStock('${escapeHTML(h.ticker)}')" title="Click to remove">
-        <div class="grid-ticker">${escapeHTML(h.ticker)}</div>
-        <div class="grid-pct">${h.pct}%</div>
-      </div>`
-    ).join('');
   } else {
     list.className = 'stock-list';
     list.innerHTML = holdings.map((h, i) => {
@@ -738,7 +730,7 @@ function analyze() {
       el.addEventListener('click',      () => toggleStrategy(s));
     });
 
-    // Add "Best match" badge + auto-expand the matching strategy card
+    // Add "Best match" badge (all cards stay collapsed by default)
     (function() {
       var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
       var cards = document.querySelectorAll('.strategy-card');
@@ -746,13 +738,6 @@ function analyze() {
         var badge = card.querySelector('.strategy-badge');
         if (badge && badge.classList.contains('badge-' + matchType)) {
           badge.insertAdjacentHTML('afterend', '<span class="strategy-best-match">Best match</span>');
-          // Auto-expand best match card
-          var list = card.querySelector('.etf-list');
-          var chevron = card.querySelector('.strategy-chevron');
-          var hint = card.querySelector('.strategy-expand-hint');
-          if (list) list.classList.remove('strategy-collapsed');
-          if (chevron) chevron.classList.add('strategy-chevron-open');
-          if (hint) hint.textContent = 'tap to collapse';
         }
       });
     })();
@@ -770,9 +755,7 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Scroll to results panel after analysis
-  var resultsEl = document.getElementById('resultsPanel');
-  if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Stay at top of page after analysis (no auto-scroll)
 
   // Hide sticky analyze button after results show
   setTimeout(() => {
@@ -1353,7 +1336,7 @@ function addFromWhatIf() {
 })();
 
 // ── PORTFOLIO SAVE/LOAD ───────────────────────────────────
-const MAX_SLOTS = 10;
+const MAX_SLOTS = 3;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
@@ -2132,6 +2115,7 @@ function _ensureChartModal() {
         '<button class="chart-modal-close" onclick="closeExpandedChart()">×</button>' +
       '</div>' +
       '<div class="chart-modal-ranges" id="chartModalRanges">' +
+        '<button class="chart-range-btn" data-range="1d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'5d\')">1W</button>' +
         '<button class="chart-range-btn active" data-range="1mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'3mo\')">3M</button>' +

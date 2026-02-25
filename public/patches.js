@@ -148,6 +148,7 @@ function renderPortfolioDrawer() {
         + '<div class="pdrawer-info"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
         + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
         + perfHtml
+        + '<button class="pdrawer-delete" onclick="event.stopPropagation();deletePortfolio(' + i + ');renderPortfolioDrawer()" title="Delete">&times;</button>'
         + '</div>';
     }
     html += '</div>';
@@ -250,7 +251,7 @@ async function verifyProAccess(email) {
   window._stickyAnalyzed = false;
 
   function checkSticky() {
-    if (holdings.length > 0 && window.innerWidth <= 900 && !window._stickyAnalyzed) {
+    if (holdings.length > 0 && !window._stickyAnalyzed) {
       sticky.classList.add('visible');
     } else {
       sticky.classList.remove('visible');
@@ -370,6 +371,13 @@ function openGoogleOAuthPopup() {
   window.open(url, 'google-signin', 'width=500,height=600');
 }
 
+function _isIPadSafari() {
+  return !isIOSApp() && (
+    /iPad/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
 function googleSignIn() {
   // iOS WebView: GIS doesn't work, use OAuth popup (intercepted by native app)
   if (isIOSApp()) {
@@ -377,9 +385,24 @@ function googleSignIn() {
     return;
   }
 
+  // iPad Safari: GIS popup/FedCM doesn't work reliably, use redirect flow
+  if (_isIPadSafari()) {
+    var nonce = Math.random().toString(36).substr(2);
+    var url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + GOOGLE_CLIENT_ID
+      + '&redirect_uri=' + encodeURIComponent(window.location.origin)
+      + '&response_type=id_token'
+      + '&scope=openid%20email%20profile'
+      + '&nonce=' + nonce
+      + '&prompt=select_account';
+    window.location.href = url;
+    return;
+  }
+
   // Web: use Google Identity Services renderButton (no popup/redirect needed)
   if (typeof google === 'undefined' || !google.accounts) {
-    loadGoogleSignInScript().then(() => googleSignIn());
+    loadGoogleSignInScript().then(() => googleSignIn()).catch(() => {
+      showToast('Failed to load Google Sign-In. Please try again.');
+    });
     return;
   }
   if (!_googleInitialized) initGoogleSignIn();
@@ -1161,6 +1184,15 @@ function renderPortfolioStrip(performanceMap) {
       + changeBadge
       + '</div>';
   }
+  // Market status + last refreshed
+  var mkt = typeof getMarketStatus === 'function' ? getMarketStatus() : {};
+  var mktLabel = mkt.isOpen ? 'Market Open' : mkt.isPrePost ? 'Pre/Post' : 'Market Closed';
+  var mktDot = mkt.isOpen ? 'live' : '';
+  var lastRefresh = _lastPerfMap ? new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+  html += '<div class="pstrip-status">'
+    + '<span class="pstrip-market ' + mktDot + '">&#9679; ' + mktLabel + '</span>'
+    + (lastRefresh ? '<span class="pstrip-updated">' + lastRefresh + '</span>' : '')
+    + '</div>';
   html += '<button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">\u21bb</button>';
   strip.innerHTML = html;
   strip.classList.add('visible');
@@ -1224,7 +1256,12 @@ async function fetchPortfolioPerformance(forceRefresh) {
 
 window.refreshPortfolioStrip = async function() {
   var btn = document.getElementById('pstripRefresh');
-  if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
+  if (btn) {
+    btn.classList.remove('spin-once');
+    void btn.offsetWidth; // force reflow to restart animation
+    btn.classList.add('spin-once');
+    btn.disabled = true;
+  }
   try {
     var tickers = _collectPortfolioTickers();
     console.log('[portfolio-strip] refreshing', tickers.length, 'tickers');
@@ -1241,7 +1278,7 @@ window.refreshPortfolioStrip = async function() {
     showToast('Refresh failed');
   }
   btn = document.getElementById('pstripRefresh');
-  if (btn) { btn.classList.remove('spinning'); btn.disabled = false; }
+  if (btn) { btn.classList.remove('spin-once'); btn.disabled = false; }
 };
 
 // Initialize portfolio strip on page load

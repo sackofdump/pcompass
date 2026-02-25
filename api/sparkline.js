@@ -17,7 +17,7 @@ function setCached(key, data) {
 }
 
 // ── VALID RANGES ─────────────────────────────────────────
-const VALID_RANGES = new Set(['5d', '1mo', '3mo']);
+const VALID_RANGES = new Set(['1d', '5d', '1mo', '3mo']);
 
 // ── FETCH SPARKLINE FROM YAHOO FINANCE ───────────────────
 async function fetchSparkline(ticker, range) {
@@ -26,7 +26,8 @@ async function fetchSparkline(ticker, range) {
   if (cached) return cached;
 
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=${range}`;
+    const interval = range === '1d' ? '5m' : '1d';
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
     const r = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
