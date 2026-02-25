@@ -761,6 +761,7 @@ function analyzeDebounced() {
       if (el) { el.disabled = true; el.style.opacity = '0.5'; }
     });
     try { analyze(); } catch(e) { console.error(e); }
+    collapseHoldingsPanel();
     // Unlock after market data fetch completes (max 8s safety timeout)
     setTimeout(function() {
       _analyzeLocked = false;
@@ -1036,6 +1037,8 @@ if (!_isIOSApp) {
 
 // ── PORTFOLIO STRIP ─────────────────────────────────────────
 
+var _lastPerfMap = null; // cache last successful performance data
+
 function renderPortfolioStrip(performanceMap) {
   var strip = document.getElementById('portfolioStrip');
   if (!strip) return;
@@ -1043,8 +1046,12 @@ function renderPortfolioStrip(performanceMap) {
   if (portfolios.length === 0) {
     strip.innerHTML = '';
     strip.classList.remove('visible');
+    _lastPerfMap = null;
     return;
   }
+  // Use last known data as fallback so we don't flash "•••"
+  var pm = performanceMap || _lastPerfMap;
+  if (performanceMap) _lastPerfMap = performanceMap;
   var html = '';
   for (var i = 0; i < portfolios.length; i++) {
     var p = portfolios[i];
@@ -1052,8 +1059,8 @@ function renderPortfolioStrip(performanceMap) {
     var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
     var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
     var changeBadge;
-    if (performanceMap && performanceMap[i] != null) {
-      var val = performanceMap[i];
+    if (pm && pm[i] != null) {
+      var val = pm[i];
       var cls = val > 0.005 ? 'up' : val < -0.005 ? 'down' : 'flat';
       var sign = val > 0 ? '+' : '';
       changeBadge = '<span class="pstrip-change ' + cls + '">' + sign + val.toFixed(2) + '%</span>';
@@ -1066,7 +1073,7 @@ function renderPortfolioStrip(performanceMap) {
       + changeBadge
       + '</div>';
   }
-  html += '<button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">↻</button>';
+  html += '<button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">\u21bb</button>';
   strip.innerHTML = html;
   strip.classList.add('visible');
 }
@@ -1086,16 +1093,16 @@ function _collectPortfolioTickers() {
 
 async function fetchPortfolioPerformance(forceRefresh) {
   var portfolios = getSavedPortfolios();
-  if (portfolios.length === 0) return {};
+  if (portfolios.length === 0) return null;
   var tickers = _collectPortfolioTickers();
-  if (tickers.length === 0) return {};
+  if (tickers.length === 0) return null;
   // Bust localStorage cache if force-refreshing
   if (forceRefresh) {
     var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
     try { localStorage.removeItem(cacheKey); } catch(e) {}
   }
   var marketData = await fetchMarketDataCached(tickers);
-  if (!marketData) return {};
+  if (!marketData) return null;
   // Calculate weighted daily change for each portfolio
   var perfMap = {};
   for (var i = 0; i < portfolios.length; i++) {
@@ -1119,19 +1126,21 @@ async function fetchPortfolioPerformance(forceRefresh) {
 
 window.refreshPortfolioStrip = async function() {
   var btn = document.getElementById('pstripRefresh');
-  if (btn) btn.classList.add('spinning');
-  renderPortfolioStrip(null); // show loading dots
-  // Re-add spinning class since renderPortfolioStrip rebuilt the DOM
-  btn = document.getElementById('pstripRefresh');
-  if (btn) btn.classList.add('spinning');
+  if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
   try {
     var pm = await fetchPortfolioPerformance(true);
-    renderPortfolioStrip(pm);
+    if (pm) {
+      renderPortfolioStrip(pm);
+      showToast('Prices updated');
+    } else {
+      showToast('Could not fetch prices');
+    }
   } catch(e) {
-    renderPortfolioStrip(null);
+    console.warn('[portfolio-strip] refresh failed:', e);
+    showToast('Refresh failed');
   }
   btn = document.getElementById('pstripRefresh');
-  if (btn) btn.classList.remove('spinning');
+  if (btn) { btn.classList.remove('spinning'); btn.disabled = false; }
 };
 
 // Initialize portfolio strip on page load
@@ -1142,30 +1151,25 @@ window.refreshPortfolioStrip = async function() {
     boot();
   }
   function boot() {
-    renderPortfolioStrip(null); // show cards with "..." immediately
+    renderPortfolioStrip(null); // show cards (uses _lastPerfMap if available)
     fetchPortfolioPerformance().then(function(perfMap) {
-      renderPortfolioStrip(perfMap);
+      if (perfMap) renderPortfolioStrip(perfMap);
     }).catch(function() {});
   }
 })();
 
 // Hook into existing functions to refresh the strip
 (function hookPortfolioStrip() {
-  // Helper: re-render strip with fresh performance data
+  // Helper: re-render strip then fetch fresh data in background
   function refreshStrip() {
-    renderPortfolioStrip(null);
+    renderPortfolioStrip(null); // re-render immediately with cached data
     fetchPortfolioPerformance().then(function(pm) {
-      renderPortfolioStrip(pm);
+      if (pm) renderPortfolioStrip(pm);
     }).catch(function() {});
   }
-  // Helper: re-render strip without refetching (just update active highlight)
+  // Helper: re-render strip (active highlight etc) without refetching
   function refreshStripCheap() {
-    // Reuse last performance data if available
-    fetchPortfolioPerformance().then(function(pm) {
-      renderPortfolioStrip(pm);
-    }).catch(function() {
-      renderPortfolioStrip(null);
-    });
+    renderPortfolioStrip(null); // uses _lastPerfMap fallback
   }
 
   // Wrap savePortfolio (already wrapped once for cloud sync)
