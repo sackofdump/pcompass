@@ -107,6 +107,7 @@ function _closeAllPanels() {
   _closeNavPanel('marketPanel');
   _closeNavPanel('explorePanel');
   _closeNavPanel('chartsPanel');
+  _closeNavPanel('newsPanel');
 }
 
 window.navTo = function(tab) {
@@ -126,10 +127,10 @@ window.navTo = function(tab) {
     _closeAllPanels();
     _setActiveTab('navExplore');
     openExplorePanel();
-  } else if (tab === 'analysis') {
+  } else if (tab === 'news') {
     _closeAllPanels();
-    _setActiveTab('navAnalysis');
-    navToAnalysis();
+    _setActiveTab('navNews');
+    openNewsPanel();
   } else if (tab === 'user') {
     _closeAllPanels();
     if (typeof toggleSidebar === 'function') toggleSidebar();
@@ -393,18 +394,63 @@ function navToCharts() {
   _addDragHandle('chartsPanel', overlay.querySelector('.nav-panel-header'));
 }
 
-// ── ANALYSIS NAV ─────────────────────────────────────────
-function navToAnalysis() {
-  var results = document.getElementById('resultsPanel');
-  if (results && results.querySelector('.health-panel')) {
-    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else if (typeof holdings !== 'undefined' && holdings.length > 0) {
-    // Trigger analysis if holdings exist but haven't been analyzed
-    if (typeof analyze === 'function') analyze();
-  } else {
-    showToast('Add holdings first, then analyze');
+// ── NEWS NAV ─────────────────────────────────────────────
+function openNewsPanel() {
+  var overlay = _getOrCreatePanel('newsPanel');
+
+  var html = '<div class="nav-panel">'
+    + '<div class="nav-panel-header">'
+    + '<span class="nav-panel-title">Portfolio News</span>'
+    + '<button class="nav-panel-close" onclick="_closeNavPanel(\'newsPanel\')">\u2715</button>'
+    + '</div>'
+    + '<div class="nav-panel-body">';
+
+  if (typeof holdings === 'undefined' || holdings.length === 0) {
+    html += '<div class="news-empty" style="padding:40px 20px;text-align:center;">Add holdings to see related news</div>';
+    html += '</div></div>';
+    overlay.innerHTML = html;
+    overlay.classList.add('open');
+    _addDragHandle('newsPanel', overlay.querySelector('.nav-panel-header'));
+    return;
   }
-  setTimeout(function() { _setActiveTab('navPortfolios'); }, 300);
+
+  html += '<div class="news-list" id="newsPanelList">'
+    + '<div class="news-loading">Loading news...</div>'
+    + '</div>';
+  html += '</div></div>';
+
+  overlay.innerHTML = html;
+  overlay.classList.add('open');
+  _addDragHandle('newsPanel', overlay.querySelector('.nav-panel-header'));
+
+  // Fetch news for all holdings
+  var tickers = holdings.map(function(h) { return h.ticker; }).join(',');
+  fetch('/api/stock-news?tickers=' + encodeURIComponent(tickers))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(articles) {
+      var el = document.getElementById('newsPanelList');
+      if (!el) return;
+      if (!articles || !Array.isArray(articles) || articles.length === 0) {
+        el.innerHTML = '<div class="news-empty">No recent news</div>';
+        return;
+      }
+      var html = '';
+      articles.forEach(function(a) {
+        var ago = typeof _timeAgo === 'function' ? _timeAgo(a.date) : '';
+        html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
+          + '<div class="news-item-header">'
+          + '<span class="news-item-ticker">' + escapeHTML(a.ticker) + '</span>'
+          + '<span class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</span>'
+          + '</div>'
+          + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
+          + '</a>';
+      });
+      el.innerHTML = html;
+    })
+    .catch(function() {
+      var el = document.getElementById('newsPanelList');
+      if (el) el.innerHTML = '<div class="news-empty">News unavailable</div>';
+    });
 }
 
 // ── EXPLORE PANEL ────────────────────────────────────────
