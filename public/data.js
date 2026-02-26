@@ -360,7 +360,7 @@ const STOCK_DB = {
   BBY:{name:'Best Buy',sector:'Retail',beta:1.2,cap:'large'},
   AZO:{name:'AutoZone',sector:'Retail',beta:0.7,cap:'large'},
   ORLY:{name:"O'Reilly Auto",sector:'Retail',beta:0.8,cap:'large'},
-  RVI:{name:'Revvity',sector:'Healthcare',beta:0.9,cap:'large'},
+  RVI:{name:'Revvity',sector:'Healthcare',beta:0.9,cap:'large',alias:'RVTY'},
   RVTY:{name:'Revvity',sector:'Healthcare',beta:1.0,cap:'large'},
   MNSO:{name:'Miniso',sector:'Retail',beta:1.3,cap:'mid'},
   // Telecom / Media

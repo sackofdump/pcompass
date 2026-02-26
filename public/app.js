@@ -114,12 +114,15 @@ function totalAllocation() {
 }
 
 function addStock() {
-  const ticker = document.getElementById('tickerInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  let ticker = document.getElementById('tickerInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
   const pct = parseFloat(document.getElementById('pctInput').value);
   const err = document.getElementById('errorMsg');
   err.textContent = '';
   if (!ticker) { err.textContent = 'Enter a ticker symbol.'; return; }
   if (!pct || pct <= 0) { err.textContent = 'Enter a valid percentage.'; return; }
+  // Resolve ticker alias (e.g. RVI → RVTY)
+  const dbEntry = STOCK_DB[ticker];
+  if (dbEntry && dbEntry.alias) ticker = dbEntry.alias;
   if (holdings.find(h => h.ticker === ticker)) { err.textContent = ticker + ' already added.'; return; }
   if (totalAllocation() + pct > 100.05) { err.textContent = 'Total exceeds 100%.'; return; }
   const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0, cap:'unknown'};
@@ -810,11 +813,19 @@ function analyze() {
         '<div class="sector-bars" id="sectorBarsEl">' + sectorBars + '</div>' +
         '</div>' +
       '</div>' +
-      '<div class="panel-header" style="border:none;padding:20px 0 8px;display:flex;align-items:center;justify-content:space-between;"><h2 class="section-title">Recommended Stocks</h2>' + statusHTML + '</div>' +
-      strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
-      strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
-      strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
       rebalanceHTML +
+      '<div class="rebalance-panel" style="overflow:visible">' +
+        '<div class="panel-header panel-toggle" onclick="togglePanel(this)" style="display:flex;align-items:center;justify-content:space-between;">' +
+          '<h2 class="section-title">Recommended Stocks</h2>' + statusHTML +
+          '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
+          '<span class="panel-expand-hint">tap to collapse</span>' +
+        '</div>' +
+        '<div class="panel-body" style="padding:0 16px 16px;">' +
+          strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
+          strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
+          strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
+        '</div>' +
+      '</div>' +
       '<div class="news-panel rebalance-panel" id="portfolioNewsPanel">' +
         '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
           '<h2 class="section-title">Portfolio News</h2>' +
@@ -899,6 +910,7 @@ function analyze() {
     const marketData = await fetchMarketDataCached(tickersToFetch);
     lastMarketFetch = Date.now();
     renderResultsPanel(marketData);
+    loadPortfolioNews();
     updateRefreshBtn();
   })();
 }
@@ -1255,6 +1267,9 @@ function importAll() {
   let skipped = [];
   previewHoldings.forEach(h => {
     if (!h.ticker) return;
+    // Resolve ticker alias (e.g. RVI → RVTY)
+    var aliasEntry = STOCK_DB[h.ticker];
+    if (aliasEntry && aliasEntry.alias) h.ticker = aliasEntry.alias;
     if (h.pct <= 0) { h.pct = 0.1; } // give tiny positions a minimum
     if (holdings.find(e => e.ticker === h.ticker)) { skipped.push(h.ticker); return; }
     const info = STOCK_DB[h.ticker] || {name:h.name||h.ticker, sector:'Other', beta:1.0, cap:'unknown'};
