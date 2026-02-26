@@ -512,13 +512,15 @@ function renderPortfolioDrawer() {
   drawer.innerHTML = html;
 }
 
-// Direct delete without confirm (for drawer - small button = intentional)
+// Direct delete (for drawer)
 function quickDeletePortfolio(idx) {
   var portfolios = getSavedPortfolios();
-  if (!portfolios[idx]) return;
+  if (!portfolios[idx]) { console.warn('[delete] no portfolio at index', idx); return; }
   var name = portfolios[idx].name || 'Portfolio';
-  var deleted = portfolios.splice(idx, 1)[0];
-  savePortfoliosLS(portfolios);
+  portfolios.splice(idx, 1);
+  // Save immediately and verify
+  localStorage.setItem('pc_portfolios', JSON.stringify(portfolios));
+  console.log('[delete] removed "' + name + '", remaining:', portfolios.length);
   if (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === idx) {
     _activePortfolioIdx = -1;
     _activePortfolioSnapshot = null;

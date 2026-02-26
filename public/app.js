@@ -1478,7 +1478,7 @@ async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   if (typeof currentUser === 'undefined' || !currentUser) {
     showToast('Sign in to save portfolios');
-    if (typeof showAuthModal === 'function') showAuthModal();
+    if (typeof showAuthModalOptimized === 'function') showAuthModalOptimized();
     return;
   }
   const portfolios = getSavedPortfolios();

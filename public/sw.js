@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pcompass-v5';
+const CACHE_NAME = 'pcompass-v6';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -20,7 +20,7 @@ self.addEventListener('install', e => {
   );
 });
 
-// Activate: clean old caches
+// Activate: clean old caches and take control immediately
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -29,7 +29,8 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Fetch: network-first for API, cache-first for assets
+// Fetch: network-first for everything (API and assets)
+// This ensures users always get fresh code
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
