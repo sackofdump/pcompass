@@ -1889,9 +1889,10 @@
   }
   .spark-card-alloc {
     font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--accent);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--muted);
+    opacity: 0.7;
   }
   .spark-name {
     font-family: 'DM Sans', sans-serif;

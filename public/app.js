@@ -174,7 +174,7 @@ function renderHoldings() {
       return `<div class="sparkline-card" onclick="showExpandedChart('${escapeHTML(h.ticker)}')" id="spark-card-${escapeHTML(h.ticker)}">
         <div class="spark-card-header">
           <span class="spark-card-ticker">${escapeHTML(h.ticker)}</span>
-          <span class="spark-card-alloc">${h.pct}%</span>
+          <span class="spark-card-alloc">${h.pct}% alloc</span>
         </div>
         <div class="spark-name">${escapeHTML(companyName)}</div>
         <div class="spark-chart" id="spark-svg-${escapeHTML(h.ticker)}">
@@ -2056,16 +2056,13 @@ function fetchAndRenderSparklines() {
   var tickers = holdings.map(function(h) { return h.ticker; });
   if (tickers.length === 0) return;
 
-  Promise.all([
-    typeof fetchMarketDataCached === 'function' ? fetchMarketDataCached(tickers) : Promise.resolve(null),
-    fetchSparklineData(tickers, '1d')
-  ]).then(function(results) {
-    var marketData = results[0];
-    var sparkData = results[1];
-
-    holdings.forEach(function(h) {
-      // Inject market data (price + change)
-      if (marketData && marketData[h.ticker]) {
+  // Phase 1: Load market data first (fast — usually cached in localStorage)
+  // This fills in prices + daily change immediately
+  if (typeof fetchMarketDataCached === 'function') {
+    fetchMarketDataCached(tickers).then(function(marketData) {
+      if (!marketData) return;
+      holdings.forEach(function(h) {
+        if (!marketData[h.ticker]) return;
         var md = marketData[h.ticker];
         var priceEl = document.getElementById('spark-price-' + h.ticker);
         var changeEl = document.getElementById('spark-change-' + h.ticker);
@@ -2073,21 +2070,25 @@ function fetchAndRenderSparklines() {
         if (changeEl) {
           var pct = md.changePct;
           var isUp = pct >= 0;
-          changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '%';
+          changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '% 1D';
           changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
         }
-      }
+      });
+    });
+  }
 
-      // Inject sparkline SVG
-      if (sparkData && sparkData[h.ticker]) {
-        var sd = sparkData[h.ticker];
-        var svgEl = document.getElementById('spark-svg-' + h.ticker);
-        if (svgEl && sd.closes && sd.closes.length >= 2) {
-          var first = sd.closes[0];
-          var last = sd.closes[sd.closes.length - 1];
-          var positive = last >= first;
-          svgEl.innerHTML = renderSparklineSVG(sd.closes, 200, 50, positive);
-        }
+  // Phase 2: Load sparkline chart SVGs async (slower — Yahoo Finance API)
+  fetchSparklineData(tickers, '1d').then(function(sparkData) {
+    if (!sparkData) return;
+    holdings.forEach(function(h) {
+      if (!sparkData[h.ticker]) return;
+      var sd = sparkData[h.ticker];
+      var svgEl = document.getElementById('spark-svg-' + h.ticker);
+      if (svgEl && sd.closes && sd.closes.length >= 2) {
+        var first = sd.closes[0];
+        var last = sd.closes[sd.closes.length - 1];
+        var positive = last >= first;
+        svgEl.innerHTML = renderSparklineSVG(sd.closes, 200, 50, positive);
       }
     });
   });

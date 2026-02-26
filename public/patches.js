@@ -106,6 +106,7 @@ function _closeAllPanels() {
   closePortfolioDrawer();
   _closeNavPanel('marketPanel');
   _closeNavPanel('explorePanel');
+  _closeNavPanel('chartsPanel');
 }
 
 window.navTo = function(tab) {
@@ -173,7 +174,7 @@ function openMarketPanel() {
     + '<div><div class="market-status-label">' + mktLabel + '</div>'
     + '<div class="market-status-sub">' + new Date().toLocaleDateString([], {weekday:'long', month:'short', day:'numeric'}) + '</div></div>'
     + '</div>'
-    + '<div class="market-section-label">Top Movers Today</div>'
+    + '<div class="market-section-label">' + (mkt.isOpen ? 'Top Movers Today' : 'Daily Movers (Last Session)') + '</div>'
     + '<div id="marketPanelMovers"><div class="spark-shimmer" style="height:40px;border-radius:8px;margin-bottom:8px;"></div><div class="spark-shimmer" style="height:40px;border-radius:8px;"></div></div>'
     + '</div></div>';
 
@@ -205,21 +206,54 @@ function openMarketPanel() {
 
 // ── CHARTS NAV ───────────────────────────────────────────
 function navToCharts() {
+  _closeAllPanels();
+  _setActiveTab('navCharts');
+  // Open a panel with daily movers + portfolio charts
+  var overlay = _getOrCreatePanel('chartsPanel');
+  var html = '<div class="nav-panel">'
+    + '<div class="nav-panel-header">'
+    + '<span class="nav-panel-title">Charts</span>'
+    + '<button class="nav-panel-close" onclick="_closeNavPanel(\'chartsPanel\')">\u2715</button>'
+    + '</div>'
+    + '<div class="nav-panel-body">';
+
+  // Portfolio charts shortcut
   if (typeof holdings !== 'undefined' && holdings.length >= 3) {
-    // Switch to chart view
-    if (typeof setHoldingsView === 'function') setHoldingsView('chart');
-    // Scroll to the holdings section
-    var el = document.getElementById('stockList');
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else if (typeof holdings !== 'undefined' && holdings.length > 0) {
-    if (typeof setHoldingsView === 'function') setHoldingsView('chart');
-    var el = document.getElementById('stockList');
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else {
-    showToast('Add holdings to see charts');
+    html += '<button class="explore-sector-card" style="width:100%;margin-bottom:14px;justify-content:center;" onclick="_closeNavPanel(\'chartsPanel\');if(typeof setHoldingsView===\'function\')setHoldingsView(\'chart\');var el=document.getElementById(\'stockList\');if(el)el.scrollIntoView({behavior:\'smooth\',block:\'start\'});">'
+      + '<span class="explore-sector-name">View My Portfolio Charts</span>'
+      + '</button>';
   }
-  // Reset tab after action
-  setTimeout(function() { _setActiveTab('navPortfolios'); }, 300);
+
+  // Daily movers section
+  html += '<div class="market-section-label">Daily Movers</div>'
+    + '<div id="chartsPanelMovers"><div class="spark-shimmer" style="height:40px;border-radius:8px;margin-bottom:8px;"></div><div class="spark-shimmer" style="height:40px;border-radius:8px;"></div></div>'
+    + '</div></div>';
+
+  overlay.innerHTML = html;
+  overlay.classList.add('open');
+
+  // Load movers
+  fetchTopMovers().then(function(movers) {
+    var el = document.getElementById('chartsPanelMovers');
+    if (!el) return;
+    if (!movers || movers.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
+      return;
+    }
+    var rows = '';
+    for (var i = 0; i < movers.length; i++) {
+      var m = movers[i];
+      var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
+      var sign = m.changePct > 0 ? '+' : '';
+      rows += '<div class="market-mover-row">'
+        + '<span class="market-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
+        + '<span class="market-mover-name">' + escapeHTML(m.name || '') + '</span>'
+        + (m.price ? '<span class="market-mover-price">$' + m.price.toFixed(2) + '</span>' : '')
+        + '<span class="market-mover-change ' + cls + '">' + sign + m.changePct.toFixed(2) + '%</span>'
+        + '</div>';
+    }
+    el.innerHTML = rows;
+  });
 }
 
 // ── ANALYSIS NAV ─────────────────────────────────────────
@@ -843,30 +877,21 @@ function closeAuthModal() {
 // No outside-click handler needed.
 
 function signOut() {
-  currentUser = null;
-  localStorage.removeItem('pc_user');
-  localStorage.removeItem('pc_pro_expiry');
-  localStorage.removeItem('pc_pro_email');
-  localStorage.removeItem('pc_pro_plan');
-  localStorage.removeItem('pc_portfolios');
+  // Clear all user/portfolio/cache data from localStorage
+  var keysToRemove = [];
+  for (var i = 0; i < localStorage.length; i++) {
+    var key = localStorage.key(i);
+    if (key && (key.startsWith('pc_') || key === 'currentUser')) {
+      keysToRemove.push(key);
+    }
+  }
+  // Keep theme preference
+  keysToRemove = keysToRemove.filter(function(k) { return k !== 'pc_theme' && k !== 'pc_ai_consent'; });
+  keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
   // Clear HttpOnly cookies server-side
-  fetch('/api/signout', { method: 'POST' }).catch(() => {});
-  // Reset holdings to blank state
-  holdings.length = 0;
-  _activePortfolioIdx = -1;
-  _activePortfolioSnapshot = null;
-  // Clear cached performance data so strip doesn't show stale portfolios
-  _lastPerfMap = null;
-  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
-  renderHoldings();
-  if (typeof expandInputSections === 'function') expandInputSections();
-  // Close portfolio drawer if open
-  if (typeof closePortfolioDrawer === 'function') closePortfolioDrawer();
-  // Clear portfolio strip and sidebar — force re-render with no portfolios
-  renderPortfolioStrip(null);
-  if (typeof renderSidebarPortfolios === 'function') renderSidebarPortfolios();
-  updateUserUI();
-  showToast('Signed out.');
+  fetch('/api/signout', { method: 'POST' }).catch(function() {});
+  // Hard reload to guarantee clean state
+  window.location.reload();
 }
 
 async function deleteAccount() {
@@ -1479,6 +1504,21 @@ if (!_isIOSApp) {
 var _lastPerfMap = null; // cache last successful performance data
 var _topMoversCache = null; // cached top movers data
 
+// Broad universe of popular high-volume stocks across all sectors
+// Split into 2 batches of ≤40 (API hard cap) to find actual daily top movers
+var _moverTickersA = [
+  'NVDA','TSLA','AAPL','MSFT','AMD','META','AMZN','GOOGL','AVGO','ORCL',
+  'CRM','ADBE','INTC','CSCO','QCOM','PLTR','MU','MRVL','ARM','SMCI',
+  'JPM','GS','V','MA','PYPL','SQ','COIN','HOOD','SOFI','WMT',
+  'COST','NKE','DIS','NFLX','ABNB','JNJ','UNH','PFE','LLY','MRK'
+];
+var _moverTickersB = [
+  'XOM','CVX','COP','OXY','AI','SOUN','DDOG','CRWD','PANW','NET',
+  'RIVN','LCID','NIO','F','GM','RDDT','SNAP','SPOT','ROKU','MARA',
+  'RIOT','MSTR','BA','LMT','CAT','GE','APP','UBER','DASH','RBLX',
+  'AFRM','UPST','MRNA','AMGN','ABBV','BMY','SLB','SHOP','SNOW','TXN'
+];
+
 function _renderMoversHTML(movers) {
   if (!movers || movers.length === 0) return '';
   var html = '<div class="pstrip-movers-label">Top Movers</div>';
@@ -1499,19 +1539,25 @@ function fetchTopMovers() {
   if (_topMoversCache && (Date.now() - _topMoversCache.ts < 15 * 60 * 1000)) {
     return Promise.resolve(_topMoversCache.data);
   }
-  // Use dedicated server endpoint that scans ~100 major stocks
-  return fetch('/api/top-movers')
-    .then(function(res) {
-      if (!res.ok) return null;
-      return res.json();
-    })
-    .then(function(movers) {
-      if (!movers || !Array.isArray(movers) || movers.length === 0) return null;
-      var top = movers.slice(0, 8);
-      _topMoversCache = { data: top, ts: Date.now() };
-      return top;
-    })
-    .catch(function() { return null; });
+  if (typeof fetchMarketDataCached !== 'function') return Promise.resolve(null);
+  // Fetch both batches in parallel through existing market-data cache
+  return Promise.all([
+    fetchMarketDataCached(_moverTickersA),
+    fetchMarketDataCached(_moverTickersB)
+  ]).then(function(results) {
+    var md = Object.assign({}, results[0] || {}, results[1] || {});
+    var movers = [];
+    for (var t in md) {
+      if (md[t] && md[t].changePct != null) {
+        movers.push({ ticker: t, changePct: md[t].changePct, name: md[t].name || t, price: md[t].price || 0 });
+      }
+    }
+    // Sort by absolute change descending
+    movers.sort(function(a, b) { return Math.abs(b.changePct) - Math.abs(a.changePct); });
+    var top = movers.slice(0, 8);
+    _topMoversCache = { data: top, ts: Date.now() };
+    return top;
+  }).catch(function() { return null; });
 }
 
 function renderPortfolioStrip(performanceMap) {
