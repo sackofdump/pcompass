@@ -295,6 +295,7 @@ function clearAllHoldings() {
   holdings.length = 0;
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
+  if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze</strong></div></div>';
   renderHoldings();
   expandInputSections();
@@ -1280,7 +1281,7 @@ function runWhatIf() {
   const currentTotal = totalAllocation();
   const remaining = Math.round((100 - currentTotal) * 10) / 10;
   if (holdings.find(h => h.ticker === ticker)) {
-    result.innerHTML = '<strong style="color:var(--aggressive)">' + ticker + '</strong> is already in your portfolio.'; return;
+    result.innerHTML = '<strong style="color:var(--aggressive)">' + escapeHTML(ticker) + '</strong> is already in your portfolio.'; return;
   }
   if (currentTotal + pct > 100.05) {
     result.innerHTML = 'Only <strong class="wi-new">' + remaining + '%</strong> remaining — reduce or remove a holding first.'; return;
@@ -1396,6 +1397,41 @@ function addFromWhatIf() {
 const MAX_SLOTS = 3;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
+
+// ── DEFAULT PORTFOLIO ─────────────────────────────────────
+function getDefaultPortfolioIdx() {
+  var portfolios = getSavedPortfolios();
+  var pinned = localStorage.getItem('pc_default_portfolio');
+  if (pinned != null) {
+    var idx = parseInt(pinned, 10);
+    if (!isNaN(idx) && idx >= 0 && idx < portfolios.length) return idx;
+    localStorage.removeItem('pc_default_portfolio');
+  }
+  var last = localStorage.getItem('pc_last_portfolio');
+  if (last != null) {
+    var idx2 = parseInt(last, 10);
+    if (!isNaN(idx2) && idx2 >= 0 && idx2 < portfolios.length) return idx2;
+    localStorage.removeItem('pc_last_portfolio');
+  }
+  return -1;
+}
+
+function setDefaultPortfolio(idx) {
+  localStorage.setItem('pc_default_portfolio', String(idx));
+  if (typeof renderPortfolioDrawer === 'function') renderPortfolioDrawer();
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+}
+
+function toggleDefaultPortfolio(idx) {
+  var current = localStorage.getItem('pc_default_portfolio');
+  if (current != null && parseInt(current, 10) === idx) {
+    localStorage.removeItem('pc_default_portfolio');
+  } else {
+    localStorage.setItem('pc_default_portfolio', String(idx));
+  }
+  if (typeof renderPortfolioDrawer === 'function') renderPortfolioDrawer();
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+}
 
 // ── SIDEBAR ───────────────────────────────────────────────
 function openSidebar() {
@@ -1549,6 +1585,7 @@ function loadPortfolio(idx) {
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   _activePortfolioIdx = idx;
   _activePortfolioSnapshot = JSON.stringify(holdings);
+  localStorage.setItem('pc_last_portfolio', String(idx));
   // Auto-switch to chart view when loading a portfolio with 3+ holdings
   if (holdings.length >= 3) {
     _holdingsView = 'chart';
@@ -1560,6 +1597,7 @@ function loadPortfolio(idx) {
   if (_holdingsView === 'chart' && holdings.length >= 3) {
     fetchAndRenderSparklines();
   }
+  if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
   closeSidebar();
   showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
 }
@@ -1573,6 +1611,7 @@ function deletePortfolio(idx) {
   if (_activePortfolioIdx === idx) {
     _activePortfolioIdx = -1;
     _activePortfolioSnapshot = null;
+    if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
     // Clear loaded holdings since active portfolio was deleted
     holdings.length = 0;
     renderHoldings();
@@ -1624,6 +1663,9 @@ function loadExample(key) {
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
   holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
+  _activePortfolioIdx = -1;
+  _activePortfolioSnapshot = null;
+  if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   renderHoldings();
   collapseInputSections();
 }
@@ -2281,4 +2323,131 @@ function loadChartRange(ticker, range) {
 function closeExpandedChart() {
   var overlay = document.getElementById('chartModalOverlay');
   if (overlay) overlay.classList.remove('open');
+}
+
+// ── PORTFOLIO OVERVIEW CHART ─────────────────────────────────
+// Shows a composite weighted performance chart when a saved portfolio is loaded
+
+function computePortfolioLine(sparkData, holdingsArr) {
+  // Collect holdings that have sparkline data
+  var valid = [];
+  for (var i = 0; i < holdingsArr.length; i++) {
+    var h = holdingsArr[i];
+    if (sparkData[h.ticker] && sparkData[h.ticker].closes && sparkData[h.ticker].closes.length >= 2) {
+      valid.push({ pct: h.pct, closes: sparkData[h.ticker].closes });
+    }
+  }
+  if (valid.length === 0) return null;
+
+  // Find the shortest series length so all align
+  var minLen = Infinity;
+  for (var j = 0; j < valid.length; j++) {
+    if (valid[j].closes.length < minLen) minLen = valid[j].closes.length;
+  }
+
+  // Normalize each to base-1 and compute weighted sum
+  var totalWeight = 0;
+  for (var k = 0; k < valid.length; k++) totalWeight += valid[k].pct;
+  if (totalWeight === 0) return null;
+
+  var portfolioLine = [];
+  for (var t = 0; t < minLen; t++) {
+    var val = 0;
+    for (var v = 0; v < valid.length; v++) {
+      var base = valid[v].closes[0];
+      if (base === 0) base = 1;
+      var normalized = valid[v].closes[t] / base;
+      val += (valid[v].pct / totalWeight) * normalized;
+    }
+    portfolioLine.push(val);
+  }
+
+  var first = portfolioLine[0];
+  var last = portfolioLine[portfolioLine.length - 1];
+  return { closes: portfolioLine, positive: last >= first, changePct: ((last - first) / first) * 100 };
+}
+
+function renderPortfolioOverview() {
+  var container = document.getElementById('portfolioOverviewChart');
+  var inputSections = document.getElementById('inputSections');
+  if (!container) return;
+
+  if (_activePortfolioIdx < 0 || holdings.length < 3) {
+    hidePortfolioOverview();
+    return;
+  }
+
+  // Ensure holdingsBody is expanded (it may be collapsed after analysis)
+  if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
+
+  var portfolios = getSavedPortfolios();
+  var pName = (portfolios[_activePortfolioIdx] && portfolios[_activePortfolioIdx].name) || 'Portfolio';
+
+  container.innerHTML =
+    '<div class="portfolio-overview">' +
+      '<div class="portfolio-overview-header">' +
+        '<div class="portfolio-overview-name">' + escapeHTML(pName) + '</div>' +
+        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
+      '</div>' +
+      '<div class="portfolio-overview-ranges">' +
+        '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
+        '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
+        '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
+        '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
+      '</div>' +
+      '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
+        '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
+      '</div>' +
+      '<div class="portfolio-overview-perf" id="portfolioOverviewPerf"></div>' +
+    '</div>';
+
+  container.style.display = 'block';
+  if (inputSections) inputSections.style.display = 'none';
+
+  loadPortfolioChartRange('1d');
+}
+
+function loadPortfolioChartRange(range) {
+  var chartArea = document.getElementById('portfolioOverviewChartArea');
+  var perfBadge = document.getElementById('portfolioOverviewPerf');
+  if (!chartArea) return;
+  chartArea.innerHTML = '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>';
+  if (perfBadge) perfBadge.innerHTML = '';
+
+  // Update active range button
+  var container = document.getElementById('portfolioOverviewChart');
+  if (container) {
+    container.querySelectorAll('.chart-range-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.range === range);
+    });
+  }
+
+  var tickers = holdings.map(function(h) { return h.ticker; });
+  fetchSparklineData(tickers, range).then(function(sparkData) {
+    if (!sparkData) {
+      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available</div>';
+      return;
+    }
+    var result = computePortfolioLine(sparkData, holdings);
+    if (!result || result.closes.length < 2) {
+      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">Insufficient data</div>';
+      return;
+    }
+    chartArea.innerHTML = renderSparklineSVG(result.closes, 500, 220, result.positive);
+
+    // Show performance badge
+    if (perfBadge) {
+      var pct = result.changePct;
+      var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
+      var sign = pct > 0 ? '+' : '';
+      perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+    }
+  });
+}
+
+function hidePortfolioOverview() {
+  var container = document.getElementById('portfolioOverviewChart');
+  var inputSections = document.getElementById('inputSections');
+  if (container) container.style.display = 'none';
+  if (inputSections) inputSections.style.display = '';
 }

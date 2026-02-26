@@ -1,3 +1,5 @@
+import { neonSQL } from './neon.js';
+
 export function parseCookies(req) {
   const cookies = {};
   (req.headers.cookie || '').split(';').forEach(c => {
@@ -40,8 +42,17 @@ export function extractAuth(req) {
 export function getProFromCookie(req) {
   const c = parseCookies(req);
   if (c.pc_pro) {
-    const [e, t, tk] = c.pc_pro.split('|');
-    if (e && t && tk) return { email: e, ts: t, token: tk };
+    const parts = c.pc_pro.split('|');
+    // New format: userId|email|ts|token
+    if (parts.length === 4) {
+      const [uid, e, t, tk] = parts;
+      if (uid && e && t && tk) return { userId: uid, email: e, ts: t, token: tk };
+    }
+    // Legacy format: email|ts|token (auto-expires within 4hr)
+    if (parts.length === 3) {
+      const [e, t, tk] = parts;
+      if (e && t && tk) return { userId: '', email: e, ts: t, token: tk };
+    }
   }
   return null;
 }
@@ -79,7 +90,19 @@ export async function verifyAuthToken(email, token, timestamp, userId, sessionVe
       encoder.encode(`auth:${userId}:${email.toLowerCase().trim()}:${sessionVersion}:${ts}`));
     const expected = Array.from(new Uint8Array(sig))
       .map(b => b.toString(16).padStart(2, '0')).join('');
-    return timingSafeEqual(token, expected);
+    if (!timingSafeEqual(token, expected)) return false;
+
+    // Re-check session_version from DB to enable instant revocation on logout
+    try {
+      const rows = await neonSQL('SELECT session_version FROM users WHERE id = $1', [userId]);
+      if (rows.length === 0) return false;
+      const dbSv = String(rows[0].session_version || 1);
+      if (dbSv !== sessionVersion) return false;
+    } catch {
+      // If DB is unreachable, fail closed (deny access)
+      return false;
+    }
+    return true;
   }
 
   // Legacy format: auth:email:ts (backwards-compatible, auto-expires within 4hr)
@@ -89,7 +112,7 @@ export async function verifyAuthToken(email, token, timestamp, userId, sessionVe
   return timingSafeEqual(token, expected);
 }
 
-export async function verifyProToken(email, token, timestamp) {
+export async function verifyProToken(userId, email, token, timestamp) {
   if (!email || !token || !timestamp) return false;
   const now = Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp);
@@ -103,9 +126,18 @@ export async function verifyProToken(email, token, timestamp) {
     'raw', encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
+
+  // New format: userId:email:ts (bound to user identity)
+  if (userId) {
+    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${userId}:${email.toLowerCase().trim()}:${ts}`));
+    const expected = Array.from(new Uint8Array(sig))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    return timingSafeEqual(token, expected);
+  }
+
+  // Legacy format: email:ts (backwards-compatible, auto-expires within 4hr)
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${email.toLowerCase().trim()}:${ts}`));
   const expected = Array.from(new Uint8Array(sig))
     .map(b => b.toString(16).padStart(2, '0')).join('');
-
   return timingSafeEqual(token, expected);
 }

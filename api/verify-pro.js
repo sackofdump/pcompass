@@ -76,13 +76,13 @@ export default async function handler(req, res) {
     );
     const sig = await crypto.subtle.sign(
       'HMAC', key,
-      encoder.encode(`${email}:${timestamp}`)
+      encoder.encode(`${auth.userId}:${email}:${timestamp}`)
     );
     const token = Array.from(new Uint8Array(sig))
       .map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Set HttpOnly pro cookie
-    const cookieVal = encodeURIComponent(`${email}|${timestamp}|${token}`);
+    // Set HttpOnly pro cookie (format: userId|email|ts|token)
+    const cookieVal = encodeURIComponent(`${auth.userId}|${email}|${timestamp}|${token}`);
     const secure = process.env.NODE_ENV === 'development' ? '' : '; Secure';
     res.setHeader('Set-Cookie', `pc_pro=${cookieVal}; HttpOnly${secure}; SameSite=Strict; Path=/api; Max-Age=14400`);
 

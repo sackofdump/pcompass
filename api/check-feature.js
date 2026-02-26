@@ -59,9 +59,12 @@ export default async function handler(req, res) {
   const proToken = proCk?.token || req.headers['x-pro-token'] || '';
   const proEmail = (proCk?.email || req.headers['x-pro-email'] || '').toLowerCase().trim();
   const proTs    = proCk?.ts || req.headers['x-pro-ts'] || '';
-  let isPro = await verifyProToken(proEmail, proToken, proTs);
+  const proUserId = proCk?.userId || '';
+  let isPro = await verifyProToken(proUserId, proEmail, proToken, proTs);
   // Prevent privilege escalation: pro token email must match authenticated user
   if (isPro && proEmail !== auth.email) isPro = false;
+  // Cross-check: pro token userId must match auth userId
+  if (isPro && proUserId && proUserId !== auth.userId) isPro = false;
   if (isPro) {
     try {
       const lic = await neonSQL(`SELECT active FROM pro_licenses WHERE LOWER(email) = $1 AND active = true LIMIT 1`, [proEmail]);

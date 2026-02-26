@@ -1854,6 +1854,24 @@
     font-size: 10px;
     color: var(--muted);
   }
+  .pdrawer-star {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 2px 6px 2px 0;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .pdrawer-star:hover { color: #ffd166; }
+  .pdrawer-star.active { color: #ffd166; }
+  .pstrip-star {
+    color: #ffd166;
+    font-size: 10px;
+    margin-right: 3px;
+  }
   .pdrawer-empty {
     padding: 24px 20px;
     text-align: center;
@@ -2140,6 +2158,73 @@
   }
   .chart-range-btn:hover { border-color: var(--accent); color: var(--text); }
   .chart-range-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.08); }
+
+  /* Portfolio Overview Chart */
+  .portfolio-overview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin: 8px 0 12px;
+  }
+  .portfolio-overview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .portfolio-overview-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .portfolio-overview-edit {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .portfolio-overview-edit:hover { border-color: var(--accent); color: var(--text); }
+  .portfolio-overview-ranges {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .portfolio-overview-chart {
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+    border-radius: 8px;
+    position: relative;
+  }
+  .portfolio-overview-chart img, .portfolio-overview-chart svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .portfolio-overview-perf {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .portfolio-perf-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+  }
+  .portfolio-perf-badge.up { color: #22c55e; background: rgba(34,197,94,0.1); }
+  .portfolio-perf-badge.down { color: #ef4444; background: rgba(239,68,68,0.1); }
+  .portfolio-perf-badge.flat { color: var(--muted); background: rgba(90,100,120,0.1); }
+
   .chart-modal-chart {
     width: 100%;
     height: 200px;

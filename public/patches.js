@@ -221,8 +221,26 @@ function openMarketPanel() {
 function navToCharts() {
   _closeAllPanels();
   _setActiveTab('navCharts');
-  // Open a panel with daily movers + portfolio charts
   var overlay = _getOrCreatePanel('chartsPanel');
+
+  // Auth gate: require sign-in to view charts
+  if (!currentUser) {
+    overlay.innerHTML = '<div class="nav-panel">'
+      + '<div class="nav-panel-header">'
+      + '<span class="nav-panel-title">Charts</span>'
+      + '<button class="nav-panel-close" onclick="_closeNavPanel(\'chartsPanel\')">\u2715</button>'
+      + '</div>'
+      + '<div class="nav-panel-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;text-align:center;padding:40px 20px;">'
+      + '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5a6478" stroke-width="1.5" style="margin-bottom:14px;opacity:0.6;"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="7,16 11,11 14,14 17,8"/></svg>'
+      + '<div style="color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:15px;font-weight:600;margin-bottom:6px;">Sign in to view charts</div>'
+      + '<div style="color:var(--muted);font-size:12px;margin-bottom:18px;">Track daily movers and portfolio performance</div>'
+      + '<button onclick="_closeNavPanel(\'chartsPanel\');showAuthModalOptimized();" style="padding:9px 28px;border-radius:8px;border:none;background:var(--accent);color:#0a0c10;font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Sign In</button>'
+      + '</div></div>';
+    overlay.classList.add('open');
+    return;
+  }
+
+  // Open a panel with daily movers + portfolio charts
   var html = '<div class="nav-panel">'
     + '<div class="nav-panel-header">'
     + '<span class="nav-panel-title">Charts</span>'
@@ -500,7 +518,10 @@ function renderPortfolioDrawer() {
         var sign = perf > 0 ? '+' : '';
         perfHtml = '<span class="pstrip-change ' + cls + '">' + sign + perf.toFixed(2) + '%</span>';
       }
+      var isDefault = (typeof getDefaultPortfolioIdx === 'function' && getDefaultPortfolioIdx() === i);
+      var starHtml = '<button class="pdrawer-star' + (isDefault ? ' active' : '') + '" onclick="event.stopPropagation();toggleDefaultPortfolio(' + i + ')" title="' + (isDefault ? 'Remove default' : 'Set as default') + '">' + (isDefault ? '\u2605' : '\u2606') + '</button>';
       html += '<div class="pdrawer-item' + (isActive ? ' active' : '') + '" style="border-left-color:' + riskColor + '">'
+        + starHtml
         + '<div class="pdrawer-info" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
         + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
         + perfHtml
@@ -525,6 +546,7 @@ function quickDeletePortfolio(idx) {
   if (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === idx) {
     _activePortfolioIdx = -1;
     _activePortfolioSnapshot = null;
+    if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
     // Clear loaded holdings since active portfolio was deleted
     if (typeof holdings !== 'undefined') {
       holdings.length = 0;
@@ -992,6 +1014,11 @@ function getAuthHeaders() {
     try {
       currentUser = JSON.parse(saved);
       updateUserUI();
+      // Auto-load default or last portfolio
+      var defIdx = typeof getDefaultPortfolioIdx === 'function' ? getDefaultPortfolioIdx() : -1;
+      if (defIdx >= 0 && typeof loadPortfolio === 'function') {
+        loadPortfolio(defIdx);
+      }
     } catch(e) {
       localStorage.removeItem('pc_user');
     }
@@ -1597,8 +1624,10 @@ function renderPortfolioStrip(performanceMap) {
       } else {
         changeBadge = '<span class="pstrip-change loading">\u2022\u2022\u2022</span>';
       }
+      var isDefault = (typeof getDefaultPortfolioIdx === 'function' && getDefaultPortfolioIdx() === i);
+      var stripStar = isDefault ? '<span class="pstrip-star">\u2605</span>' : '';
       html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '" style="border-left-color:' + riskColor + '">'
-        + '<div class="pstrip-info"><div class="pstrip-name">' + escapeHTML(p.name) + '</div>'
+        + '<div class="pstrip-info"><div class="pstrip-name">' + stripStar + escapeHTML(p.name) + '</div>'
         + '<div class="pstrip-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
         + changeBadge
         + '</div>';
