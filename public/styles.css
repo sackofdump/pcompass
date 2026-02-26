@@ -312,7 +312,7 @@
   .strategy-chevron-open { transform:rotate(180deg); }
   .strategy-expand-hint { font-size:10px; color:var(--muted); margin-left:6px; font-weight:400; }
   .panel-toggle { cursor:pointer; user-select:none; display:flex; align-items:center; gap:0; }
-  .panel-toggle .section-title { flex:1; }
+  .panel-toggle .section-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .panel-chevron { font-size:12px; color:var(--muted); transition:transform 0.25s ease; display:inline-block; }
   .panel-chevron-open { transform:rotate(180deg); }
   .panel-expand-hint { font-size:10px; color:var(--muted); margin-left:6px; font-weight:400; white-space:nowrap; }
@@ -378,7 +378,7 @@
   .analysis-bar { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:16px; padding:20px 24px 16px; animation:fadeUp 0.3s ease; backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur)); box-shadow:var(--glass-shadow); }
   .analysis-bar-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
   .analysis-bar-header h2 { margin:0; }
-  .breakdown-legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .breakdown-legend { display:flex; gap:8px; align-items:center; flex-wrap:nowrap; overflow-x:auto; }
   .legend-item { display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
   .legend-hint { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); opacity:0.45; font-style:italic; margin-left:2px; }
   .legend-dot { width:10px; height:6px; border-radius:2px; flex-shrink:0; }
@@ -696,7 +696,7 @@
     .theme-toggle-thumb { width: 10px; height: 10px; }
     body.light .theme-toggle-thumb { transform: translateX(10px); }
 
-    .main-grid { padding: 14px 12px; gap: 16px; }
+    .main-grid { padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 14px; gap: 16px; }
     .container { padding: 0 12px; }
 
     .panel-header { padding: 12px 16px 10px; }
@@ -721,7 +721,7 @@
     .upload-zone { margin: 0 16px 14px; padding: 14px 12px; }
     .upload-text { font-size: 9px; }
     .holdings-grid { padding: 10px 16px; }
-    .holdings-view-toggle { padding: 0 16px 6px; }
+    .holdings-view-toggle { padding: 10px 16px 6px; }
     .import-preview { margin: 0 16px 14px; }
     .preview-item { grid-template-columns: 44px 1fr 60px 18px; gap: 6px; padding: 6px 8px; }
     .preview-ticker { font-size: 11px; }
@@ -1411,7 +1411,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0 24px 8px;
+    padding: 10px 24px 8px;
   }
   .view-btn {
     background: none;
@@ -1907,6 +1907,50 @@
     font-weight: 600;
     color: var(--muted);
     opacity: 0.7;
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 1px 3px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .spark-card-alloc:hover { background: var(--surface2); color: var(--text); opacity: 1; }
+  .spark-card-alloc-input {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    width: 40px;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 1px 3px;
+    color: var(--text);
+    outline: none;
+    text-align: right;
+  }
+  .spark-card-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: var(--muted);
+    font-size: 12px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+    z-index: 2;
+    line-height: 1;
+    padding: 0;
+  }
+  .sparkline-card:hover .spark-card-remove { opacity: 1; }
+  .spark-card-remove:hover { color: var(--aggressive); background: rgba(255,140,66,0.2); }
+  @media (hover: none) {
+    .spark-card-remove { opacity: 0.7; }
   }
   .spark-name {
     font-family: 'DM Sans', sans-serif;
@@ -2172,13 +2216,14 @@
     top: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 8px;
     padding: 16px 18px 12px;
     background: var(--surface);
     border-bottom: 1px solid var(--glass-border);
     z-index: 1;
   }
   .nav-panel-title {
+    flex: 1;
     font-family: 'DM Sans', sans-serif;
     font-size: 16px;
     font-weight: 700;
@@ -2194,6 +2239,23 @@
     border-radius: 6px;
   }
   .nav-panel-close:hover { color: var(--text); background: var(--glass-bg); }
+  .nav-panel-refresh {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 16px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, border-color 0.15s;
+    margin-right: 8px;
+  }
+  .nav-panel-refresh:hover { color: var(--accent); border-color: var(--accent); }
+  .nav-panel-refresh.spinning { animation: pstrip-spin 0.8s linear infinite; color: var(--accent); pointer-events: none; }
   .nav-panel-body { padding: 14px 18px; }
 
   /* ── Market Panel ──────────────────────────────────────── */

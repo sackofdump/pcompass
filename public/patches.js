@@ -226,13 +226,14 @@ function navToCharts() {
   var html = '<div class="nav-panel">'
     + '<div class="nav-panel-header">'
     + '<span class="nav-panel-title">Charts</span>'
+    + '<button class="nav-panel-refresh" id="chartsPanelRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">\u21bb</button>'
     + '<button class="nav-panel-close" onclick="_closeNavPanel(\'chartsPanel\')">\u2715</button>'
     + '</div>'
     + '<div class="nav-panel-body">';
 
   // Portfolio charts shortcut
   if (typeof holdings !== 'undefined' && holdings.length >= 3) {
-    html += '<button class="explore-sector-card" style="width:100%;margin-bottom:14px;justify-content:center;" onclick="_closeNavPanel(\'chartsPanel\');if(typeof setHoldingsView===\'function\')setHoldingsView(\'chart\');var el=document.getElementById(\'stockList\');if(el)el.scrollIntoView({behavior:\'smooth\',block:\'start\'});">'
+    html += '<button class="explore-sector-card" style="width:100%;margin-bottom:14px;justify-content:center;" onclick="_closeNavPanel(\'chartsPanel\');if(typeof setHoldingsView===\'function\')setHoldingsView(\'chart\');window.scrollTo({top:0,behavior:\'smooth\'});">'
       + '<span class="explore-sector-name">View My Portfolio Charts</span>'
       + '</button>';
   }
@@ -1604,16 +1605,6 @@ function renderPortfolioStrip(performanceMap) {
     }
   }
 
-  // Market status + last refreshed
-  var mkt = typeof getMarketStatus === 'function' ? getMarketStatus() : {};
-  var mktLabel = mkt.isOpen ? 'Market Open' : mkt.isPrePost ? 'Pre/Post' : 'Market Closed';
-  var mktDot = mkt.isOpen ? 'live' : '';
-  var lastRefresh = (_lastPerfMap || _topMoversCache) ? new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
-  html += '<div class="pstrip-status">'
-    + '<span class="pstrip-market ' + mktDot + '">&#9679; ' + mktLabel + '</span>'
-    + (lastRefresh ? '<span class="pstrip-updated">' + lastRefresh + '</span>' : '')
-    + '</div>';
-  html += '<button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">\u21bb</button>';
   strip.innerHTML = html;
   strip.classList.add('visible');
 }

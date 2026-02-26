@@ -134,6 +134,36 @@ function removeStock(ticker) {
   renderHoldings();
 }
 
+function editCardAlloc(ticker, el) {
+  var h = holdings.find(function(x) { return x.ticker === ticker; });
+  if (!h) return;
+  var orig = h.pct;
+  var input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'spark-card-alloc-input';
+  input.value = orig;
+  input.min = '0.1';
+  input.max = '100';
+  input.step = '0.1';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  function commit() {
+    var val = parseFloat(input.value);
+    if (!val || val <= 0 || val > 100) val = orig;
+    var otherTotal = totalAllocation() - h.pct;
+    if (otherTotal + val > 100.05) val = Math.round((100 - otherTotal) * 10) / 10;
+    h.pct = Math.round(val * 10) / 10;
+    renderHoldings();
+    if (_holdingsView === 'chart' && holdings.length >= 3) fetchAndRenderSparklines();
+  }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { h.pct = orig; input.blur(); }
+  });
+}
+
 function setHoldingsView(view) {
   _holdingsView = view;
   document.querySelectorAll('.view-btn').forEach(b => {
@@ -172,9 +202,10 @@ function renderHoldings() {
       const companyName = dbEntry.name || h.ticker;
       const sectorColor = SECTOR_COLORS[h.sector] || SECTOR_COLORS['Other'] || '#475569';
       return `<div class="sparkline-card" onclick="showExpandedChart('${escapeHTML(h.ticker)}')" id="spark-card-${escapeHTML(h.ticker)}">
+        <button class="spark-card-remove" onclick="event.stopPropagation();removeStock('${escapeHTML(h.ticker)}')" title="Remove">\u00d7</button>
         <div class="spark-card-header">
           <span class="spark-card-ticker">${escapeHTML(h.ticker)}</span>
-          <span class="spark-card-alloc">${h.pct}% alloc</span>
+          <span class="spark-card-alloc" onclick="event.stopPropagation();editCardAlloc('${escapeHTML(h.ticker)}',this)">${h.pct}%</span>
         </div>
         <div class="spark-name">${escapeHTML(companyName)}</div>
         <div class="spark-chart" id="spark-svg-${escapeHTML(h.ticker)}">
@@ -703,12 +734,12 @@ function analyze() {
       '<div class="analysis-bar">' +
         '<div class="analysis-bar-header panel-toggle" onclick="togglePanel(this)">' +
           '<h2 class="section-title">Portfolio Breakdown &amp; Strategies</h2>' +
-          '<span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span>' +
+          '<span class="panel-expand-hint">tap to collapse</span><span class="panel-chevron panel-chevron-open">&#9662;</span>' +
         '</div>' +
         '<div class="panel-body">' +
         '<div class="breakdown-legend">' +
             '<div class="legend-item"><div class="legend-dot legend-dot-current"></div>You Own</div>' +
-            '<div class="legend-hint">&#8212; hover/click to show</div>' +
+            '<div class="legend-hint">tap to show</div>' +
             '<div class="legend-item hoverable" data-strategy="agg">' +
               '<div class="legend-tick legend-tick-agg"></div>Aggressive' +
               '<div class="strategy-tooltip"><div class="tooltip-label agg">&#9889; Aggressive</div>' +
@@ -773,11 +804,12 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Scroll to right above Portfolio Health section
+  // Scroll so Portfolio Health is visible with Analyze button just above fold
   setTimeout(function() {
-    var resultsEl = document.getElementById('resultsPanel');
-    if (resultsEl) {
-      var offset = resultsEl.getBoundingClientRect().top + window.pageYOffset - 10;
+    var healthEl = document.querySelector('.health-panel');
+    if (healthEl) {
+      var rect = healthEl.getBoundingClientRect();
+      var offset = rect.top + window.pageYOffset - 60;
       window.scrollTo({ top: offset, behavior: 'smooth' });
     }
   }, 100);
