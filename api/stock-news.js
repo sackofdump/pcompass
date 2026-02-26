@@ -88,6 +88,30 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
 
+  // Temporary debug mode — test what Yahoo RSS returns from Vercel
+  if (req.query.debug === '1') {
+    try {
+      const t = req.query.ticker || 'AAPL';
+      const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(t)}&region=US&lang=en-US`;
+      const r = await fetch(url, {
+        signal: AbortSignal.timeout(6000),
+        headers: { 'User-Agent': UA },
+      });
+      const text = await r.text();
+      const itemCount = (text.match(/<item>/g) || []).length;
+      return res.status(200).json({
+        status: r.status,
+        contentType: r.headers.get('content-type'),
+        bodyLength: text.length,
+        itemCount,
+        first500: text.substring(0, 500),
+        last200: text.substring(text.length - 200),
+      });
+    } catch (e) {
+      return res.status(200).json({ debugError: e.message });
+    }
+  }
+
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!await checkRateLimit(ip, 'stock-news', 30)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
