@@ -1396,6 +1396,9 @@
     gap: 4px;
     padding: 10px 24px 8px;
   }
+  .holdings-view-toggle .pstrip-refresh {
+    margin-left: auto;
+  }
   .view-btn {
     background: none;
     border: 1px solid var(--border);
@@ -2248,16 +2251,9 @@
   .chart-stat-label { color: var(--muted); }
   .chart-stat-value { color: var(--text); font-weight: 700; }
 
-  .chart-modal-news { padding: 0 4px; margin-top: 12px; }
-  .chart-news-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-  .chart-news-item {
+  /* ── PORTFOLIO NEWS PANEL ────────────────────────────── */
+  .news-list { padding: 4px 20px 12px; }
+  .news-item {
     display: block;
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
@@ -2265,20 +2261,31 @@
     color: var(--text);
     transition: opacity 0.15s;
   }
-  .chart-news-item:last-child { border-bottom: none; }
-  .chart-news-item:hover { opacity: 0.8; }
-  .chart-news-title {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    line-height: 1.4;
+  .news-item:last-child { border-bottom: none; }
+  .news-item:hover { opacity: 0.8; }
+  .news-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-bottom: 4px;
   }
-  .chart-news-meta {
+  .news-item-ticker {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .news-item-meta {
     font-family: 'Space Mono', monospace;
     font-size: 10px;
     color: var(--muted);
   }
-  .chart-news-loading, .chart-news-empty {
+  .news-item-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .news-loading, .news-empty {
     font-size: 11px;
     color: var(--muted);
     padding: 12px 0;

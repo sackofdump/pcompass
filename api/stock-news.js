@@ -16,6 +16,8 @@ function setCached(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
+const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;
+
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
   // ── CORS ──
@@ -43,20 +45,26 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
-  const { ticker } = req.query;
-  if (!ticker) return res.status(400).json({ error: 'No ticker provided' });
+  // Accept either ?tickers=AAPL,MSFT (batch) or ?ticker=AAPL (legacy single)
+  const raw = req.query.tickers || req.query.ticker || '';
+  if (!raw) return res.status(400).json({ error: 'No tickers provided' });
 
-  // Sanitize ticker
-  const clean = ticker.trim().toUpperCase().replace(/[^A-Z0-9.]/g, '');
-  if (clean.length < 1 || clean.length > 6 || !/^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(clean)) {
-    return res.status(400).json({ error: 'Invalid ticker' });
+  // Parse + sanitize ticker list (cap at 20)
+  const tickers = raw.split(',')
+    .map(t => t.trim().toUpperCase().replace(/[^A-Z0-9.]/g, ''))
+    .filter(t => t.length >= 1 && t.length <= 6 && TICKER_RE.test(t))
+    .slice(0, 20);
+
+  if (tickers.length === 0) {
+    return res.status(400).json({ error: 'Invalid tickers' });
   }
 
-  // Check cache
-  const cached = getCached(clean);
+  // Cache key: sorted tickers joined
+  const cacheKey = [...tickers].sort().join(',');
+  const cached = getCached(cacheKey);
   if (cached) {
     res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=600');
-    return res.status(200).json({ [clean]: cached });
+    return res.status(200).json(cached);
   }
 
   // Fetch from FMP
@@ -67,28 +75,41 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Use stable endpoint (v3 is deprecated for free-tier keys)
-    const url = `https://financialmodelingprep.com/stable/news/stock-latest?tickers=${clean}&limit=5&apikey=${apiKey}`;
+    const tickerParam = tickers.join(',');
+    const limit = tickers.length === 1 ? 5 : 10;
+    const url = `https://financialmodelingprep.com/stable/news/stock-latest?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) {
-      console.warn(`[stock-news] FMP returned ${r.status} for ${clean}`);
-      return res.status(200).json({ [clean]: [] });
+      console.warn(`[stock-news] FMP returned ${r.status} for ${tickerParam}`);
+      return res.status(200).json([]);
     }
 
-    const raw = await r.json();
-    const articles = (Array.isArray(raw) ? raw : []).map(a => ({
+    const rawData = await r.json();
+    const articles = (Array.isArray(rawData) ? rawData : []).map(a => ({
+      ticker: (a.symbol || '').toUpperCase(),
       title: a.title || '',
       text: (a.text || a.content || '').slice(0, 200),
       url: a.url || a.link || '',
       source: (a.site || a.source || a.publisher || '').replace(/^www\./, ''),
       date: a.publishedDate || a.date || '',
-    }));
+    })).sort((a, b) => {
+      // Newest first
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return db - da;
+    });
 
-    setCached(clean, articles);
+    // For single-ticker legacy compat, return { TICKER: [...] }
+    // For batch, return flat array
+    const result = tickers.length === 1
+      ? { [tickers[0]]: articles }
+      : articles;
+
+    setCached(cacheKey, result);
     res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=600');
-    return res.status(200).json({ [clean]: articles });
+    return res.status(200).json(result);
   } catch (e) {
     console.error('[stock-news] fetch error:', e.message);
-    return res.status(200).json({ [clean]: [] });
+    return res.status(200).json(tickers.length === 1 ? { [tickers[0]]: [] } : []);
   }
 }

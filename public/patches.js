@@ -1800,9 +1800,6 @@ function renderPortfolioStrip(performanceMap) {
     }
   }
 
-  // Refresh button at the end
-  html += '<button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">&#8635;</button>';
-
   strip.innerHTML = html;
   strip.classList.add('visible');
 }

@@ -815,6 +815,18 @@ function analyze() {
       strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
       strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
       rebalanceHTML +
+      '<div class="news-panel rebalance-panel" id="portfolioNewsPanel">' +
+        '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
+          '<h2 class="section-title">Portfolio News</h2>' +
+          '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
+          '<span class="panel-expand-hint">tap to collapse</span>' +
+        '</div>' +
+        '<div class="panel-body">' +
+          '<div class="news-list" id="portfolioNewsList">' +
+            '<div class="news-loading">Loading news...</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
       '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from FMP &middot; Ranked by portfolio fit + live momentum.</span></div>';
 
     // Re-attach strategy legend listeners
@@ -851,6 +863,9 @@ function analyze() {
 
   // Render immediately with loading placeholders
   renderResultsPanel(null);
+
+  // Load combined portfolio news feed
+  loadPortfolioNews();
 
   // Show portfolio overview chart + square holdings cards
   if (holdings.length >= 3) {
@@ -1627,6 +1642,17 @@ async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
   if (portfolios.length >= MAX_SLOTS) { showToast('Max ' + MAX_SLOTS + ' portfolios — delete one to save a new one.'); return; }
+
+  // Prevent duplicate: check if current holdings match any existing portfolio
+  const currentKey = holdings.map(function(h) { return h.ticker + ':' + h.pct; }).sort().join(',');
+  for (let i = 0; i < portfolios.length; i++) {
+    const existingKey = (portfolios[i].holdings || []).map(function(h) { return h.ticker + ':' + h.pct; }).sort().join(',');
+    if (currentKey === existingKey) {
+      showToast('This portfolio already exists as "' + portfolios[i].name + '"');
+      return;
+    }
+  }
+
   const name = 'Portfolio ' + (portfolios.length + 1);
   portfolios.push({name, holdings: JSON.parse(JSON.stringify(holdings))});
   savePortfoliosLS(portfolios);
@@ -2324,7 +2350,6 @@ function _ensureChartModal() {
         '<div class="spark-shimmer" style="height:200px"></div>' +
       '</div>' +
       '<div class="chart-modal-stats" id="chartModalStats"></div>' +
-      '<div class="chart-modal-news" id="chartModalNews"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   _chartModalEl = overlay;
@@ -2376,9 +2401,6 @@ function showExpandedChart(ticker) {
 
   // Load chart data
   loadChartRange(ticker, '1d');
-
-  // Load news
-  loadTickerNews(ticker);
 }
 
 function loadChartRange(ticker, range) {
@@ -2445,31 +2467,38 @@ function _timeAgo(dateStr) {
   return Math.floor(diff / 604800) + 'w ago';
 }
 
-function loadTickerNews(ticker) {
-  var newsEl = document.getElementById('chartModalNews');
+function loadPortfolioNews() {
+  var newsEl = document.getElementById('portfolioNewsList');
   if (!newsEl) return;
-  newsEl.innerHTML = '<div class="chart-news-loading">Loading news...</div>';
+  if (!holdings || holdings.length === 0) {
+    newsEl.innerHTML = '<div class="news-empty">No holdings to fetch news for</div>';
+    return;
+  }
+  newsEl.innerHTML = '<div class="news-loading">Loading news...</div>';
 
-  fetch('/api/stock-news?ticker=' + encodeURIComponent(ticker))
+  var tickers = holdings.map(function(h) { return h.ticker; }).join(',');
+  fetch('/api/stock-news?tickers=' + encodeURIComponent(tickers))
     .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(data) {
-      if (!data || !data[ticker] || data[ticker].length === 0) {
-        newsEl.innerHTML = '<div class="chart-news-empty">No recent news</div>';
+    .then(function(articles) {
+      if (!articles || !Array.isArray(articles) || articles.length === 0) {
+        newsEl.innerHTML = '<div class="news-empty">No recent news</div>';
         return;
       }
-      var articles = data[ticker];
-      var html = '<div class="chart-news-label">Recent News</div>';
+      var html = '';
       articles.forEach(function(a) {
         var ago = _timeAgo(a.date);
-        html += '<a class="chart-news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
-          + '<div class="chart-news-title">' + escapeHTML(a.title) + '</div>'
-          + '<div class="chart-news-meta">' + escapeHTML(a.source) + (ago ? ' · ' + ago : '') + '</div>'
+        html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
+          + '<div class="news-item-header">'
+          + '<span class="news-item-ticker">' + escapeHTML(a.ticker) + '</span>'
+          + '<span class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</span>'
+          + '</div>'
+          + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
           + '</a>';
       });
       newsEl.innerHTML = html;
     })
     .catch(function() {
-      newsEl.innerHTML = '<div class="chart-news-empty">News unavailable</div>';
+      newsEl.innerHTML = '<div class="news-empty">News unavailable</div>';
     });
 }
 
