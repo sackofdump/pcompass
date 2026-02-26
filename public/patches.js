@@ -1211,7 +1211,7 @@ function analyzeDebounced() {
       if (el) { el.disabled = true; el.style.opacity = '0.5'; }
     });
     try { analyze(); } catch(e) { console.error(e); }
-    collapseHoldingsPanel();
+    // Keep holdings panel open so user can edit after analyzing
     // Unlock after market data fetch completes (max 8s safety timeout)
     setTimeout(function() {
       _analyzeLocked = false;

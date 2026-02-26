@@ -249,7 +249,18 @@ function toggleHoldingsBody() {
 
 function clearAllHoldings() {
   if (holdings.length === 0) return;
-  if (!confirm('Clear all holdings? This will reset your current portfolio.')) return;
+
+  // If a saved portfolio is active, delete it permanently
+  if (_activePortfolioIdx >= 0) {
+    var portfolios = getSavedPortfolios();
+    var name = portfolios[_activePortfolioIdx] ? portfolios[_activePortfolioIdx].name : 'this portfolio';
+    if (!confirm('Delete "' + name + '" permanently?')) return;
+    portfolios.splice(_activePortfolioIdx, 1);
+    localStorage.setItem('pc_portfolios', JSON.stringify(portfolios));
+  } else {
+    if (!confirm('Clear all holdings?')) return;
+  }
+
   holdings.length = 0;
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
@@ -258,6 +269,8 @@ function clearAllHoldings() {
   expandInputSections();
   if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
   closeSidebar();
+  // Re-render the portfolio strip to remove the deleted portfolio
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
   // Re-enable sticky button visibility for next portfolio
   const stickyBtn = document.querySelector('.btn-analyze-sticky');
   if (stickyBtn) stickyBtn.dataset.analyzed = '';
@@ -760,8 +773,14 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Scroll to very top of page after analysis
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  // Scroll to right above Portfolio Health section
+  setTimeout(function() {
+    var resultsEl = document.getElementById('resultsPanel');
+    if (resultsEl) {
+      var offset = resultsEl.getBoundingClientRect().top + window.pageYOffset - 10;
+      window.scrollTo({ top: offset, behavior: 'smooth' });
+    }
+  }, 100);
 
   // Hide sticky analyze button after results show
   setTimeout(() => {
@@ -1509,7 +1528,6 @@ function loadPortfolio(idx) {
   if (_holdingsView === 'chart' && holdings.length >= 3) {
     fetchAndRenderSparklines();
   }
-  collapseInputSections();
   closeSidebar();
   showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
 }
@@ -1855,7 +1873,9 @@ function _renderProPicksForStrategy(type, proData) {
     .filter(e => !ownedTickers.includes(e.ticker))
     .map(e => ({...e, score:70, isStock:false}));
 
-  const allExtra = [...etfs, ...picks].slice(0, 20);
+  const allExtraRaw = [...etfs, ...picks].slice(0, 20);
+  // Round down to multiple of 5 for clean "see more" batches
+  const allExtra = allExtraRaw.slice(0, Math.floor(allExtraRaw.length / 5) * 5);
   if (allExtra.length === 0) return '';
 
   return allExtra.map(item => _lastBuildItemHTML(item, type, _lastMarketData)).join('');
