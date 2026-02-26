@@ -499,11 +499,11 @@ function renderPortfolioDrawer() {
         var sign = perf > 0 ? '+' : '';
         perfHtml = '<span class="pstrip-change ' + cls + '">' + sign + perf.toFixed(2) + '%</span>';
       }
-      html += '<div class="pdrawer-item' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()" style="border-left-color:' + riskColor + '">'
-        + '<div class="pdrawer-info"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
+      html += '<div class="pdrawer-item' + (isActive ? ' active' : '') + '" style="border-left-color:' + riskColor + '">'
+        + '<div class="pdrawer-info" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
         + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
         + perfHtml
-        + '<button class="pdrawer-delete" onclick="event.stopPropagation();quickDeletePortfolio(' + i + ')" title="Delete">&times;</button>'
+        + '<button class="pdrawer-delete" onclick="quickDeletePortfolio(' + i + ')" title="Delete">&#128465;</button>'
         + '</div>';
     }
     html += '</div>';
@@ -548,12 +548,6 @@ function quickDeletePortfolio(idx) {
   renderPortfolioDrawer();
   renderPortfolioStrip(_lastPerfMap);
   showToast('Deleted "' + name + '"');
-  // Cloud delete
-  if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
-    fetch('/api/portfolios?userId=' + currentUser.id + '&portfolioId=' + deleted.cloudId, {
-      method: 'DELETE', credentials: 'include',
-    }).catch(function() {});
-  }
 }
 
 function togglePortfolioDrawer() {
@@ -644,7 +638,7 @@ async function verifyProAccess(email) {
 (function initStickyAnalyze() {
   const sticky = document.createElement('button');
   sticky.className = 'btn-analyze-sticky';
-  sticky.textContent = 'Analyze & Recommend';
+  sticky.textContent = 'Analyze';
   sticky.onclick = function() { analyzeDebounced(); };
   document.body.appendChild(sticky);
   window._stickyAnalyzed = false;
@@ -983,82 +977,10 @@ async function deleteAccount() {
   }
 }
 
-// ── CLOUD PORTFOLIO SYNC ────────────────────────────────
-// Auth/Pro tokens now travel via HttpOnly cookies — no JS headers needed
+// ── AUTH HEADERS (kept for API calls that need it) ───────
 function getAuthHeaders() {
   return {};
 }
-
-async function savePortfolioToCloud(name, holdingsData) {
-  if (!currentUser) return null;
-  try {
-    const res = await fetch('/api/portfolios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        userId: currentUser.id,
-        name: name,
-        holdings: holdingsData,
-      }),
-    });
-    const data = await res.json();
-    if (data.portfolio) {
-      showToast('☁️ Saved to cloud!');
-      return data.portfolio;
-    }
-  } catch (err) {
-    console.warn('Cloud save failed:', err);
-  }
-  return null;
-}
-
-async function syncPortfoliosFromCloud() {
-  if (!currentUser) {
-    showToast('Sign in to sync portfolios.');
-    return;
-  }
-  try {
-    const res = await fetch('/api/portfolios?userId=' + currentUser.id, {
-      credentials: 'include',
-    });
-    const data = await res.json();
-    if (data.portfolios && data.portfolios.length > 0) {
-      // Replace local portfolios with cloud versions
-      const cloudPortfolios = data.portfolios.map(cp => ({
-        name: cp.name,
-        holdings: typeof cp.holdings === 'string' ? JSON.parse(cp.holdings) : cp.holdings,
-        cloudId: cp.id,
-      }));
-      localStorage.setItem('pc_portfolios', JSON.stringify(cloudPortfolios));
-      _activePortfolioIdx = -1;
-      _activePortfolioSnapshot = null;
-      if (typeof renderSidebarPortfolios === 'function') renderSidebarPortfolios();
-      closeSidebar();
-      showToast('☁️ Synced ' + cloudPortfolios.length + ' portfolio(s) from cloud');
-    } else {
-      showToast('No cloud portfolios found.');
-    }
-  } catch (err) {
-    console.warn('Cloud sync failed:', err);
-    showToast('Sync failed. Check your connection.');
-  }
-}
-
-// Hook into the existing savePortfolio function to also save to cloud
-const origSavePortfolio = window.savePortfolio;
-window.savePortfolio = async function() {
-  // Call original save (to localStorage) — it's async now
-  if (typeof origSavePortfolio === 'function') await origSavePortfolio();
-
-  // Also save to cloud if signed in
-  if (currentUser && holdings.length > 0) {
-    const name = document.querySelector('#saveModal input')?.value ||
-                 localStorage.getItem('pc_last_saved_name') ||
-                 'My Portfolio';
-    savePortfolioToCloud(name, holdings);
-  }
-};
 
 // Restore user session on page load
 (function restoreUserSession() {
@@ -1849,10 +1771,4 @@ window.refreshPortfolioStrip = async function() {
     fetchPortfolioPerformance().then(function(pm) { renderPortfolioStrip(pm); }).catch(function() {});
   };
 
-  // Wrap syncPortfoliosFromCloud
-  var prevSync = window.syncPortfoliosFromCloud;
-  window.syncPortfoliosFromCloud = async function() {
-    if (typeof prevSync === 'function') await prevSync();
-    refreshStrip();
-  };
 })();

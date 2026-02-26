@@ -253,7 +253,7 @@ function clearAllHoldings() {
   holdings.length = 0;
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
-  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze &amp; Recommend</strong></div></div>';
+  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze</strong></div></div>';
   renderHoldings();
   expandInputSections();
   if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
@@ -1440,9 +1440,6 @@ function renderSidebarPortfolios() {
 
   if (actionsEl) {
     let html = portfolios.length >= MAX_SLOTS ? '' : '<button class="sidebar-btn" onclick="savePortfolio()">＋ Save Current</button>';
-    if (typeof currentUser !== 'undefined' && currentUser) {
-      html += '<button class="sidebar-btn" onclick="syncPortfoliosFromCloud()">☁ Sync from Cloud</button>';
-    }
     actionsEl.innerHTML = html;
   }
 }
@@ -1535,12 +1532,6 @@ function deletePortfolio(idx) {
     _activePortfolioIdx--;
   }
   showToast('Portfolio deleted.');
-  if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
-    fetch('/api/portfolios?userId=' + currentUser.id + '&portfolioId=' + deleted.cloudId, {
-      method: 'DELETE',
-      credentials: 'include',
-    }).catch(() => {});
-  }
 }
 
 function renamePortfolio(idx, newName) {

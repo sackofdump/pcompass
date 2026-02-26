@@ -1826,18 +1826,23 @@
     white-space: nowrap;
   }
   .pdrawer-delete {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 16px;
+    background: rgba(255,100,100,0.08);
+    border: 1px solid rgba(255,100,100,0.15);
+    color: #ff6b6b;
+    font-size: 14px;
     cursor: pointer;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 2px 6px;
     border-radius: 4px;
     line-height: 1;
     transition: color 0.15s, background 0.15s;
     flex-shrink: 0;
   }
-  .pdrawer-delete:hover { color: var(--aggressive); background: var(--border); }
+  .pdrawer-delete:hover, .pdrawer-delete:active { color: #fff; background: rgba(255,100,100,0.25); border-color: rgba(255,100,100,0.4); }
   .pdrawer-item.active .pdrawer-name {
     background: var(--accent-gradient-text);
     -webkit-background-clip: text;
