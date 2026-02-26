@@ -360,6 +360,7 @@ const STOCK_DB = {
   BBY:{name:'Best Buy',sector:'Retail',beta:1.2,cap:'large'},
   AZO:{name:'AutoZone',sector:'Retail',beta:0.7,cap:'large'},
   ORLY:{name:"O'Reilly Auto",sector:'Retail',beta:0.8,cap:'large'},
+  RVI:{name:'Revvity',sector:'Healthcare',beta:0.9,cap:'large'},
   RVTY:{name:'Revvity',sector:'Healthcare',beta:1.0,cap:'large'},
   MNSO:{name:'Miniso',sector:'Retail',beta:1.3,cap:'mid'},
   // Telecom / Media
@@ -1911,7 +1912,7 @@ const STOCK_DB = {
 
 const ETF_DB = {
   aggressive:[
-    {ticker:'ARKK',name:'ARK Innovation',desc:'Disruptive tech, AI, genomics',exp:'0.75%',sectors:['AI & Robotics','Biotech','Software / SaaS']},
+    {ticker:'ARKK',name:'ARK Innovation',desc:'Disruptive tech, AI, genomics',exp:'0.75%',sectors:['AI & Robotics','Biotech','Fintech','Software / SaaS']},
     {ticker:'SMH',name:'VanEck Semis',desc:'Semiconductor leaders',exp:'0.35%',sectors:['Semiconductors']},
     {ticker:'KWEB',name:'China Internet',desc:'Chinese tech giants',exp:'0.70%',sectors:['China / Emerging']},
     {ticker:'IBIT',name:'iShares Bitcoin',desc:'Direct Bitcoin exposure',exp:'0.25%',sectors:['Crypto / Bitcoin']},

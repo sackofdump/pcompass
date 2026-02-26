@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pcompass-v13';
+const CACHE_NAME = 'pcompass-v15';
 const PRECACHE = [
   '/',
   '/index.html',

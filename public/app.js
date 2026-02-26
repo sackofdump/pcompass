@@ -392,41 +392,35 @@ function toggleStrategy(s) {
 }
 
 // ── POSITION SIZING HELPERS ──────────────────────────────
-let lastMarketDataCache = null;
 
-function buildPositionTable(amount, marketData) {
-  if (!holdings.length) return '';
-  let rows = '';
-  holdings.forEach(h => {
-    const alloc = h.pct;
-    const dollarAmt = (amount * alloc / 100);
-    const md = marketData && marketData[h.ticker];
-    const price = md ? md.price : null;
-    const shares = price ? (dollarAmt / price) : null;
-    rows += '<tr>' +
-      '<td><span class="ticker-cell">' + escapeHTML(h.ticker) + '</span><br><span class="sector-cell">' + escapeHTML(h.sector || '') + '</span></td>' +
-      '<td>' + alloc + '%</td>' +
-      '<td class="amount-cell">$' + Math.round(dollarAmt).toLocaleString() + '</td>' +
-      '<td class="shares-cell">' + (shares != null ? shares.toFixed(1) : '—') + '</td>' +
-      '</tr>';
-  });
-  return '<table><thead><tr><th>Holdings</th><th>Alloc</th><th>$ Amount</th><th>Est. Shares</th></tr></thead><tbody>' + rows + '</tbody></table>';
-}
-
-function calcPositionSizing() {
-  const input = document.getElementById('positionAmountInput');
-  const amount = parseFloat(input?.value) || 0;
-  if (amount <= 0) return;
-  const tableEl = document.getElementById('positionTableEl');
-  if (tableEl) tableEl.innerHTML = buildPositionTable(amount, lastMarketDataCache);
-}
-
-// Attach enter key listener after render
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && e.target.id === 'positionAmountInput') calcPositionSizing();
-});
 
 // ── ANALYZE ──────────────────────────────────────────────
+var SECTOR_GROUPS = {
+  tech: ['Big Tech','Semiconductors','AI & Robotics','Software / SaaS','Social Media','Fintech','Crypto / Bitcoin','Cybersecurity'],
+  healthcare: ['Healthcare','Biotech','Pharma'],
+  consumer: ['E-Commerce','Retail','Apparel','Food & Beverage','Consumer Staples','Pets & Specialty'],
+  energy: ['Oil & Gas','Clean Energy','Utilities'],
+  financial: ['Banking','Fintech','Insurance'],
+  industrial: ['Defense','Industrials','Aerospace','Materials','Real Estate'],
+};
+
+function _getSectorGroup(sectorName) {
+  for (var g in SECTOR_GROUPS) {
+    if (SECTOR_GROUPS[g].indexOf(sectorName) >= 0) return g;
+  }
+  return null;
+}
+
+function _computeGroupExposure(profileSectors) {
+  var exposure = {};
+  for (var g in SECTOR_GROUPS) {
+    var total = 0;
+    SECTOR_GROUPS[g].forEach(function(s) { total += (profileSectors[s] || 0); });
+    exposure[g] = total;
+  }
+  return exposure;
+}
+
 function scoreETF(etf, profile, missingSectorNames) {
   let score = 70;
   if (etf.sectors.includes('all')) {
@@ -444,6 +438,28 @@ function scoreETF(etf, profile, missingSectorNames) {
       else if (current < 10 && isMissing) score += 10;
       else if (current > 30) score -= 12;
     });
+
+    // Group exposure penalty: if ALL of the ETF's sectors are in groups
+    // that already have >25% portfolio exposure, penalize heavily
+    var groupExposure = _computeGroupExposure(profile.sectors);
+    var allInOverexposed = etf.sectors.length > 0 && etf.sectors.every(function(s) {
+      var g = _getSectorGroup(s);
+      return g && groupExposure[g] > 25;
+    });
+    if (allInOverexposed) score -= 20;
+
+    // Correlation penalty: if ETF appears in CORRELATED_PAIRS where
+    // portfolio holds 2+ stocks from the correlated group
+    if (typeof CORRELATED_PAIRS !== 'undefined') {
+      var ownedTickers = holdings.map(function(h) { return h.ticker; });
+      CORRELATED_PAIRS.forEach(function(pair) {
+        var stocks = pair[0], etfs = pair[1];
+        if (etfs.indexOf(etf.ticker) >= 0) {
+          var overlap = stocks.filter(function(t) { return ownedTickers.indexOf(t) >= 0; });
+          if (overlap.length >= 2) score -= 15;
+        }
+      });
+    }
   }
   return Math.min(99, Math.max(50, score));
 }
@@ -458,8 +474,8 @@ function getTopETFs(category, profile, n, missingSectorNames) {
 }
 
 function matchLabel(score) {
-  if (score >= 85) return '<span class="match-score match-high">✦ Great fit</span>';
-  return '<span class="match-score match-med">◈ Good fit</span>';
+  if (score >= 85) return '<span class="match-score match-high">✦ Best match to balance your portfolio</span>';
+  return '<span class="match-score match-med">◈ Good match to balance your portfolio</span>';
 }
 
 function analyze() {
@@ -516,6 +532,7 @@ function analyze() {
       moderate:['Medium','Low','High'],
       conservative:['Low','Medium'],
     }[strategyKey] || ['Medium'];
+    var groupExposure = _computeGroupExposure(sectors);
     return STOCK_PICKS
       .filter(p => !ownedTickers.includes(p.ticker) && !p.avoidIfHeld.some(t => ownedTickers.includes(t)) && riskAllowed.includes(p.risk))
       .map(p => {
@@ -530,6 +547,19 @@ function analyze() {
         else if ((sectors[p.sector]||0) > 30) score -= 10;
         if (p.risk === 'Low') score += 6;
         if (p.risk === 'Very High') score -= 8;
+        // Group exposure penalty
+        var g = _getSectorGroup(p.sector);
+        if (g && groupExposure[g] > 25) score -= 20;
+        // Correlation penalty
+        if (typeof CORRELATED_PAIRS !== 'undefined') {
+          CORRELATED_PAIRS.forEach(function(pair) {
+            var stocks = pair[0], etfs = pair[1];
+            if (etfs.indexOf(p.ticker) >= 0) {
+              var overlap = stocks.filter(function(t) { return ownedTickers.indexOf(t) >= 0; });
+              if (overlap.length >= 2) score -= 15;
+            }
+          });
+        }
         // Boost/penalise with live momentum (±15 pts max)
         const md = marketData && marketData[p.ticker];
         if (md) score += Math.round((md.momentum - 50) * 0.3);
@@ -743,24 +773,8 @@ function analyze() {
         '</div>';
     }
 
-    // ── Position Sizing ──
-    const positionHTML =
-      '<div class="position-panel">' +
-        '<div class="panel-header panel-toggle" onclick="togglePanel(this)"><h2 class="section-title">Position Sizing</h2><span class="panel-chevron panel-chevron-open">&#9662;</span><span class="panel-expand-hint">tap to collapse</span></div>' +
-        '<div class="panel-body">' +
-        '<div class="position-input-row">' +
-          '<label>$</label>' +
-          '<input type="number" id="positionAmountInput" value="" min="1" placeholder="Enter your budget">' +
-          '<button class="btn-calc" onclick="calcPositionSizing()" title="Calculate">&#8862;</button>' +
-        '</div>' +
-        '<div class="position-table" id="positionTableEl">' +
-        '</div>' +
-        '</div>' +
-      '</div>';
-
     document.getElementById('resultsPanel').innerHTML =
       healthHTML +
-      rebalanceHTML +
       '<div class="share-export-row">' +
         '<button class="btn-share" onclick="sharePortfolio()">🔗 Share Portfolio</button>' +
         '<button class="btn-export-pdf" onclick="exportPDF()">📄 Download PDF Report</button>' +
@@ -796,11 +810,11 @@ function analyze() {
         '<div class="sector-bars" id="sectorBarsEl">' + sectorBars + '</div>' +
         '</div>' +
       '</div>' +
-      positionHTML +
       '<div class="panel-header" style="border:none;padding:20px 0 8px;display:flex;align-items:center;justify-content:space-between;"><h2 class="section-title">Recommended Stocks</h2>' + statusHTML + '</div>' +
       strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
       strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
       strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
+      rebalanceHTML +
       '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from FMP &middot; Ranked by portfolio fit + live momentum.</span></div>';
 
     // Re-attach strategy legend listeners
@@ -838,6 +852,17 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
+  // Show portfolio overview chart + square holdings cards
+  if (holdings.length >= 3) {
+    _holdingsView = 'chart';
+    document.querySelectorAll('.view-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.view === 'chart');
+    });
+    renderHoldings();
+    fetchAndRenderSparklines();
+    if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+  }
+
   // Scroll so Portfolio Health is visible with Analyze button just above fold
   setTimeout(function() {
     var healthEl = document.querySelector('.health-panel');
@@ -858,7 +883,6 @@ function analyze() {
   (async function fetchMarketDataCachedCall() {
     const marketData = await fetchMarketDataCached(tickersToFetch);
     lastMarketFetch = Date.now();
-    lastMarketDataCache = marketData;
     renderResultsPanel(marketData);
     updateRefreshBtn();
   })();
@@ -1229,6 +1253,11 @@ function importAll() {
   previewHoldings = [];
   document.getElementById('importPreview').classList.remove('visible');
   renderHoldings();
+  // Collapse the upload section after import
+  var trigger = document.querySelector('.upload-compact-trigger');
+  var uploadExp = document.getElementById('uploadExpanded');
+  if (trigger) trigger.classList.remove('expanded');
+  if (uploadExp) uploadExp.classList.remove('expanded');
   if (skipped.length > 0) document.getElementById('errorMsg').textContent = 'Duplicates skipped: ' + skipped.join(', ');
 }
 
@@ -2295,6 +2324,7 @@ function _ensureChartModal() {
         '<div class="spark-shimmer" style="height:200px"></div>' +
       '</div>' +
       '<div class="chart-modal-stats" id="chartModalStats"></div>' +
+      '<div class="chart-modal-news" id="chartModalNews"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   _chartModalEl = overlay;
@@ -2346,6 +2376,9 @@ function showExpandedChart(ticker) {
 
   // Load chart data
   loadChartRange(ticker, '1d');
+
+  // Load news
+  loadTickerNews(ticker);
 }
 
 function loadChartRange(ticker, range) {
@@ -2398,6 +2431,48 @@ function closeExpandedChart() {
   if (overlay) overlay.classList.remove('open');
 }
 
+// ── STOCK NEWS IN CHART MODAL ────────────────────────────────
+
+function _timeAgo(dateStr) {
+  if (!dateStr) return '';
+  var d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  var diff = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+  return Math.floor(diff / 604800) + 'w ago';
+}
+
+function loadTickerNews(ticker) {
+  var newsEl = document.getElementById('chartModalNews');
+  if (!newsEl) return;
+  newsEl.innerHTML = '<div class="chart-news-loading">Loading news...</div>';
+
+  fetch('/api/stock-news?ticker=' + encodeURIComponent(ticker))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !data[ticker] || data[ticker].length === 0) {
+        newsEl.innerHTML = '<div class="chart-news-empty">No recent news</div>';
+        return;
+      }
+      var articles = data[ticker];
+      var html = '<div class="chart-news-label">Recent News</div>';
+      articles.forEach(function(a) {
+        var ago = _timeAgo(a.date);
+        html += '<a class="chart-news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
+          + '<div class="chart-news-title">' + escapeHTML(a.title) + '</div>'
+          + '<div class="chart-news-meta">' + escapeHTML(a.source) + (ago ? ' · ' + ago : '') + '</div>'
+          + '</a>';
+      });
+      newsEl.innerHTML = html;
+    })
+    .catch(function() {
+      newsEl.innerHTML = '<div class="chart-news-empty">News unavailable</div>';
+    });
+}
+
 // ── PORTFOLIO OVERVIEW CHART ─────────────────────────────────
 // Shows a composite weighted performance chart when a saved portfolio is loaded
 
@@ -2445,7 +2520,7 @@ function renderPortfolioOverview() {
   var inputSections = document.getElementById('inputSections');
   if (!container) return;
 
-  if (_activePortfolioIdx < 0 || holdings.length < 3) {
+  if (holdings.length < 3) {
     hidePortfolioOverview();
     return;
   }
@@ -2454,7 +2529,7 @@ function renderPortfolioOverview() {
   if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
 
   var portfolios = getSavedPortfolios();
-  var pName = (portfolios[_activePortfolioIdx] && portfolios[_activePortfolioIdx].name) || 'Portfolio';
+  var pName = (_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx] && portfolios[_activePortfolioIdx].name) || 'My Portfolio';
 
   container.innerHTML =
     '<div class="portfolio-overview">' +
@@ -2478,7 +2553,26 @@ function renderPortfolioOverview() {
     '</div>';
 
   container.style.display = 'block';
-  if (inputSections) inputSections.style.display = 'none';
+  // Instead of hiding all inputSections, only hide the upload trigger and form
+  // so the holdings grid (square cards) stays visible
+  if (inputSections) {
+    var trigger = inputSections.querySelector('.upload-compact-trigger');
+    var expanded = inputSections.querySelector('#uploadExpanded');
+    var stockForm = inputSections.querySelector('.stock-form');
+    if (trigger) trigger.style.display = 'none';
+    if (expanded) expanded.style.display = 'none';
+    if (stockForm) stockForm.style.display = 'none';
+  }
+
+  // Ensure holdings are in chart view
+  if (typeof _holdingsView !== 'undefined' && holdings.length >= 3) {
+    _holdingsView = 'chart';
+    document.querySelectorAll('.view-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.view === 'chart');
+    });
+    renderHoldings();
+    fetchAndRenderSparklines();
+  }
 
   loadPortfolioChartRange('1d');
 }
@@ -2525,5 +2619,13 @@ function hidePortfolioOverview() {
   var container = document.getElementById('portfolioOverviewChart');
   var inputSections = document.getElementById('inputSections');
   if (container) container.style.display = 'none';
-  if (inputSections) inputSections.style.display = '';
+  if (inputSections) {
+    inputSections.style.display = '';
+    var trigger = inputSections.querySelector('.upload-compact-trigger');
+    var expanded = inputSections.querySelector('#uploadExpanded');
+    var stockForm = inputSections.querySelector('.stock-form');
+    if (trigger) trigger.style.display = '';
+    if (expanded) expanded.style.display = '';
+    if (stockForm) stockForm.style.display = '';
+  }
 }

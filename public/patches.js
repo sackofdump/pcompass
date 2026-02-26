@@ -156,6 +156,189 @@ function _closeNavPanel(id) {
   _setActiveTab('navPortfolios');
 }
 
+// ── PANEL DRAG / SNAP ────────────────────────────────────
+var _dragState = null;
+var _snappedPanels = {}; // panelId -> { html, title }
+
+function _addDragHandle(panelId, headerEl) {
+  if (!headerEl || headerEl.querySelector('.panel-drag-handle')) return;
+  var closeBtn = headerEl.querySelector('.nav-panel-close');
+  var handle = document.createElement('button');
+  handle.className = 'panel-drag-handle';
+  handle.innerHTML = '\u2725'; // ✥
+  handle.title = 'Drag to snap into main area';
+  handle.setAttribute('data-panel', panelId);
+  if (closeBtn) {
+    headerEl.insertBefore(handle, closeBtn);
+  } else {
+    headerEl.appendChild(handle);
+  }
+
+  // Detect iOS
+  var isIOS = typeof _isIOSApp !== 'undefined' ? _isIOSApp : /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+  if (isIOS) {
+    // Long-press to enter move mode
+    var lpTimer = null;
+    handle.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      lpTimer = setTimeout(function() {
+        lpTimer = null;
+        _enterMoveMode(panelId);
+      }, 500);
+    }, {passive: false});
+    handle.addEventListener('touchend', function() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
+    handle.addEventListener('touchmove', function() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
+  } else {
+    // Desktop drag
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      _startDrag(panelId, e.clientX, e.clientY);
+    });
+  }
+}
+
+function _startDrag(panelId, startX, startY) {
+  var overlay = document.getElementById(panelId);
+  if (!overlay) return;
+  var panel = overlay.querySelector('.nav-panel');
+  if (!panel) return;
+
+  var rect = panel.getBoundingClientRect();
+  var clone = panel.cloneNode(true);
+  clone.className = 'nav-panel panel-dragging';
+  clone.id = 'dragClone';
+  clone.style.width = rect.width + 'px';
+  clone.style.left = rect.left + 'px';
+  clone.style.top = rect.top + 'px';
+  document.body.appendChild(clone);
+  document.body.classList.add('dragging-panel');
+
+  // Hide original
+  overlay.style.visibility = 'hidden';
+
+  // Show drop zone on results panel
+  var results = document.getElementById('resultsPanel');
+  if (results) results.classList.add('panel-drop-zone');
+
+  var offsetX = startX - rect.left;
+  var offsetY = startY - rect.top;
+
+  _dragState = { panelId: panelId, clone: clone, overlay: overlay, offsetX: offsetX, offsetY: offsetY };
+
+  function onMove(e) {
+    clone.style.left = (e.clientX - offsetX) + 'px';
+    clone.style.top = (e.clientY - offsetY) + 'px';
+  }
+  function onUp(e) {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.classList.remove('dragging-panel');
+    if (results) results.classList.remove('panel-drop-zone');
+    clone.remove();
+
+    // Check if dropped near the results panel
+    if (results) {
+      var rr = results.getBoundingClientRect();
+      var dropX = e.clientX, dropY = e.clientY;
+      // Generous hit area: within 60px of results panel
+      if (dropX >= rr.left - 60 && dropX <= rr.right + 60 && dropY >= rr.top - 60 && dropY <= rr.bottom + 60) {
+        _snapPanelToMain(panelId);
+        return;
+      }
+    }
+    // Snap back
+    overlay.style.visibility = '';
+    _dragState = null;
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function _enterMoveMode(panelId) {
+  var overlay = document.getElementById(panelId);
+  if (!overlay) return;
+  var panel = overlay.querySelector('.nav-panel');
+  if (!panel) return;
+  panel.classList.add('panel-move-mode');
+
+  // Show drop zone
+  var results = document.getElementById('resultsPanel');
+  if (results) results.classList.add('panel-drop-zone');
+
+  function onTap(e) {
+    document.removeEventListener('click', onTap, true);
+    panel.classList.remove('panel-move-mode');
+    if (results) results.classList.remove('panel-drop-zone');
+
+    // Check if tap was on results panel
+    if (results) {
+      var rr = results.getBoundingClientRect();
+      if (e.clientX >= rr.left && e.clientX <= rr.right && e.clientY >= rr.top && e.clientY <= rr.bottom) {
+        e.preventDefault();
+        e.stopPropagation();
+        _snapPanelToMain(panelId);
+        return;
+      }
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  // Use capture so we intercept before other handlers
+  setTimeout(function() { document.addEventListener('click', onTap, true); }, 50);
+}
+
+function _snapPanelToMain(panelId) {
+  var overlay = document.getElementById(panelId);
+  if (!overlay) return;
+  var panel = overlay.querySelector('.nav-panel');
+  if (!panel) return;
+
+  // Store panel content
+  _snappedPanels[panelId] = { html: panel.outerHTML, title: panelId };
+
+  // Close the overlay
+  overlay.classList.remove('open');
+  overlay.style.visibility = '';
+
+  // Insert into results panel
+  var results = document.getElementById('resultsPanel');
+  if (!results) return;
+
+  var wrapper = document.createElement('div');
+  wrapper.className = 'panel-snapped-wrapper';
+  wrapper.id = 'snapped-' + panelId;
+  wrapper.innerHTML = panel.outerHTML;
+
+  // Replace close button with pop-out button
+  var header = wrapper.querySelector('.nav-panel-header');
+  if (header) {
+    var closeBtn = header.querySelector('.nav-panel-close');
+    if (closeBtn) closeBtn.remove();
+    var dragHandle = header.querySelector('.panel-drag-handle');
+    if (dragHandle) dragHandle.remove();
+    var popout = document.createElement('button');
+    popout.className = 'panel-snapped-popout';
+    popout.textContent = 'Pop Out';
+    popout.onclick = function() { _unsnapPanel(panelId); };
+    header.appendChild(popout);
+  }
+
+  results.insertBefore(wrapper, results.firstChild);
+  _dragState = null;
+}
+
+function _unsnapPanel(panelId) {
+  var wrapper = document.getElementById('snapped-' + panelId);
+  if (wrapper) wrapper.remove();
+  delete _snappedPanels[panelId];
+
+  // Re-open the overlay panel
+  if (panelId === 'marketPanel') openMarketPanel();
+  else if (panelId === 'chartsPanel') navToCharts();
+  else if (panelId === 'explorePanel') openExplorePanel();
+}
+
 // ── MARKET PANEL ─────────────────────────────────────────
 function openMarketPanel() {
   var overlay = _getOrCreatePanel('marketPanel');
@@ -180,6 +363,7 @@ function openMarketPanel() {
 
   overlay.innerHTML = html;
   overlay.classList.add('open');
+  _addDragHandle('marketPanel', overlay.querySelector('.nav-panel-header'));
 
   // Load movers
   fetchTopMovers().then(function(movers) {
@@ -246,6 +430,7 @@ function navToCharts() {
 
   overlay.innerHTML = html;
   overlay.classList.add('open');
+  _addDragHandle('chartsPanel', overlay.querySelector('.nav-panel-header'));
 
   // Load movers
   fetchTopMovers().then(function(movers) {
@@ -333,6 +518,7 @@ function _renderExploreContent(overlay) {
 
   html += '</div></div>';
   overlay.innerHTML = html;
+  _addDragHandle('explorePanel', overlay.querySelector('.nav-panel-header'));
 
   // Focus search if visible
   var inp = document.getElementById('exploreSearchInput');
@@ -494,20 +680,12 @@ function renderPortfolioDrawer() {
       var count = p.holdings ? p.holdings.length : 0;
       var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
       var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
-      var perf = _lastPerfMap && _lastPerfMap[i] != null ? _lastPerfMap[i] : null;
-      var perfHtml = '';
-      if (perf != null) {
-        var cls = perf > 0.005 ? 'up' : perf < -0.005 ? 'down' : 'flat';
-        var sign = perf > 0 ? '+' : '';
-        perfHtml = '<span class="pstrip-change ' + cls + '">' + sign + perf.toFixed(2) + '%</span>';
-      }
       var isDefault = (typeof getDefaultPortfolioIdx === 'function' && getDefaultPortfolioIdx() === i);
       var starHtml = '<button class="pdrawer-star' + (isDefault ? ' active' : '') + '" onclick="event.stopPropagation();toggleDefaultPortfolio(' + i + ')" title="' + (isDefault ? 'Remove default' : 'Set as default') + '">' + (isDefault ? '\u2605' : '\u2606') + '</button>';
       html += '<div class="pdrawer-item' + (isActive ? ' active' : '') + '" style="border-left-color:' + riskColor + '">'
         + starHtml
         + '<div class="pdrawer-info" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
         + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
-        + perfHtml
         + '<button class="pstrip-edit" onclick="event.stopPropagation();renamePortfolio(' + i + ')" title="Rename">&#9998;</button>'
         + '<button class="pdrawer-delete" onclick="quickDeletePortfolio(' + i + ')" title="Delete">&#128465;</button>'
         + '</div>';
@@ -1612,21 +1790,11 @@ function renderPortfolioStrip(performanceMap) {
       var count = p.holdings ? p.holdings.length : 0;
       var isActive = (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === i);
       var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
-      var changeBadge;
-      if (pm && pm[i] != null) {
-        var val = pm[i];
-        var cls = val > 0.005 ? 'up' : val < -0.005 ? 'down' : 'flat';
-        var sign = val > 0 ? '+' : '';
-        changeBadge = '<span class="pstrip-change ' + cls + '">' + sign + val.toFixed(2) + '%</span>';
-      } else {
-        changeBadge = '<span class="pstrip-change loading">\u2022\u2022\u2022</span>';
-      }
       var isDefault = (typeof getDefaultPortfolioIdx === 'function' && getDefaultPortfolioIdx() === i);
       var stripStar = isDefault ? '<span class="pstrip-star">\u2605</span>' : '';
       html += '<div class="pstrip-card' + (isActive ? ' active' : '') + '" onclick="loadPortfolio(' + i + ')" title="' + escapeHTML(p.name) + '" style="border-left-color:' + riskColor + '">'
         + '<div class="pstrip-info"><div class="pstrip-name">' + stripStar + escapeHTML(p.name) + '</div>'
         + '<div class="pstrip-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
-        + changeBadge
         + '<button class="pstrip-edit" onclick="event.stopPropagation();renamePortfolio(' + i + ')" title="Rename">&#9998;</button>'
         + '</div>';
     }
