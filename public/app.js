@@ -2033,13 +2033,12 @@ function renderSparklineSVG(closes, width, height, positive) {
   var polyPoints = points.join(' ');
 
   var color = positive ? '#22c55e' : '#ef4444';
-  var fillColor = positive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
   var gradId = 'sg' + Math.random().toString(36).substr(2, 6);
 
   // Build fill polygon (close the path at bottom)
   var fillPoints = polyPoints + ' ' + width + ',' + height + ' 0,' + height;
 
-  return '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
+  var svg = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
     '<defs><linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
     '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.2"/>' +
     '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/>' +
@@ -2047,6 +2046,10 @@ function renderSparklineSVG(closes, width, height, positive) {
     '<polygon points="' + fillPoints + '" fill="url(#' + gradId + ')"/>' +
     '<polyline points="' + polyPoints + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
     '</svg>';
+
+  // Use <img> with data URI for universal iOS/Safari compatibility
+  // (raw SVG innerHTML doesn't reliably render on WebKit)
+  return '<img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '" style="width:100%;height:100%;display:block;" alt="chart"/>';
 }
 
 function fetchAndRenderSparklines() {

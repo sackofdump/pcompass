@@ -15,7 +15,8 @@
     "api/send-notifications.js": { "maxDuration": 30 },
     "api/refresh-stock-data.js": { "maxDuration": 60 },
     "api/stock-data.js": { "maxDuration": 10 },
-    "api/sparkline.js": { "maxDuration": 15 }
+    "api/sparkline.js": { "maxDuration": 15 },
+    "api/top-movers.js": { "maxDuration": 30 }
   },
   "crons": [
     {
@@ -67,6 +68,15 @@
         {
           "key": "Cache-Control",
           "value": "s-maxage=14400, stale-while-revalidate=1800"
+        }
+      ]
+    },
+    {
+      "source": "/api/top-movers",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "s-maxage=900, stale-while-revalidate=300"
         }
       ]
     },
