@@ -266,6 +266,10 @@ function renderHoldings() {
   // Show/hide clear all button
   const clearBtn = document.getElementById('btnClearAll');
   if (clearBtn) clearBtn.style.display = holdings.length > 0 ? 'inline-block' : 'none';
+
+  // Show/hide new portfolio button (visible when a portfolio is loaded)
+  const newBtn = document.getElementById('btnNewPortfolio');
+  if (newBtn) newBtn.style.display = (_activePortfolioIdx >= 0 || holdings.length > 0) ? 'inline-block' : 'none';
 }
 
 function toggleHoldingsBody() {
@@ -306,6 +310,19 @@ function clearAllHoldings() {
   // Re-enable sticky button visibility for next portfolio
   const stickyBtn = document.querySelector('.btn-analyze-sticky');
   if (stickyBtn) stickyBtn.dataset.analyzed = '';
+}
+
+function newPortfolio() {
+  // Deactivate current portfolio and start fresh
+  _activePortfolioIdx = -1;
+  _activePortfolioSnapshot = null;
+  holdings.length = 0;
+  if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
+  document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze</strong></div></div>';
+  renderHoldings();
+  expandInputSections();
+  if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
 }
 
 function updateSlider(i, val) {
