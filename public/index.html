@@ -32,10 +32,12 @@
   .splash-loader.fade-out{opacity:0;pointer-events:none;}
   body.light .splash-loader{background:#f4f6f9;}
   .splash-compass{width:56px;height:56px;border:2px solid #2a3140;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;animation:splashPulse 1.8s ease-in-out infinite;}
-  .splash-compass::before{content:'';position:absolute;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:16px solid #00e5a0;top:5px;filter:drop-shadow(0 0 6px rgba(0,229,160,0.7));}
-  .splash-compass::after{content:'';position:absolute;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:16px solid #ff8c42;bottom:5px;opacity:0.55;}
+  .splash-needle{position:absolute;inset:0;animation:splashSpin 2s ease-in-out infinite;}
+  .splash-needle::before{content:'';position:absolute;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:16px solid #00e5a0;top:5px;left:50%;transform:translateX(-50%);filter:drop-shadow(0 0 6px rgba(0,229,160,0.7));}
+  .splash-needle::after{content:'';position:absolute;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:16px solid #ff8c42;bottom:5px;left:50%;transform:translateX(-50%);opacity:0.55;}
   .splash-compass-dot{width:5px;height:5px;background:#e8ecf0;border-radius:50%;position:absolute;z-index:2;}
   @keyframes splashPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,160,0.3);}50%{box-shadow:0 0 0 14px rgba(0,229,160,0);}}
+  @keyframes splashSpin{0%{transform:rotate(0deg);}30%{transform:rotate(120deg);}50%{transform:rotate(90deg);}80%{transform:rotate(330deg);}100%{transform:rotate(360deg);}}
   .splash-title{margin-top:18px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#e8ecf0;}
   .splash-title span{color:#00e5a0;}
   body.light .splash-title{color:#1a1f2e;}
@@ -45,7 +47,7 @@
 </head>
 <body>
 <div class="splash-loader" id="splashLoader">
-  <div class="splash-compass"><div class="splash-compass-dot"></div></div>
+  <div class="splash-compass"><div class="splash-needle"></div><div class="splash-compass-dot"></div></div>
   <div class="splash-title">Portfolio <span>Compass</span></div>
 </div>
 
@@ -96,9 +98,12 @@
   <!-- Left: Input Panel -->
   <div>
     <div class="panel">
-      <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <h2 class="section-title">Your Holdings</h2>
-        <div style="display:flex;gap:6px;align-items:center;">
+      <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleHoldingsBody()">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <h2 class="section-title" style="margin:0;">Your Holdings</h2>
+          <span id="holdingsChevron" style="color:var(--muted);font-size:12px;transition:transform 0.2s;">&#9662;</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;" onclick="event.stopPropagation();">
           <button class="slot-btn" id="btnNewPortfolio" onclick="newPortfolio()" title="New portfolio" style="display:none;">＋</button>
           <button class="slot-btn" id="btnClearAll" onclick="clearAllHoldings()" title="Clear all holdings">🗑</button>
           <button class="slot-btn" id="btnQuickSave" onclick="savePortfolio()" title="Save portfolio" style="display:none;">💾</button>
@@ -155,7 +160,7 @@
       </div>
 
       <!-- Manual input -->
-      <div style="padding:0 24px;"><div style="font-family:'Space Mono',monospace;font-size:10px;color:#5a6478;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px;">Or enter manually</div></div>
+      <div id="manualInputLabel" style="padding:0 24px;"><div style="font-family:'Space Mono',monospace;font-size:10px;color:#5a6478;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px;">Or enter manually</div></div>
       <div class="stock-form">
         <div class="input-row">
           <div class="autocomplete-wrapper" style="position:relative;flex:1;">

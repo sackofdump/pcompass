@@ -63,45 +63,58 @@ async function fetchSparkline(ticker, range, crumb, cookie) {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
-  try {
-    const interval = range === '1d' ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
-    let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
-    if (crumb) url += `&crumb=${encodeURIComponent(crumb)}`;
+  const interval = range === '1d' ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
 
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'application/json',
-    };
-    if (cookie) headers['Cookie'] = cookie;
-
-    const r = await fetch(url, {
-      headers,
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    const result = data?.chart?.result?.[0];
-    if (!result) return null;
-
-    const closes = result.indicators?.quote?.[0]?.close;
-    const timestamps = result.timestamp;
-    if (!closes || !timestamps || closes.length < 2) return null;
-
-    // Filter out null values while keeping timestamps aligned
-    const filtered = { closes: [], timestamps: [] };
-    for (let i = 0; i < closes.length; i++) {
-      if (closes[i] != null) {
-        filtered.closes.push(Math.round(closes[i] * 100) / 100);
-        filtered.timestamps.push(timestamps[i]);
+  // Try with crumb first, then without as fallback
+  for (const useCrumb of [true, false]) {
+    try {
+      let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      };
+      if (useCrumb && crumb) {
+        url += `&crumb=${encodeURIComponent(crumb)}`;
+        if (cookie) headers['Cookie'] = cookie;
       }
-    }
 
-    if (filtered.closes.length < 2) return null;
-    setCached(cacheKey, filtered);
-    return filtered;
-  } catch {
-    return null;
+      const r = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!r.ok) {
+        if (useCrumb && crumb) continue; // retry without crumb
+        return null;
+      }
+      const data = await r.json();
+      const result = data?.chart?.result?.[0];
+      if (!result) {
+        if (useCrumb && crumb) continue;
+        return null;
+      }
+
+      const closes = result.indicators?.quote?.[0]?.close;
+      const timestamps = result.timestamp;
+      if (!closes || !timestamps || closes.length < 2) return null;
+
+      // Filter out null values while keeping timestamps aligned
+      const filtered = { closes: [], timestamps: [] };
+      for (let i = 0; i < closes.length; i++) {
+        if (closes[i] != null) {
+          filtered.closes.push(Math.round(closes[i] * 100) / 100);
+          filtered.timestamps.push(timestamps[i]);
+        }
+      }
+
+      if (filtered.closes.length < 2) return null;
+      setCached(cacheKey, filtered);
+      return filtered;
+    } catch {
+      if (useCrumb && crumb) continue;
+      return null;
+    }
   }
+  return null;
 }
 
 // ── HANDLER ──────────────────────────────────────────────

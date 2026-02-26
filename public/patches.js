@@ -1692,6 +1692,17 @@ window.refreshPortfolioStrip = async function() {
     btn.disabled = true;
   }
   try {
+    // Clear sparkline caches so chart data is re-fetched
+    if (typeof _sparkCache !== 'undefined') {
+      for (var k in _sparkCache) delete _sparkCache[k];
+    }
+    var keysToDelete = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var key = localStorage.key(i);
+      if (key && key.startsWith('pc_sp_')) keysToDelete.push(key);
+    }
+    keysToDelete.forEach(function(k) { localStorage.removeItem(k); });
+
     var tickers = _collectPortfolioTickers();
     console.log('[portfolio-strip] refreshing', tickers.length, 'tickers');
     var pm = await fetchPortfolioPerformance(true);
@@ -1700,6 +1711,15 @@ window.refreshPortfolioStrip = async function() {
       showToast('\u2713 Prices updated');
     } else {
       renderPortfolioStrip(null);
+    }
+    // Also refresh sparkline charts and holdings card prices
+    if (typeof fetchAndRenderSparklines === 'function') fetchAndRenderSparklines();
+    // Refresh portfolio overview chart if visible
+    var chartArea = document.getElementById('portfolioOverviewChartArea');
+    if (chartArea && typeof loadPortfolioChartRange === 'function') {
+      var activeBtn = document.querySelector('#portfolioOverviewChart .chart-range-btn.active');
+      var range = activeBtn ? activeBtn.dataset.range : '1d';
+      loadPortfolioChartRange(range);
     }
   } catch(e) {
     console.warn('[portfolio-strip] refresh failed:', e);

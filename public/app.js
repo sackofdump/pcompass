@@ -2470,14 +2470,16 @@ function renderPortfolioOverview() {
     '</div>';
 
   container.style.display = 'block';
-  // Instead of hiding all inputSections, only hide the upload trigger and form
+  // Instead of hiding all inputSections, only hide the upload trigger, form, and manual label
   // so the holdings grid (square cards) stays visible
   if (inputSections) {
     var trigger = inputSections.querySelector('.upload-compact-trigger');
     var expanded = inputSections.querySelector('#uploadExpanded');
+    var manualLabel = inputSections.querySelector('#manualInputLabel');
     var stockForm = inputSections.querySelector('.stock-form');
     if (trigger) trigger.style.display = 'none';
     if (expanded) expanded.style.display = 'none';
+    if (manualLabel) manualLabel.style.display = 'none';
     if (stockForm) stockForm.style.display = 'none';
   }
 
@@ -2511,13 +2513,36 @@ function loadPortfolioChartRange(range) {
 
   var tickers = holdings.map(function(h) { return h.ticker; });
   fetchSparklineData(tickers, range).then(function(sparkData) {
-    if (!sparkData) {
-      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available</div>';
+    if (!sparkData || Object.keys(sparkData).length === 0) {
+      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available — try again</div>';
       return;
     }
     var result = computePortfolioLine(sparkData, holdings);
     if (!result || result.closes.length < 2) {
-      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">Insufficient data</div>';
+      // Retry once after clearing cache for this range
+      for (var i = 0; i < tickers.length; i++) {
+        var key = tickers[i] + ':' + range;
+        if (typeof _sparkCache !== 'undefined') delete _sparkCache[key];
+        try { localStorage.removeItem('pc_sp_' + key); } catch(e) {}
+      }
+      fetchSparklineData(tickers, range).then(function(retryData) {
+        if (!retryData || Object.keys(retryData).length === 0) {
+          chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available for this range</div>';
+          return;
+        }
+        var retryResult = computePortfolioLine(retryData, holdings);
+        if (!retryResult || retryResult.closes.length < 2) {
+          chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">Insufficient data for this range</div>';
+          return;
+        }
+        chartArea.innerHTML = renderSparklineSVG(retryResult.closes, 500, 220, retryResult.positive);
+        if (perfBadge) {
+          var pct = retryResult.changePct;
+          var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
+          var sign = pct > 0 ? '+' : '';
+          perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+        }
+      });
       return;
     }
     chartArea.innerHTML = renderSparklineSVG(result.closes, 500, 220, result.positive);
@@ -2540,9 +2565,11 @@ function hidePortfolioOverview() {
     inputSections.style.display = '';
     var trigger = inputSections.querySelector('.upload-compact-trigger');
     var expanded = inputSections.querySelector('#uploadExpanded');
+    var manualLabel = inputSections.querySelector('#manualInputLabel');
     var stockForm = inputSections.querySelector('.stock-form');
     if (trigger) trigger.style.display = '';
     if (expanded) expanded.style.display = '';
+    if (manualLabel) manualLabel.style.display = '';
     if (stockForm) stockForm.style.display = '';
   }
 }
