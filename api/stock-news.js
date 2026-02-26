@@ -17,62 +17,37 @@ function setCached(key, data) {
 }
 
 const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-// ── GOOGLE NEWS RSS PARSER ─────────────────────────────────
-// Free, no API key, no rate limits
-async function fetchGoogleNews(ticker, limit) {
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(ticker + ' stock')}&hl=en-US&gl=US&ceid=US:en`;
-  const r = await fetch(url, {
-    signal: AbortSignal.timeout(6000),
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PortfolioCompass/1.0)' },
-  });
-  if (!r.ok) {
-    console.warn(`[stock-news] Google News returned ${r.status} for ${ticker}`);
+// ── YAHOO FINANCE SEARCH (news) ─────────────────────────────
+// Uses the same Yahoo domain as sparklines — works from Vercel
+async function fetchYahooNews(ticker, limit) {
+  try {
+    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${limit}&quotesCount=0`;
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': UA },
+    });
+    if (!r.ok) return [];
+    const data = await r.json();
+    if (!data.news || !Array.isArray(data.news)) return [];
+    return data.news.map(a => ({
+      ticker,
+      title: a.title || '',
+      text: '',
+      url: a.link || '',
+      source: a.publisher || '',
+      date: a.providerPublishTime
+        ? new Date(a.providerPublishTime * 1000).toISOString()
+        : '',
+    }));
+  } catch {
     return [];
   }
-  const xml = await r.text();
-
-  // Simple XML parse — extract <item> blocks
-  const items = [];
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  let match;
-  while ((match = itemRegex.exec(xml)) !== null && items.length < limit) {
-    const block = match[1];
-    const title = (block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
-    const link = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
-    const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
-    // Source is after " - " at end of title (e.g. "Headline - Reuters")
-    const sourceSplit = title.split(' - ');
-    const source = sourceSplit.length > 1 ? sourceSplit.pop().trim() : '';
-    const cleanTitle = sourceSplit.join(' - ').trim();
-
-    if (cleanTitle) {
-      items.push({
-        ticker,
-        title: decodeXML(cleanTitle),
-        text: '',
-        url: decodeXML(link),
-        source: decodeXML(source),
-        date: pubDate ? new Date(pubDate).toISOString() : '',
-      });
-    }
-  }
-  return items;
-}
-
-function decodeXML(str) {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'");
 }
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
-  // ── CORS ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
   setSecurityHeaders(res);
@@ -91,7 +66,6 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
 
-  // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!await checkRateLimit(ip, 'stock-news', 30)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
@@ -101,7 +75,6 @@ export default async function handler(req, res) {
   const raw = req.query.tickers || req.query.ticker || '';
   if (!raw) return res.status(400).json({ error: 'No tickers provided' });
 
-  // Parse + sanitize ticker list (cap at 20)
   const tickers = raw.split(',')
     .map(t => t.trim().toUpperCase().replace(/[^A-Z0-9.]/g, ''))
     .filter(t => t.length >= 1 && t.length <= 6 && TICKER_RE.test(t))
@@ -111,7 +84,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid tickers' });
   }
 
-  // Cache key: sorted tickers joined
   const cacheKey = [...tickers].sort().join(',');
   const cached = getCached(cacheKey);
   if (cached) {
@@ -123,11 +95,11 @@ export default async function handler(req, res) {
     const isSingle = tickers.length === 1;
     const perTicker = isSingle ? 5 : Math.max(2, Math.floor(10 / tickers.length));
 
-    // Fetch news for each ticker in parallel via Google News RSS
+    // Fetch news for each ticker in parallel via Yahoo Finance search
     const allArticles = [];
     await Promise.allSettled(
       tickers.map(async (ticker) => {
-        const articles = await fetchGoogleNews(ticker, perTicker);
+        const articles = await fetchYahooNews(ticker, perTicker);
         allArticles.push(...articles);
       })
     );
@@ -139,7 +111,6 @@ export default async function handler(req, res) {
       return db - da;
     });
 
-    // Cap total articles
     const trimmed = allArticles.slice(0, isSingle ? 5 : 10);
 
     const result = isSingle
