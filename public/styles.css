@@ -2291,6 +2291,15 @@
     padding: 12px 0;
     text-align: center;
   }
+  .chart-modal-news { padding: 0 4px; margin-top: 12px; }
+  .chart-news-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
 
   /* ── SPARKLINE MOBILE ────────────────────────────────── */
   @media (max-width: 600px) {

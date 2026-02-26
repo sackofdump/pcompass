@@ -2365,6 +2365,7 @@ function _ensureChartModal() {
         '<div class="spark-shimmer" style="height:200px"></div>' +
       '</div>' +
       '<div class="chart-modal-stats" id="chartModalStats"></div>' +
+      '<div class="chart-modal-news" id="chartModalNews"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   _chartModalEl = overlay;
@@ -2416,6 +2417,9 @@ function showExpandedChart(ticker) {
 
   // Load chart data
   loadChartRange(ticker, '1d');
+
+  // Load news for this ticker
+  loadTickerNews(ticker);
 }
 
 function loadChartRange(ticker, range) {
@@ -2480,6 +2484,34 @@ function _timeAgo(dateStr) {
   if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
   if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
   return Math.floor(diff / 604800) + 'w ago';
+}
+
+function loadTickerNews(ticker) {
+  var newsEl = document.getElementById('chartModalNews');
+  if (!newsEl) return;
+  newsEl.innerHTML = '<div class="news-loading">Loading news...</div>';
+
+  fetch('/api/stock-news?ticker=' + encodeURIComponent(ticker))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !data[ticker] || data[ticker].length === 0) {
+        newsEl.innerHTML = '<div class="news-empty">No recent news</div>';
+        return;
+      }
+      var articles = data[ticker];
+      var html = '<div class="chart-news-label">Recent News</div>';
+      articles.forEach(function(a) {
+        var ago = _timeAgo(a.date);
+        html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
+          + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
+          + '<div class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</div>'
+          + '</a>';
+      });
+      newsEl.innerHTML = html;
+    })
+    .catch(function() {
+      newsEl.innerHTML = '<div class="news-empty">News unavailable</div>';
+    });
 }
 
 function loadPortfolioNews() {
