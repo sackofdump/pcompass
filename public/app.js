@@ -2391,8 +2391,8 @@ function showExpandedChart(ticker) {
   document.getElementById('chartModalChart').innerHTML = '<div class="spark-shimmer" style="height:200px"></div>';
   document.getElementById('chartModalStats').innerHTML = '';
 
-  // Reset range buttons — 1M active by default
-  document.querySelectorAll('.chart-range-btn').forEach(function(b) {
+  // Reset range buttons — 1D active by default (scoped to modal only)
+  document.getElementById('chartModalRanges').querySelectorAll('.chart-range-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.range === '1d');
   });
 
@@ -2431,8 +2431,9 @@ function loadChartRange(ticker, range) {
   chartEl.innerHTML = '<div class="spark-shimmer" style="height:200px"></div>';
   statsEl.innerHTML = '';
 
-  // Update active range button
-  document.querySelectorAll('.chart-range-btn').forEach(function(b) {
+  // Update active range button (scoped to modal only)
+  var rangesEl = document.getElementById('chartModalRanges');
+  if (rangesEl) rangesEl.querySelectorAll('.chart-range-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.range === range);
   });
 
