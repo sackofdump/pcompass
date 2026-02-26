@@ -108,8 +108,6 @@ let _activePortfolioIdx = -1;
 let _activePortfolioSnapshot = null;
 let _holdingsView = 'chart';
 
-// Preloaded news cache (filled during splash, consumed by loadPortfolioNews)
-let _preloadedNews = null;
 
 // ── HOLDINGS LOGIC ───────────────────────────────────────
 function totalAllocation() {
@@ -783,7 +781,6 @@ function analyze() {
       healthHTML +
       '<div class="share-export-row">' +
         '<button class="btn-share" onclick="sharePortfolio()">🔗 Share Portfolio</button>' +
-        '<button class="btn-export-pdf" onclick="exportPDF()">📄 Download PDF Report</button>' +
       '</div>' +
       '<div class="analysis-bar">' +
         '<div class="analysis-bar-header panel-toggle" onclick="togglePanel(this)">' +
@@ -829,18 +826,6 @@ function analyze() {
           strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
         '</div>' +
       '</div>' +
-      '<div class="news-panel rebalance-panel" id="portfolioNewsPanel">' +
-        '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
-          '<h2 class="section-title">Portfolio News</h2>' +
-          '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
-          '<span class="panel-expand-hint">tap to collapse</span>' +
-        '</div>' +
-        '<div class="panel-body">' +
-          '<div class="news-list" id="portfolioNewsList">' +
-            '<div class="news-loading">Loading news...</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
       '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from FMP &middot; Ranked by portfolio fit + live momentum.</span></div>';
 
     // Re-attach strategy legend listeners
@@ -878,9 +863,6 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Load combined portfolio news feed
-  loadPortfolioNews();
-
   // Show portfolio overview chart + square holdings cards
   if (holdings.length >= 3) {
     _holdingsView = 'chart';
@@ -913,7 +895,6 @@ function analyze() {
     const marketData = await fetchMarketDataCached(tickersToFetch);
     lastMarketFetch = Date.now();
     renderResultsPanel(marketData);
-    loadPortfolioNews();
     updateRefreshBtn();
   })();
 }
@@ -1821,115 +1802,6 @@ function showToast(msg) {
 })();
 
 // ── EXPORT PDF ────────────────────────────────────────────
-async function exportPDF() {
-  if (holdings.length === 0) { showToast('Add holdings first!'); return; }
-
-  const profile = getPortfolioProfile();
-  const {sectors} = profile;
-  const riskNum = Math.round(profile.beta * 50 + (profile.concentration || 0) * 0.3);
-  const riskLabel = riskNum >= 75 ? 'Aggressive' : riskNum >= 50 ? 'Moderate-High' : riskNum >= 30 ? 'Moderate' : 'Conservative';
-
-  const hasShares = holdings.some(h => h.shares && h.shares > 0);
-  const holdingRows = [...holdings]
-    .sort((a, b) => b.pct - a.pct)
-    .map(h => {
-      const sharesCell = hasShares ? `<td style="text-align:right;color:#8a9ab8">${h.shares ? h.shares.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</td>` : '';
-      return `<tr><td style="font-weight:600;color:#00e5a0">${escapeHTML(h.ticker)}</td><td>${escapeHTML(h.name)}</td><td>${escapeHTML(h.sector)}</td>${sharesCell}<td style="text-align:right;font-weight:600">${h.pct}%</td></tr>`;
-    })
-    .join('');
-
-  const sectorRows = Object.entries(sectors)
-    .filter(([,v]) => v > 0)
-    .sort((a,b) => b[1] - a[1])
-    .map(([name, pct]) => `<tr><td>${escapeHTML(name)}</td><td style="text-align:right;font-weight:600">${pct}%</td><td><div style="background:#1e2430;border-radius:3px;height:8px;width:200px;display:inline-block"><div style="background:${SECTOR_COLORS[name]||'#64748b'};height:100%;border-radius:3px;width:${Math.min(100,pct*2.5)}%"></div></div></td></tr>`)
-    .join('');
-
-  const date = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
-
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Portfolio Compass Report</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#0a0c10; color:#e8ecf0; font-family:'Inter',sans-serif; padding:40px; }
-  .header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e2430; padding-bottom:20px; margin-bottom:30px; }
-  .logo { display:flex; align-items:center; gap:10px; }
-  .logo-text { font-family:'Space Mono',monospace; font-size:22px; font-weight:700; }
-  .logo-text span { color:#00e5a0; }
-  .compass-icon { width:28px; height:28px; border:1.5px solid #2a3140; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .compass-icon::before { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-bottom:9px solid #00e5a0; top:2px; }
-  .compass-icon::after { content:''; position:absolute; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-top:9px solid #ff8c42; bottom:2px; opacity:0.55; }
-  .compass-dot { width:3px; height:3px; background:#e8ecf0; border-radius:50%; position:absolute; z-index:2; }
-  .date { font-family:'Space Mono',monospace; font-size:11px; color:#8a9ab8; }
-  h2 { font-family:'Space Mono',monospace; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#8a9ab8; margin:24px 0 12px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  td, th { padding:8px 12px; border-bottom:1px solid #1e2430; text-align:left; }
-  th { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:#8a9ab8; }
-  .card { background:#111318; border:1px solid #1e2430; border-radius:12px; padding:20px; margin-bottom:16px; }
-  .health-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:16px; }
-  .health-stat { background:#111318; border:1px solid #1e2430; border-radius:10px; padding:16px; text-align:center; }
-  .health-stat .value { font-family:'Space Mono',monospace; font-size:24px; font-weight:700; color:#00e5a0; }
-  .health-stat .label { font-family:'Space Mono',monospace; font-size:9px; color:#8a9ab8; letter-spacing:1px; text-transform:uppercase; margin-top:4px; }
-  .risk-bar { height:8px; background:#1e2430; border-radius:4px; margin:8px 0; }
-  .risk-fill { height:100%; border-radius:4px; }
-  .footer { text-align:center; font-family:'Space Mono',monospace; font-size:9px; color:#5a647880; margin-top:40px; padding-top:20px; border-top:1px solid #1e2430; }
-  @media print { body { padding:20px; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; } }
-</style></head><body>
-<div class="header">
-  <div class="logo"><div class="compass-icon"><div class="compass-dot"></div></div><div class="logo-text">Portfolio <span>Compass</span></div></div>
-  <div class="date">${date}</div>
-</div>
-
-<div class="health-grid">
-  <div class="health-stat">
-    <div class="value">${holdings.length}</div>
-    <div class="label">Holdings</div>
-  </div>
-  <div class="health-stat">
-    <div class="value">${Object.keys(sectors).filter(s => sectors[s] > 0).length}</div>
-    <div class="label">Sectors</div>
-  </div>
-  <div class="health-stat">
-    <div class="value" style="color:${riskNum >= 65 ? '#ff8c42' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskLabel}</div>
-    <div class="label">Risk Level</div>
-  </div>
-</div>
-
-<div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-    <span style="font-family:'Space Mono',monospace;font-size:10px;color:#8a9ab8;letter-spacing:1px;text-transform:uppercase;">Portfolio Risk</span>
-    <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:${riskNum >= 65 ? '#ff8c42' : riskNum >= 40 ? '#ffd166' : '#06d6a0'}">${riskNum}/100</span>
-  </div>
-  <div class="risk-bar"><div class="risk-fill" style="width:${riskNum}%;background:linear-gradient(90deg,#06d6a0,#ffd166,#ff8c42)"></div></div>
-</div>
-
-<h2>Holdings</h2>
-<div class="card">
-  <table>
-    <tr><th>Ticker</th><th>Name</th><th>Sector</th>${hasShares ? '<th style="text-align:right">Shares</th>' : ''}<th style="text-align:right">Weight</th></tr>
-    ${holdingRows}
-  </table>
-</div>
-
-<h2>Sector Exposure</h2>
-<div class="card">
-  <table>
-    <tr><th>Sector</th><th style="text-align:right">Weight</th><th>Distribution</th></tr>
-    ${sectorRows}
-  </table>
-</div>
-
-<div class="footer">
-  Generated by Portfolio Compass · pcompass.vercel.app · For informational purposes only — not financial advice.
-</div>
-</body></html>`;
-
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
-  setTimeout(() => { win.print(); }, 500);
-  showToast('📄 PDF report opened!');
-}
-
 // ── ONBOARDING INIT ───────────────────────────────────────
 (function initOnboarding() {
   const banner = document.getElementById('onboardingBanner');
@@ -2512,53 +2384,6 @@ function loadTickerNews(ticker) {
           + '</a>';
       });
       newsEl.innerHTML = html;
-    })
-    .catch(function() {
-      newsEl.innerHTML = '<div class="news-empty">News unavailable</div>';
-    });
-}
-
-function _renderNewsArticles(newsEl, articles) {
-  var html = '';
-  articles.forEach(function(a) {
-    var ago = _timeAgo(a.date);
-    html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
-      + '<div class="news-item-header">'
-      + '<span class="news-item-ticker">' + escapeHTML(a.ticker) + '</span>'
-      + '<span class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</span>'
-      + '</div>'
-      + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
-      + '</a>';
-  });
-  newsEl.innerHTML = html;
-}
-
-function loadPortfolioNews() {
-  var newsEl = document.getElementById('portfolioNewsList');
-  if (!newsEl) return;
-  if (!holdings || holdings.length === 0) {
-    newsEl.innerHTML = '<div class="news-empty">No holdings to fetch news for</div>';
-    return;
-  }
-
-  // Use preloaded news if available (fetched during splash)
-  if (_preloadedNews && Array.isArray(_preloadedNews) && _preloadedNews.length > 0) {
-    _renderNewsArticles(newsEl, _preloadedNews);
-    _preloadedNews = null;
-    return;
-  }
-
-  newsEl.innerHTML = '<div class="news-loading">Loading news...</div>';
-
-  var tickers = holdings.map(function(h) { return h.ticker; }).join(',');
-  fetch('/api/stock-news?tickers=' + encodeURIComponent(tickers))
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(articles) {
-      if (!articles || !Array.isArray(articles) || articles.length === 0) {
-        newsEl.innerHTML = '<div class="news-empty">No recent news</div>';
-        return;
-      }
-      _renderNewsArticles(newsEl, articles);
     })
     .catch(function() {
       newsEl.innerHTML = '<div class="news-empty">News unavailable</div>';

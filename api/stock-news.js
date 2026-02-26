@@ -19,16 +19,51 @@ function setCached(key, data) {
 const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-// ── YAHOO FINANCE SEARCH (news) ─────────────────────────────
-// Uses the same Yahoo domain as sparklines — works from Vercel
-async function fetchYahooNews(ticker, limit) {
+// ── YAHOO CRUMB + COOKIE (same pattern as market-data.js) ──
+let _crumb = null;
+let _cookie = null;
+let _crumbTs = 0;
+const CRUMB_TTL = 30 * 60 * 1000;
+
+async function getCrumb() {
+  if (_crumb && _cookie && Date.now() - _crumbTs < CRUMB_TTL) {
+    return { crumb: _crumb, cookie: _cookie };
+  }
   try {
-    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${limit}&quotesCount=0`;
+    const consentRes = await fetch('https://fc.yahoo.com', {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(4000),
+    });
+    const setCookies = consentRes.headers.get('set-cookie') || '';
+    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { 'User-Agent': UA, 'Cookie': setCookies.split(';')[0] || '' },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (crumbRes.ok) {
+      _crumb = await crumbRes.text();
+      _cookie = setCookies.split(';')[0] || '';
+      _crumbTs = Date.now();
+      return { crumb: _crumb, cookie: _cookie };
+    }
+  } catch { /* fall through */ }
+  return { crumb: null, cookie: null };
+}
+
+// ── YAHOO FINANCE SEARCH (news) ─────────────────────────────
+async function fetchYahooNews(ticker, limit, crumb, cookie) {
+  try {
+    let url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${limit}&quotesCount=0`;
+    if (crumb) url += `&crumb=${encodeURIComponent(crumb)}`;
+    const headers = { 'User-Agent': UA };
+    if (cookie) headers['Cookie'] = cookie;
     const r = await fetch(url, {
       signal: AbortSignal.timeout(6000),
-      headers: { 'User-Agent': UA },
+      headers,
     });
-    if (!r.ok) return [];
+    if (!r.ok) {
+      console.error(`[stock-news] Yahoo search ${r.status} for ${ticker}`);
+      return [];
+    }
     const data = await r.json();
     if (!data.news || !Array.isArray(data.news)) return [];
     return data.news.map(a => ({
@@ -41,7 +76,8 @@ async function fetchYahooNews(ticker, limit) {
         ? new Date(a.providerPublishTime * 1000).toISOString()
         : '',
     }));
-  } catch {
+  } catch (e) {
+    console.error(`[stock-news] Yahoo fetch error for ${ticker}:`, e.message);
     return [];
   }
 }
@@ -95,11 +131,14 @@ export default async function handler(req, res) {
     const isSingle = tickers.length === 1;
     const perTicker = isSingle ? 5 : Math.max(2, Math.floor(10 / tickers.length));
 
+    // Get Yahoo crumb once for the batch
+    const { crumb, cookie } = await getCrumb();
+
     // Fetch news for each ticker in parallel via Yahoo Finance search
     const allArticles = [];
     await Promise.allSettled(
       tickers.map(async (ticker) => {
-        const articles = await fetchYahooNews(ticker, perTicker);
+        const articles = await fetchYahooNews(ticker, perTicker, crumb, cookie);
         allArticles.push(...articles);
       })
     );
