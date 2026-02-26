@@ -3,7 +3,7 @@ import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
 const cache = new Map();
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min (news doesn't change fast)
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min
 
 function getCached(key) {
   const entry = cache.get(key);
@@ -17,6 +17,52 @@ function setCached(key, data) {
 }
 
 const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;
+
+// ── GOOGLE NEWS RSS PARSER ─────────────────────────────────
+// Free, no API key, no rate limits
+async function fetchGoogleNews(ticker, limit) {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(ticker + ' stock')}&hl=en-US&gl=US&ceid=US:en`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!r.ok) return [];
+  const xml = await r.text();
+
+  // Simple XML parse — extract <item> blocks
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null && items.length < limit) {
+    const block = match[1];
+    const title = (block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+    const link = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
+    const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
+    // Source is after " - " at end of title (e.g. "Headline - Reuters")
+    const sourceSplit = title.split(' - ');
+    const source = sourceSplit.length > 1 ? sourceSplit.pop().trim() : '';
+    const cleanTitle = sourceSplit.join(' - ').trim();
+
+    if (cleanTitle) {
+      items.push({
+        ticker,
+        title: decodeXML(cleanTitle),
+        text: '',
+        url: decodeXML(link),
+        source: decodeXML(source),
+        date: pubDate ? new Date(pubDate).toISOString() : '',
+      });
+    }
+  }
+  return items;
+}
+
+function decodeXML(str) {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'");
+}
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
@@ -67,61 +113,32 @@ export default async function handler(req, res) {
     return res.status(200).json(cached);
   }
 
-  // Fetch from FMP
-  const apiKey = process.env.FMP_API_KEY;
-  if (!apiKey) {
-    console.error('[stock-news] FMP_API_KEY not set');
-    return res.status(500).json({ error: 'Service unavailable' });
-  }
-
   try {
-    const tickerParam = tickers.join(',');
-    const limit = tickers.length === 1 ? 5 : 10;
+    const isSingle = tickers.length === 1;
+    const perTicker = isSingle ? 5 : Math.max(2, Math.floor(10 / tickers.length));
 
-    // Try multiple FMP endpoints (stable paths vary by plan)
-    const endpoints = [
-      `https://financialmodelingprep.com/stable/stock-news?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`,
-      `https://financialmodelingprep.com/stable/news/stock-latest?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`,
-      `https://financialmodelingprep.com/api/v3/stock_news?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`,
-    ];
+    // Fetch news for each ticker in parallel via Google News RSS
+    const allArticles = [];
+    await Promise.allSettled(
+      tickers.map(async (ticker) => {
+        const articles = await fetchGoogleNews(ticker, perTicker);
+        allArticles.push(...articles);
+      })
+    );
 
-    let rawData = null;
-    for (const url of endpoints) {
-      try {
-        const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-        if (!r.ok) continue;
-        const body = await r.json();
-        if (Array.isArray(body) && body.length > 0) {
-          rawData = body;
-          break;
-        }
-      } catch { /* try next endpoint */ }
-    }
-
-    if (!rawData || rawData.length === 0) {
-      console.warn(`[stock-news] No articles from any FMP endpoint for ${tickerParam}`);
-      const empty = tickers.length === 1 ? { [tickers[0]]: [] } : [];
-      setCached(cacheKey, empty);
-      res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=600');
-      return res.status(200).json(empty);
-    }
-
-    const articles = rawData.map(a => ({
-      ticker: (a.symbol || '').toUpperCase(),
-      title: a.title || '',
-      text: (a.text || a.content || '').slice(0, 200),
-      url: a.url || a.link || '',
-      source: (a.site || a.source || a.publisher || '').replace(/^www\./, ''),
-      date: a.publishedDate || a.date || '',
-    })).sort((a, b) => {
+    // Sort newest first
+    allArticles.sort((a, b) => {
       const da = a.date ? new Date(a.date).getTime() : 0;
       const db = b.date ? new Date(b.date).getTime() : 0;
       return db - da;
     });
 
-    const result = tickers.length === 1
-      ? { [tickers[0]]: articles }
-      : articles;
+    // Cap total articles
+    const trimmed = allArticles.slice(0, isSingle ? 5 : 10);
+
+    const result = isSingle
+      ? { [tickers[0]]: trimmed }
+      : trimmed;
 
     setCached(cacheKey, result);
     res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=600');
