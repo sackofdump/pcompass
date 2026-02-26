@@ -700,7 +700,7 @@ function goToPurchase(stripeUrl) {
 })();
 
 // ── GOOGLE SIGN-IN & CLOUD SYNC ─────────────────────────
-const GOOGLE_CLIENT_ID = '564027426495-8p19f9da30bikcsjje4uv0up59tgf9i5.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '883221867787-46q3pisnln3qoaqro2smu8jherv3nq43.apps.googleusercontent.com';
 
 // Initialize Google Identity Services
 let _googleInitialized = false;
