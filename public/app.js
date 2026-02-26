@@ -539,6 +539,7 @@ function analyze() {
     return '<div class="strategy-card"><div class="strategy-header strategy-toggle" onclick="toggleStrategyCard(this)">' +
       '<div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span>' +
+      '<span class="strategy-best-match-slot"></span>' +
       '<span class="strategy-chevron">&#9662;</span><span class="strategy-expand-hint">tap to expand</span></div>' +
       '<span class="strategy-desc">' + desc + '</span></div>' +
       '<div class="etf-list strategy-collapsed">' + primaryHTML + extraHTML + '</div></div>';
@@ -733,14 +734,15 @@ function analyze() {
       el.addEventListener('click',      () => toggleStrategy(s));
     });
 
-    // Add "Best match" badge (all cards stay collapsed by default)
+    // Add "Best match" badge below strategy badge for the matching card
     (function() {
       var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
       var cards = document.querySelectorAll('.strategy-card');
       cards.forEach(function(card) {
         var badge = card.querySelector('.strategy-badge');
-        if (badge && badge.classList.contains('badge-' + matchType)) {
-          badge.insertAdjacentHTML('afterend', '<span class="strategy-best-match">Best match</span>');
+        var slot = card.querySelector('.strategy-best-match-slot');
+        if (badge && slot && badge.classList.contains('badge-' + matchType)) {
+          slot.innerHTML = '<span class="strategy-best-match">Best match for you</span>';
         }
       });
     })();
@@ -758,7 +760,8 @@ function analyze() {
   // Render immediately with loading placeholders
   renderResultsPanel(null);
 
-  // Stay at top of page after analysis (no auto-scroll)
+  // Scroll to very top of page after analysis
+  window.scrollTo({ top: 0, behavior: 'instant' });
 
   // Hide sticky analyze button after results show
   setTimeout(() => {
@@ -1368,7 +1371,6 @@ document.addEventListener('keydown', function(e) {
 
 function renderSidebarContent() {
   renderSidebarUser();
-  renderSidebarPortfolios();
   renderSidebarSettings();
   renderSidebarAccount();
 }
@@ -1524,10 +1526,14 @@ function deletePortfolio(idx) {
   if (_activePortfolioIdx === idx) {
     _activePortfolioIdx = -1;
     _activePortfolioSnapshot = null;
+    // Clear loaded holdings since active portfolio was deleted
+    holdings.length = 0;
+    renderHoldings();
+    expandInputSections();
+    if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
   } else if (_activePortfolioIdx > idx) {
     _activePortfolioIdx--;
   }
-  renderSidebarPortfolios();
   showToast('Portfolio deleted.');
   if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
     fetch('/api/portfolios?userId=' + currentUser.id + '&portfolioId=' + deleted.cloudId, {

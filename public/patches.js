@@ -174,7 +174,7 @@ function openMarketPanel() {
     + '<div><div class="market-status-label">' + mktLabel + '</div>'
     + '<div class="market-status-sub">' + new Date().toLocaleDateString([], {weekday:'long', month:'short', day:'numeric'}) + '</div></div>'
     + '</div>'
-    + '<div class="market-section-label">' + (mkt.isOpen ? 'Top Movers Today' : 'Daily Movers (Last Session)') + '</div>'
+    + '<div class="market-section-label">' + (mkt.isOpen ? 'Today\'s Movers' : 'Daily Movers (Last Session)') + '</div>'
     + '<div id="marketPanelMovers"><div class="spark-shimmer" style="height:40px;border-radius:8px;margin-bottom:8px;"></div><div class="spark-shimmer" style="height:40px;border-radius:8px;"></div></div>'
     + '</div></div>';
 
@@ -184,21 +184,34 @@ function openMarketPanel() {
   // Load movers
   fetchTopMovers().then(function(movers) {
     var el = document.getElementById('marketPanelMovers');
-    if (!el || !movers || movers.length === 0) {
+    if (!el || !movers) {
       if (el) el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
       return;
     }
-    var rows = '';
-    for (var i = 0; i < movers.length; i++) {
-      var m = movers[i];
+    var gainers = movers.gainers || [];
+    var losers = movers.losers || [];
+    if (gainers.length === 0 && losers.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
+      return;
+    }
+    function moverRow(m) {
       var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
       var sign = m.changePct > 0 ? '+' : '';
-      rows += '<div class="market-mover-row">'
+      return '<div class="market-mover-row">'
         + '<span class="market-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
         + '<span class="market-mover-name">' + escapeHTML(m.name || '') + '</span>'
         + (m.price ? '<span class="market-mover-price">$' + m.price.toFixed(2) + '</span>' : '')
         + '<span class="market-mover-change ' + cls + '">' + sign + m.changePct.toFixed(2) + '%</span>'
         + '</div>';
+    }
+    var rows = '';
+    if (gainers.length > 0) {
+      rows += '<div class="market-section-label" style="margin-top:0;">Top Gainers</div>';
+      for (var i = 0; i < gainers.length; i++) rows += moverRow(gainers[i]);
+    }
+    if (losers.length > 0) {
+      rows += '<div class="market-section-label" style="margin-top:12px;">Top Losers</div>';
+      for (var j = 0; j < losers.length; j++) rows += moverRow(losers[j]);
     }
     el.innerHTML = rows;
   });
@@ -236,21 +249,34 @@ function navToCharts() {
   fetchTopMovers().then(function(movers) {
     var el = document.getElementById('chartsPanelMovers');
     if (!el) return;
-    if (!movers || movers.length === 0) {
+    if (!movers) {
       el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
       return;
     }
-    var rows = '';
-    for (var i = 0; i < movers.length; i++) {
-      var m = movers[i];
+    var gainers = movers.gainers || [];
+    var losers = movers.losers || [];
+    if (gainers.length === 0 && losers.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
+      return;
+    }
+    function moverRow(m) {
       var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
       var sign = m.changePct > 0 ? '+' : '';
-      rows += '<div class="market-mover-row">'
+      return '<div class="market-mover-row">'
         + '<span class="market-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
         + '<span class="market-mover-name">' + escapeHTML(m.name || '') + '</span>'
         + (m.price ? '<span class="market-mover-price">$' + m.price.toFixed(2) + '</span>' : '')
         + '<span class="market-mover-change ' + cls + '">' + sign + m.changePct.toFixed(2) + '%</span>'
         + '</div>';
+    }
+    var rows = '';
+    if (gainers.length > 0) {
+      rows += '<div class="market-section-label" style="margin-top:0;">Top Gainers</div>';
+      for (var i = 0; i < gainers.length; i++) rows += moverRow(gainers[i]);
+    }
+    if (losers.length > 0) {
+      rows += '<div class="market-section-label" style="margin-top:12px;">Top Losers</div>';
+      for (var j = 0; j < losers.length; j++) rows += moverRow(losers[j]);
     }
     el.innerHTML = rows;
   });
@@ -496,12 +522,31 @@ function quickDeletePortfolio(idx) {
   if (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx === idx) {
     _activePortfolioIdx = -1;
     _activePortfolioSnapshot = null;
+    // Clear loaded holdings since active portfolio was deleted
+    if (typeof holdings !== 'undefined') {
+      holdings.length = 0;
+      if (typeof renderHoldings === 'function') renderHoldings();
+      if (typeof expandInputSections === 'function') expandInputSections();
+      if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
+    }
   } else if (typeof _activePortfolioIdx !== 'undefined' && _activePortfolioIdx > idx) {
     _activePortfolioIdx--;
   }
-  if (typeof renderSidebarPortfolios === 'function') renderSidebarPortfolios();
+  // Clear performance cache for deleted portfolio
+  if (_lastPerfMap) {
+    delete _lastPerfMap[idx];
+    // Reindex remaining entries
+    var newMap = {};
+    var keys = Object.keys(_lastPerfMap).map(Number).sort(function(a,b){return a-b;});
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k > idx) newMap[k - 1] = _lastPerfMap[k];
+      else if (k < idx) newMap[k] = _lastPerfMap[k];
+    }
+    _lastPerfMap = Object.keys(newMap).length > 0 ? newMap : null;
+  }
   renderPortfolioDrawer();
-  renderPortfolioStrip(null);
+  renderPortfolioStrip(_lastPerfMap);
   showToast('Deleted "' + name + '"');
   // Cloud delete
   if (deleted && deleted.cloudId && typeof currentUser !== 'undefined' && currentUser) {
@@ -877,20 +922,37 @@ function closeAuthModal() {
 // No outside-click handler needed.
 
 function signOut() {
-  // Clear all user/portfolio/cache data from localStorage
+  // 1. Clear in-memory state immediately
+  currentUser = null;
+  if (typeof holdings !== 'undefined') holdings.length = 0;
+  _activePortfolioIdx = -1;
+  _activePortfolioSnapshot = null;
+  _lastPerfMap = null;
+  _topMoversCache = null;
+  _proPicksCache = null;
+
+  // 2. Explicitly remove known keys
+  var explicitKeys = [
+    'pc_portfolios', 'pc_user', 'pc_pro_email', 'pc_pro_expiry',
+    'pc_pro_plan', 'pc_checkout_pending', 'currentUser',
+    'pc_cached_analysis', 'pc_cached_analysis_ts'
+  ];
+  explicitKeys.forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
+
+  // 3. Also clear all pc_ prefixed keys (market cache, sparkline cache, etc.)
   var keysToRemove = [];
   for (var i = 0; i < localStorage.length; i++) {
     var key = localStorage.key(i);
-    if (key && (key.startsWith('pc_') || key === 'currentUser')) {
+    if (key && key.startsWith('pc_') && key !== 'pc_theme' && key !== 'pc_ai_consent') {
       keysToRemove.push(key);
     }
   }
-  // Keep theme preference
-  keysToRemove = keysToRemove.filter(function(k) { return k !== 'pc_theme' && k !== 'pc_ai_consent'; });
-  keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
-  // Clear HttpOnly cookies server-side
+  keysToRemove.forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
+
+  // 4. Clear HttpOnly cookies server-side
   fetch('/api/signout', { method: 'POST' }).catch(function() {});
-  // Hard reload to guarantee clean state
+
+  // 5. Hard reload to guarantee clean state
   window.location.reload();
 }
 
@@ -1520,16 +1582,27 @@ var _moverTickersB = [
 ];
 
 function _renderMoversHTML(movers) {
-  if (!movers || movers.length === 0) return '';
-  var html = '<div class="pstrip-movers-label">Top Movers</div>';
-  for (var i = 0; i < movers.length; i++) {
-    var m = movers[i];
+  if (!movers) return '';
+  // Support new { gainers, losers } format
+  var gainers = movers.gainers || [];
+  var losers = movers.losers || [];
+  if (gainers.length === 0 && losers.length === 0) return '';
+  var html = '';
+  function renderRow(m) {
     var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
     var sign = m.changePct > 0 ? '+' : '';
-    html += '<div class="pstrip-mover" title="' + escapeHTML(m.name || m.ticker) + '">'
+    return '<div class="pstrip-mover" title="' + escapeHTML(m.name || m.ticker) + '">'
       + '<span class="pstrip-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
       + '<span class="pstrip-change ' + cls + '">' + sign + m.changePct.toFixed(1) + '%</span>'
       + '</div>';
+  }
+  if (gainers.length > 0) {
+    html += '<div class="pstrip-movers-label">Top Gainers</div>';
+    for (var i = 0; i < gainers.length; i++) html += renderRow(gainers[i]);
+  }
+  if (losers.length > 0) {
+    html += '<div class="pstrip-movers-label" style="margin-top:4px;">Top Losers</div>';
+    for (var j = 0; j < losers.length; j++) html += renderRow(losers[j]);
   }
   return html;
 }
@@ -1546,15 +1619,19 @@ function fetchTopMovers() {
     fetchMarketDataCached(_moverTickersB)
   ]).then(function(results) {
     var md = Object.assign({}, results[0] || {}, results[1] || {});
-    var movers = [];
+    var gainers = [];
+    var losers = [];
     for (var t in md) {
       if (md[t] && md[t].changePct != null) {
-        movers.push({ ticker: t, changePct: md[t].changePct, name: md[t].name || t, price: md[t].price || 0 });
+        var entry = { ticker: t, changePct: md[t].changePct, name: md[t].name || t, price: md[t].price || 0 };
+        if (md[t].changePct > 0.01) gainers.push(entry);
+        else if (md[t].changePct < -0.01) losers.push(entry);
       }
     }
-    // Sort by absolute change descending
-    movers.sort(function(a, b) { return Math.abs(b.changePct) - Math.abs(a.changePct); });
-    var top = movers.slice(0, 8);
+    // Sort gainers descending, losers ascending (most negative first)
+    gainers.sort(function(a, b) { return b.changePct - a.changePct; });
+    losers.sort(function(a, b) { return a.changePct - b.changePct; });
+    var top = { gainers: gainers.slice(0, 3), losers: losers.slice(0, 3) };
     _topMoversCache = { data: top, ts: Date.now() };
     return top;
   }).catch(function() { return null; });
@@ -1572,13 +1649,13 @@ function renderPortfolioStrip(performanceMap) {
   var html = '';
 
   // Top movers section (always shown)
-  if (_topMoversCache && _topMoversCache.data) {
+  if (_topMoversCache && _topMoversCache.data && (_topMoversCache.data.gainers || _topMoversCache.data.losers)) {
     html += _renderMoversHTML(_topMoversCache.data);
   }
 
   // Portfolio cards (if any)
   if (portfolios.length > 0) {
-    if (_topMoversCache && _topMoversCache.data) {
+    if (_topMoversCache && _topMoversCache.data && (_topMoversCache.data.gainers || _topMoversCache.data.losers)) {
       html += '<div class="pstrip-divider"></div>';
     }
     for (var i = 0; i < portfolios.length; i++) {

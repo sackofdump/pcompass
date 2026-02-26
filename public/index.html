@@ -48,7 +48,7 @@
       <div class="logo-icon-center"></div>
     </div>
     <h1>Portfolio <span>Compass</span></h1>
-    <span class="tagline">Portfolio Diversification &amp; Strategy Analyzer</span>
+    <span class="tagline" style="display:none;">Portfolio Diversification &amp; Strategy Analyzer</span>
   </div>
   <div class="header-actions" style="display:none;">
     <button onclick="showPaywall('header')" id="btnPro" style="display:none;">✦ Get Pro</button>
@@ -68,9 +68,14 @@
   </div>
   <div class="sidebar-user" id="sidebarUser"></div>
   <div class="sidebar-section">
-    <div class="sidebar-section-title">My Portfolios</div>
-    <div class="sidebar-portfolios" id="sidebarPortfolios"></div>
-    <div class="sidebar-portfolio-actions" id="sidebarPortfolioActions"></div>
+    <div class="sidebar-section-title">Quick Access</div>
+    <div class="sidebar-nav-links" id="sidebarNavLinks">
+      <button class="sidebar-nav-btn" onclick="closeSidebar();navTo('market')"><span class="sidebar-nav-icon">&#9679;</span> Market Overview</button>
+      <button class="sidebar-nav-btn" onclick="closeSidebar();navTo('charts')"><span class="sidebar-nav-icon">&#9651;</span> Charts</button>
+      <button class="sidebar-nav-btn" onclick="closeSidebar();navTo('explore')"><span class="sidebar-nav-icon">&#9733;</span> Explore Stocks</button>
+      <button class="sidebar-nav-btn" onclick="closeSidebar();navTo('analysis')"><span class="sidebar-nav-icon">&#9670;</span> Analysis</button>
+      <button class="sidebar-nav-btn" onclick="closeSidebar();navTo('portfolios')"><span class="sidebar-nav-icon">&#9776;</span> My Portfolios</button>
+    </div>
   </div>
   <div class="sidebar-section">
     <div class="sidebar-section-title">Settings</div>
