@@ -104,25 +104,15 @@ function _setActiveTab(tabId) {
 
 function _closeAllPanels() {
   closePortfolioDrawer();
-  _closeNavPanel('marketPanel');
   _closeNavPanel('explorePanel');
-  _closeNavPanel('chartsPanel');
   _closeNavPanel('newsPanel');
 }
 
 window.navTo = function(tab) {
   if (tab === 'portfolios') {
-    _closeNavPanel('marketPanel');
     _closeNavPanel('explorePanel');
+    _closeNavPanel('newsPanel');
     togglePortfolioDrawer();
-  } else if (tab === 'market') {
-    _closeAllPanels();
-    _setActiveTab('navMarket');
-    openMarketPanel();
-  } else if (tab === 'charts') {
-    _closeAllPanels();
-    _setActiveTab('navCharts');
-    navToCharts();
   } else if (tab === 'explore') {
     _closeAllPanels();
     _setActiveTab('navExplore');
@@ -335,63 +325,8 @@ function _unsnapPanel(panelId) {
   delete _snappedPanels[panelId];
 
   // Re-open the overlay panel
-  if (panelId === 'marketPanel') openMarketPanel();
-  else if (panelId === 'chartsPanel') navToCharts();
-  else if (panelId === 'explorePanel') openExplorePanel();
-}
-
-// ── MARKET PANEL ─────────────────────────────────────────
-function openMarketPanel() {
-  var overlay = _getOrCreatePanel('marketPanel');
-  var mkt = typeof getMarketStatus === 'function' ? getMarketStatus() : {};
-  var mktLabel = mkt.isOpen ? 'Market Open' : mkt.isPrePost ? 'Pre/Post Market' : 'Market Closed';
-  var dotCls = mkt.isOpen ? 'live' : '';
-
-  var html = '<div class="nav-panel">'
-    + '<div class="nav-panel-header">'
-    + '<span class="nav-panel-title">Market Overview</span>'
-    + '<button class="nav-panel-close" onclick="_closeNavPanel(\'marketPanel\')">\u2715</button>'
-    + '</div>'
-    + '<div class="nav-panel-body">'
-    + '<div class="market-status-card">'
-    + '<div class="market-status-dot ' + dotCls + '"></div>'
-    + '<div><div class="market-status-label">' + mktLabel + '</div>'
-    + '<div class="market-status-sub">' + new Date().toLocaleDateString([], {weekday:'long', month:'short', day:'numeric'}) + '</div></div>'
-    + '</div>'
-    + '</div></div>';
-
-  overlay.innerHTML = html;
-  overlay.classList.add('open');
-  _addDragHandle('marketPanel', overlay.querySelector('.nav-panel-header'));
-}
-
-// ── CHARTS NAV ───────────────────────────────────────────
-function navToCharts() {
-  _closeAllPanels();
-  _setActiveTab('navCharts');
-  var overlay = _getOrCreatePanel('chartsPanel');
-
-  // Open a panel with daily movers + portfolio charts
-  var html = '<div class="nav-panel">'
-    + '<div class="nav-panel-header">'
-    + '<span class="nav-panel-title">Charts</span>'
-    + '<button class="nav-panel-refresh" id="chartsPanelRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">\u21bb</button>'
-    + '<button class="nav-panel-close" onclick="_closeNavPanel(\'chartsPanel\')">\u2715</button>'
-    + '</div>'
-    + '<div class="nav-panel-body">';
-
-  // Portfolio charts shortcut
-  if (typeof holdings !== 'undefined' && holdings.length >= 3) {
-    html += '<button class="explore-sector-card" style="width:100%;margin-bottom:14px;justify-content:center;" onclick="_closeNavPanel(\'chartsPanel\');if(typeof setHoldingsView===\'function\')setHoldingsView(\'chart\');window.scrollTo({top:0,behavior:\'smooth\'});">'
-      + '<span class="explore-sector-name">View My Portfolio Charts</span>'
-      + '</button>';
-  }
-
-  html += '</div></div>';
-
-  overlay.innerHTML = html;
-  overlay.classList.add('open');
-  _addDragHandle('chartsPanel', overlay.querySelector('.nav-panel-header'));
+  if (panelId === 'explorePanel') openExplorePanel();
+  else if (panelId === 'newsPanel') openNewsPanel();
 }
 
 // ── NEWS NAV ─────────────────────────────────────────────
