@@ -16,55 +16,103 @@ function setCached(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── FETCH QUOTES VIA FMP STABLE API ─────────────────────
-// FMP deprecated the v3 batch endpoint for free-tier keys (Aug 2025).
-// Use stable/quote per ticker (stocks), with stable/profile fallback (ETFs).
-function parseQuote(quote) {
-  if (!quote || quote.price == null) return null;
-  const changePct = quote.changePercentage ?? 0;
-  const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
-  return {
-    price: Math.round(quote.price * 100) / 100,
-    changePct: Math.round(changePct * 100) / 100,
-    change: Math.round(changePct * 100) / 100,
-    momentum: Math.round(momentum),
-    marketState: 'REGULAR',
-    name: quote.name || quote.companyName || quote.symbol || '',
-  };
+// ── YAHOO CRUMB + COOKIE (shared with sparkline pattern) ──
+let _crumb = null;
+let _cookie = null;
+let _crumbTs = 0;
+const CRUMB_TTL = 30 * 60 * 1000;
+
+async function getCrumb() {
+  if (_crumb && _cookie && Date.now() - _crumbTs < CRUMB_TTL) {
+    return { crumb: _crumb, cookie: _cookie };
+  }
+  try {
+    const consentRes = await fetch('https://fc.yahoo.com', {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(4000),
+    });
+    const setCookies = consentRes.headers.get('set-cookie') || '';
+    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cookie': setCookies.split(';')[0] || '',
+      },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (crumbRes.ok) {
+      _crumb = await crumbRes.text();
+      _cookie = setCookies.split(';')[0] || '';
+      _crumbTs = Date.now();
+      return { crumb: _crumb, cookie: _cookie };
+    }
+  } catch { /* fall through */ }
+  return { crumb: null, cookie: null };
 }
 
-async function fetchOne(ticker, apiKey) {
+// ── FETCH QUOTE VIA YAHOO FINANCE (primary) ──────────────
+async function fetchYahoo(ticker, crumb, cookie) {
   try {
-    // Try stable/quote first (works for stocks on free tier)
-    const url = `https://financialmodelingprep.com/stable/quote?symbol=${ticker}&apikey=${apiKey}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (r.ok) {
-      const data = await r.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const result = parseQuote(data[0]);
-        if (result) return result;
-      }
-    }
-    // Fallback to stable/profile (works for ETFs on free tier)
-    const pUrl = `https://financialmodelingprep.com/stable/profile?symbol=${ticker}&apikey=${apiKey}`;
-    const pr = await fetch(pUrl, { signal: AbortSignal.timeout(6000) });
-    if (!pr.ok) return null;
-    const pData = await pr.json();
-    if (!Array.isArray(pData) || pData.length === 0) return null;
-    return parseQuote(pData[0]);
+    let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
+    if (crumb) url += `&crumb=${encodeURIComponent(crumb)}`;
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json',
+    };
+    if (cookie) headers['Cookie'] = cookie;
+
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta || meta.regularMarketPrice == null) return null;
+
+    const price = meta.regularMarketPrice;
+    const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+    const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+
+    return {
+      price: Math.round(price * 100) / 100,
+      changePct: Math.round(changePct * 100) / 100,
+      change: Math.round(changePct * 100) / 100,
+      momentum: Math.round(momentum),
+      marketState: meta.marketState || 'REGULAR',
+      name: meta.shortName || meta.longName || meta.symbol || '',
+    };
   } catch {
     return null;
   }
 }
 
-async function fetchBatch(tickerList) {
+// ── FETCH QUOTE VIA FMP (fallback) ───────────────────────
+async function fetchFMP(ticker) {
   const apiKey = process.env.FMP_API_KEY;
-  if (!apiKey) {
-    console.error('[market-data] FMP_API_KEY not set');
-    return {};
+  if (!apiKey) return null;
+  try {
+    const url = `https://financialmodelingprep.com/stable/quote?symbol=${ticker}&apikey=${apiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0 || data[0]?.price == null) return null;
+    const q = data[0];
+    const changePct = q.changePercentage ?? 0;
+    const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+    return {
+      price: Math.round(q.price * 100) / 100,
+      changePct: Math.round(changePct * 100) / 100,
+      change: Math.round(changePct * 100) / 100,
+      momentum: Math.round(momentum),
+      marketState: 'REGULAR',
+      name: q.name || q.companyName || q.symbol || '',
+    };
+  } catch {
+    return null;
   }
+}
 
-  // Check cache first — return cached results and only fetch uncached
+// ── BATCH FETCH ──────────────────────────────────────────
+async function fetchBatch(tickerList) {
   const results = {};
   const uncached = [];
   for (const ticker of tickerList) {
@@ -75,13 +123,16 @@ async function fetchBatch(tickerList) {
       uncached.push(ticker);
     }
   }
-
   if (uncached.length === 0) return results;
 
-  // Fetch uncached tickers in parallel (individual stable/quote calls)
-  const settled = await Promise.allSettled(
+  // Get Yahoo crumb once for the batch
+  const { crumb, cookie } = await getCrumb();
+
+  // Fetch all uncached in parallel: Yahoo first, FMP fallback
+  await Promise.allSettled(
     uncached.map(async (ticker) => {
-      const result = await fetchOne(ticker, apiKey);
+      let result = await fetchYahoo(ticker, crumb, cookie);
+      if (!result) result = await fetchFMP(ticker);
       if (result) {
         setCached(ticker, result);
         results[ticker] = result;
@@ -91,15 +142,11 @@ async function fetchBatch(tickerList) {
     })
   );
 
-  const failed = settled.filter(s => s.status === 'rejected').length;
-  if (failed > 0) console.warn(`[market-data] ${failed}/${uncached.length} FMP calls failed`);
-
   return results;
 }
 
 // ── HANDLER ───────────────────────────────────────────────
 export default async function handler(req, res) {
-  // ── CORS ──
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
   setSecurityHeaders(res);
@@ -118,7 +165,6 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
 
-  // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
   if (!await checkRateLimit(ip, 'market-data', 30)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
@@ -127,22 +173,18 @@ export default async function handler(req, res) {
   const { tickers } = req.query;
   if (!tickers) return res.status(400).json({ error: 'No tickers provided' });
 
-  // Deduplicate and sanitize
   const tickerList = [...new Set(
     tickers.split(',')
       .map(t => t.trim().toUpperCase().replace(/[^A-Z0-9.]/g, ''))
       .filter(t => t.length >= 1 && t.length <= 6 && /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(t))
   )];
 
-  // Hard cap — don't let someone request 500 tickers
   if (tickerList.length > 40) {
     return res.status(400).json({ error: 'Too many tickers. Max 40 per request.' });
   }
 
-  // Fetch all via single FMP batch call
   const output = await fetchBatch(tickerList);
 
-  // Cache headers — Vercel edge will cache this response per unique ticker combo
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
   return res.status(200).json(output);
 }

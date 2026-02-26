@@ -22,8 +22,14 @@ const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;
 // Free, no API key, no rate limits
 async function fetchGoogleNews(ticker, limit) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(ticker + ' stock')}&hl=en-US&gl=US&ceid=US:en`;
-  const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
-  if (!r.ok) return [];
+  const r = await fetch(url, {
+    signal: AbortSignal.timeout(6000),
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PortfolioCompass/1.0)' },
+  });
+  if (!r.ok) {
+    console.warn(`[stock-news] Google News returned ${r.status} for ${ticker}`);
+    return [];
+  }
   const xml = await r.text();
 
   // Simple XML parse — extract <item> blocks

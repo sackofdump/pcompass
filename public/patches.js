@@ -357,48 +357,11 @@ function openMarketPanel() {
     + '<div><div class="market-status-label">' + mktLabel + '</div>'
     + '<div class="market-status-sub">' + new Date().toLocaleDateString([], {weekday:'long', month:'short', day:'numeric'}) + '</div></div>'
     + '</div>'
-    + '<div class="market-section-label">' + (mkt.isOpen ? 'Today\'s Movers' : 'Daily Movers (Last Session)') + '</div>'
-    + '<div id="marketPanelMovers"><div class="spark-shimmer" style="height:40px;border-radius:8px;margin-bottom:8px;"></div><div class="spark-shimmer" style="height:40px;border-radius:8px;"></div></div>'
     + '</div></div>';
 
   overlay.innerHTML = html;
   overlay.classList.add('open');
   _addDragHandle('marketPanel', overlay.querySelector('.nav-panel-header'));
-
-  // Load movers
-  fetchTopMovers().then(function(movers) {
-    var el = document.getElementById('marketPanelMovers');
-    if (!el || !movers) {
-      if (el) el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
-      return;
-    }
-    var gainers = movers.gainers || [];
-    var losers = movers.losers || [];
-    if (gainers.length === 0 && losers.length === 0) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
-      return;
-    }
-    function moverRow(m) {
-      var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
-      var sign = m.changePct > 0 ? '+' : '';
-      return '<div class="market-mover-row">'
-        + '<span class="market-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
-        + '<span class="market-mover-name">' + escapeHTML(m.name || '') + '</span>'
-        + (m.price ? '<span class="market-mover-price">$' + m.price.toFixed(2) + '</span>' : '')
-        + '<span class="market-mover-change ' + cls + '">' + sign + m.changePct.toFixed(2) + '%</span>'
-        + '</div>';
-    }
-    var rows = '';
-    if (gainers.length > 0) {
-      rows += '<div class="market-section-label" style="margin-top:0;">Top Gainers</div>';
-      for (var i = 0; i < gainers.length; i++) rows += moverRow(gainers[i]);
-    }
-    if (losers.length > 0) {
-      rows += '<div class="market-section-label" style="margin-top:12px;">Top Losers</div>';
-      for (var j = 0; j < losers.length; j++) rows += moverRow(losers[j]);
-    }
-    el.innerHTML = rows;
-  });
 }
 
 // ── CHARTS NAV ───────────────────────────────────────────
@@ -423,50 +386,11 @@ function navToCharts() {
       + '</button>';
   }
 
-  // Daily movers section
-  html += '<div class="market-section-label">Daily Movers</div>'
-    + '<div id="chartsPanelMovers"><div class="spark-shimmer" style="height:40px;border-radius:8px;margin-bottom:8px;"></div><div class="spark-shimmer" style="height:40px;border-radius:8px;"></div></div>'
-    + '</div></div>';
+  html += '</div></div>';
 
   overlay.innerHTML = html;
   overlay.classList.add('open');
   _addDragHandle('chartsPanel', overlay.querySelector('.nav-panel-header'));
-
-  // Load movers
-  fetchTopMovers().then(function(movers) {
-    var el = document.getElementById('chartsPanelMovers');
-    if (!el) return;
-    if (!movers) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
-      return;
-    }
-    var gainers = movers.gainers || [];
-    var losers = movers.losers || [];
-    if (gainers.length === 0 && losers.length === 0) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No data available</div>';
-      return;
-    }
-    function moverRow(m) {
-      var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
-      var sign = m.changePct > 0 ? '+' : '';
-      return '<div class="market-mover-row">'
-        + '<span class="market-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
-        + '<span class="market-mover-name">' + escapeHTML(m.name || '') + '</span>'
-        + (m.price ? '<span class="market-mover-price">$' + m.price.toFixed(2) + '</span>' : '')
-        + '<span class="market-mover-change ' + cls + '">' + sign + m.changePct.toFixed(2) + '%</span>'
-        + '</div>';
-    }
-    var rows = '';
-    if (gainers.length > 0) {
-      rows += '<div class="market-section-label" style="margin-top:0;">Top Gainers</div>';
-      for (var i = 0; i < gainers.length; i++) rows += moverRow(gainers[i]);
-    }
-    if (losers.length > 0) {
-      rows += '<div class="market-section-label" style="margin-top:12px;">Top Losers</div>';
-      for (var j = 0; j < losers.length; j++) rows += moverRow(losers[j]);
-    }
-    el.innerHTML = rows;
-  });
 }
 
 // ── ANALYSIS NAV ─────────────────────────────────────────
@@ -1122,7 +1046,6 @@ function signOut() {
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
   _lastPerfMap = null;
-  _topMoversCache = null;
   _proPicksCache = null;
 
   // 2. Explicitly remove known keys
@@ -1703,79 +1626,6 @@ if (!_isIOSApp) {
 // ── PORTFOLIO STRIP ─────────────────────────────────────────
 
 var _lastPerfMap = null; // cache last successful performance data
-var _topMoversCache = null; // cached top movers data
-
-// Broad universe of popular high-volume stocks across all sectors
-// Split into 2 batches of ≤40 (API hard cap) to find actual daily top movers
-var _moverTickersA = [
-  'NVDA','TSLA','AAPL','MSFT','AMD','META','AMZN','GOOGL','AVGO','ORCL',
-  'CRM','ADBE','INTC','CSCO','QCOM','PLTR','MU','MRVL','ARM','SMCI',
-  'JPM','GS','V','MA','PYPL','SQ','COIN','HOOD','SOFI','WMT',
-  'COST','NKE','DIS','NFLX','ABNB','JNJ','UNH','PFE','LLY','MRK'
-];
-var _moverTickersB = [
-  'XOM','CVX','COP','OXY','AI','SOUN','DDOG','CRWD','PANW','NET',
-  'RIVN','LCID','NIO','F','GM','RDDT','SNAP','SPOT','ROKU','MARA',
-  'RIOT','MSTR','BA','LMT','CAT','GE','APP','UBER','DASH','RBLX',
-  'AFRM','UPST','MRNA','AMGN','ABBV','BMY','SLB','SHOP','SNOW','TXN'
-];
-
-function _renderMoversHTML(movers) {
-  if (!movers) return '';
-  // Support new { gainers, losers } format
-  var gainers = movers.gainers || [];
-  var losers = movers.losers || [];
-  if (gainers.length === 0 && losers.length === 0) return '';
-  var html = '';
-  function renderRow(m) {
-    var cls = m.changePct > 0.05 ? 'up' : m.changePct < -0.05 ? 'down' : 'flat';
-    var sign = m.changePct > 0 ? '+' : '';
-    return '<div class="pstrip-mover" title="' + escapeHTML(m.name || m.ticker) + '">'
-      + '<span class="pstrip-mover-ticker">' + escapeHTML(m.ticker) + '</span>'
-      + '<span class="pstrip-change ' + cls + '">' + sign + m.changePct.toFixed(1) + '%</span>'
-      + '</div>';
-  }
-  if (gainers.length > 0) {
-    html += '<div class="pstrip-movers-label">Top Gainers</div>';
-    for (var i = 0; i < gainers.length; i++) html += renderRow(gainers[i]);
-  }
-  if (losers.length > 0) {
-    html += '<div class="pstrip-movers-label" style="margin-top:4px;">Top Losers</div>';
-    for (var j = 0; j < losers.length; j++) html += renderRow(losers[j]);
-  }
-  return html;
-}
-
-function fetchTopMovers() {
-  // Use cached data if fresh (15 min)
-  if (_topMoversCache && (Date.now() - _topMoversCache.ts < 15 * 60 * 1000)) {
-    return Promise.resolve(_topMoversCache.data);
-  }
-  if (typeof fetchMarketDataCached !== 'function') return Promise.resolve(null);
-  // Fetch both batches in parallel through existing market-data cache
-  return Promise.all([
-    fetchMarketDataCached(_moverTickersA),
-    fetchMarketDataCached(_moverTickersB)
-  ]).then(function(results) {
-    var md = Object.assign({}, results[0] || {}, results[1] || {});
-    var gainers = [];
-    var losers = [];
-    for (var t in md) {
-      if (md[t] && md[t].changePct != null) {
-        var entry = { ticker: t, changePct: md[t].changePct, name: md[t].name || t, price: md[t].price || 0 };
-        if (md[t].changePct > 0.01) gainers.push(entry);
-        else if (md[t].changePct < -0.01) losers.push(entry);
-      }
-    }
-    // Sort gainers descending, losers ascending (most negative first)
-    gainers.sort(function(a, b) { return b.changePct - a.changePct; });
-    losers.sort(function(a, b) { return a.changePct - b.changePct; });
-    var top = { gainers: gainers.slice(0, 3), losers: losers.slice(0, 3) };
-    _topMoversCache = { data: top, ts: Date.now() };
-    return top;
-  }).catch(function() { return null; });
-}
-
 function renderPortfolioStrip(performanceMap) {
   var strip = document.getElementById('portfolioStrip');
   if (!strip) return;
@@ -1787,16 +1637,8 @@ function renderPortfolioStrip(performanceMap) {
 
   var html = '';
 
-  // Top movers section (always shown)
-  if (_topMoversCache && _topMoversCache.data && (_topMoversCache.data.gainers || _topMoversCache.data.losers)) {
-    html += _renderMoversHTML(_topMoversCache.data);
-  }
-
   // Portfolio cards (if any)
   if (portfolios.length > 0) {
-    if (_topMoversCache && _topMoversCache.data && (_topMoversCache.data.gainers || _topMoversCache.data.losers)) {
-      html += '<div class="pstrip-divider"></div>';
-    }
     for (var i = 0; i < portfolios.length; i++) {
       var p = portfolios[i];
       var count = p.holdings ? p.holdings.length : 0;
@@ -1881,9 +1723,6 @@ window.refreshPortfolioStrip = async function() {
     btn.disabled = true;
   }
   try {
-    // Refresh top movers
-    _topMoversCache = null;
-    await fetchTopMovers();
     var tickers = _collectPortfolioTickers();
     console.log('[portfolio-strip] refreshing', tickers.length, 'tickers');
     var pm = await fetchPortfolioPerformance(true);
@@ -1892,7 +1731,6 @@ window.refreshPortfolioStrip = async function() {
       showToast('\u2713 Prices updated');
     } else {
       renderPortfolioStrip(null);
-      showToast('\u2713 Movers updated');
     }
   } catch(e) {
     console.warn('[portfolio-strip] refresh failed:', e);
@@ -1911,11 +1749,7 @@ window.refreshPortfolioStrip = async function() {
   }
   function boot() {
     renderPortfolioStrip(null);
-    // Fetch top movers first (always), then portfolio performance
-    fetchTopMovers().then(function() {
-      renderPortfolioStrip(null);
-      return fetchPortfolioPerformance();
-    }).then(function(perfMap) {
+    fetchPortfolioPerformance().then(function(perfMap) {
       if (perfMap) renderPortfolioStrip(perfMap);
     }).catch(function() {});
   }
