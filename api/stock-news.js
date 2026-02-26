@@ -67,7 +67,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${clean}&limit=5&apikey=${apiKey}`;
+    // Use stable endpoint (v3 is deprecated for free-tier keys)
+    const url = `https://financialmodelingprep.com/stable/news/stock-latest?tickers=${clean}&limit=5&apikey=${apiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) {
       console.warn(`[stock-news] FMP returned ${r.status} for ${clean}`);
@@ -77,10 +78,10 @@ export default async function handler(req, res) {
     const raw = await r.json();
     const articles = (Array.isArray(raw) ? raw : []).map(a => ({
       title: a.title || '',
-      text: (a.text || '').slice(0, 200),
-      url: a.url || '',
-      source: (a.site || '').replace(/^www\./, ''),
-      date: a.publishedDate || '',
+      text: (a.text || a.content || '').slice(0, 200),
+      url: a.url || a.link || '',
+      source: (a.site || a.source || a.publisher || '').replace(/^www\./, ''),
+      date: a.publishedDate || a.date || '',
     }));
 
     setCached(clean, articles);
