@@ -1193,6 +1193,18 @@ function getAuthHeaders() {
       var defIdx = typeof getDefaultPortfolioIdx === 'function' ? getDefaultPortfolioIdx() : -1;
       if (defIdx >= 0 && typeof loadPortfolio === 'function') {
         loadPortfolio(defIdx, true);
+        // Preload news during splash screen so it's instant when results render
+        if (typeof holdings !== 'undefined' && holdings.length > 0) {
+          var tickers = holdings.map(function(h) { return h.ticker; }).join(',');
+          fetch('/api/stock-news?tickers=' + encodeURIComponent(tickers))
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(articles) {
+              if (articles && Array.isArray(articles) && articles.length > 0) {
+                _preloadedNews = articles;
+              }
+            })
+            .catch(function() {});
+        }
       }
     } catch(e) {
       localStorage.removeItem('pc_user');

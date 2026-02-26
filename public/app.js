@@ -108,6 +108,9 @@ let _activePortfolioIdx = -1;
 let _activePortfolioSnapshot = null;
 let _holdingsView = 'chart';
 
+// Preloaded news cache (filled during splash, consumed by loadPortfolioNews)
+let _preloadedNews = null;
+
 // ── HOLDINGS LOGIC ───────────────────────────────────────
 function totalAllocation() {
   return Math.round(holdings.reduce((s, h) => s + h.pct, 0) * 10) / 10;
@@ -814,13 +817,13 @@ function analyze() {
         '</div>' +
       '</div>' +
       rebalanceHTML +
-      '<div class="rebalance-panel" style="overflow:visible">' +
-        '<div class="panel-header panel-toggle" onclick="togglePanel(this)" style="display:flex;align-items:center;justify-content:space-between;">' +
+      '<div class="rebalance-panel recommended-panel">' +
+        '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
           '<h2 class="section-title">Recommended Stocks</h2>' + statusHTML +
           '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
           '<span class="panel-expand-hint">tap to collapse</span>' +
         '</div>' +
-        '<div class="panel-body" style="padding:0 16px 16px;">' +
+        '<div class="panel-body recommended-body">' +
           strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
           strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
           strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
@@ -2514,6 +2517,21 @@ function loadTickerNews(ticker) {
     });
 }
 
+function _renderNewsArticles(newsEl, articles) {
+  var html = '';
+  articles.forEach(function(a) {
+    var ago = _timeAgo(a.date);
+    html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
+      + '<div class="news-item-header">'
+      + '<span class="news-item-ticker">' + escapeHTML(a.ticker) + '</span>'
+      + '<span class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</span>'
+      + '</div>'
+      + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
+      + '</a>';
+  });
+  newsEl.innerHTML = html;
+}
+
 function loadPortfolioNews() {
   var newsEl = document.getElementById('portfolioNewsList');
   if (!newsEl) return;
@@ -2521,6 +2539,14 @@ function loadPortfolioNews() {
     newsEl.innerHTML = '<div class="news-empty">No holdings to fetch news for</div>';
     return;
   }
+
+  // Use preloaded news if available (fetched during splash)
+  if (_preloadedNews && Array.isArray(_preloadedNews) && _preloadedNews.length > 0) {
+    _renderNewsArticles(newsEl, _preloadedNews);
+    _preloadedNews = null;
+    return;
+  }
+
   newsEl.innerHTML = '<div class="news-loading">Loading news...</div>';
 
   var tickers = holdings.map(function(h) { return h.ticker; }).join(',');
@@ -2531,18 +2557,7 @@ function loadPortfolioNews() {
         newsEl.innerHTML = '<div class="news-empty">No recent news</div>';
         return;
       }
-      var html = '';
-      articles.forEach(function(a) {
-        var ago = _timeAgo(a.date);
-        html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
-          + '<div class="news-item-header">'
-          + '<span class="news-item-ticker">' + escapeHTML(a.ticker) + '</span>'
-          + '<span class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</span>'
-          + '</div>'
-          + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
-          + '</a>';
-      });
-      newsEl.innerHTML = html;
+      _renderNewsArticles(newsEl, articles);
     })
     .catch(function() {
       newsEl.innerHTML = '<div class="news-empty">News unavailable</div>';

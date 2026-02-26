@@ -285,6 +285,8 @@
   .placeholder-text { color:var(--muted); font-family:'Space Mono',monospace; font-size:13px; line-height:1.7; }
 
   /* Strategy card */
+  .panel-body > .strategy-card { margin-bottom:12px; }
+  .panel-body > .strategy-card:last-child { margin-bottom:0; }
   .strategy-card { animation:fadeUp 0.4s ease backwards; transition:transform var(--transition-med),box-shadow var(--transition-med),border-color var(--transition-med); }
   .strategy-card:hover { transform:translateY(-3px); box-shadow:var(--glass-shadow), var(--accent-glow-subtle); }
   .strategy-card:has(.badge-aggressive):hover { border-color:rgba(255,140,66,0.4); box-shadow:var(--glass-shadow), var(--aggressive-glow); }
@@ -1295,6 +1297,9 @@
   /* 4. Staggered fade-in on result sections */
   .health-panel { animation: fadeUp 0.4s ease backwards; animation-delay: 0.05s; }
   .rebalance-panel { animation: fadeUp 0.4s ease backwards; animation-delay: 0.1s; }
+  .recommended-panel { overflow: visible; }
+  .recommended-body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .recommended-body .strategy-card { margin-bottom: 0; }
 
   /* 5. Improved empty state */
   .empty-compass {

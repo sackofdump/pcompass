@@ -77,15 +77,36 @@ export default async function handler(req, res) {
   try {
     const tickerParam = tickers.join(',');
     const limit = tickers.length === 1 ? 5 : 10;
-    const url = `https://financialmodelingprep.com/stable/news/stock-latest?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) {
-      console.warn(`[stock-news] FMP returned ${r.status} for ${tickerParam}`);
-      return res.status(200).json([]);
+
+    // Try multiple FMP endpoints (stable paths vary by plan)
+    const endpoints = [
+      `https://financialmodelingprep.com/stable/stock-news?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`,
+      `https://financialmodelingprep.com/stable/news/stock-latest?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`,
+      `https://financialmodelingprep.com/api/v3/stock_news?tickers=${tickerParam}&limit=${limit}&apikey=${apiKey}`,
+    ];
+
+    let rawData = null;
+    for (const url of endpoints) {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) continue;
+        const body = await r.json();
+        if (Array.isArray(body) && body.length > 0) {
+          rawData = body;
+          break;
+        }
+      } catch { /* try next endpoint */ }
     }
 
-    const rawData = await r.json();
-    const articles = (Array.isArray(rawData) ? rawData : []).map(a => ({
+    if (!rawData || rawData.length === 0) {
+      console.warn(`[stock-news] No articles from any FMP endpoint for ${tickerParam}`);
+      const empty = tickers.length === 1 ? { [tickers[0]]: [] } : [];
+      setCached(cacheKey, empty);
+      res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=600');
+      return res.status(200).json(empty);
+    }
+
+    const articles = rawData.map(a => ({
       ticker: (a.symbol || '').toUpperCase(),
       title: a.title || '',
       text: (a.text || a.content || '').slice(0, 200),
@@ -93,14 +114,11 @@ export default async function handler(req, res) {
       source: (a.site || a.source || a.publisher || '').replace(/^www\./, ''),
       date: a.publishedDate || a.date || '',
     })).sort((a, b) => {
-      // Newest first
       const da = a.date ? new Date(a.date).getTime() : 0;
       const db = b.date ? new Date(b.date).getTime() : 0;
       return db - da;
     });
 
-    // For single-ticker legacy compat, return { TICKER: [...] }
-    // For batch, return flat array
     const result = tickers.length === 1
       ? { [tickers[0]]: articles }
       : articles;
