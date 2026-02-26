@@ -19,67 +19,53 @@ function setCached(key, data) {
 const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-// ── YAHOO CRUMB + COOKIE (same pattern as market-data.js) ──
-let _crumb = null;
-let _cookie = null;
-let _crumbTs = 0;
-const CRUMB_TTL = 30 * 60 * 1000;
-
-async function getCrumb() {
-  if (_crumb && _cookie && Date.now() - _crumbTs < CRUMB_TTL) {
-    return { crumb: _crumb, cookie: _cookie };
-  }
+// ── YAHOO FINANCE RSS FEED ──────────────────────────────────
+// Public RSS feed — no API key, no crumb, no auth needed
+async function fetchYahooRSS(ticker, limit) {
   try {
-    const consentRes = await fetch('https://fc.yahoo.com', {
-      redirect: 'manual',
-      signal: AbortSignal.timeout(4000),
-    });
-    const setCookies = consentRes.headers.get('set-cookie') || '';
-    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-      headers: { 'User-Agent': UA, 'Cookie': setCookies.split(';')[0] || '' },
-      signal: AbortSignal.timeout(4000),
-    });
-    if (crumbRes.ok) {
-      _crumb = await crumbRes.text();
-      _cookie = setCookies.split(';')[0] || '';
-      _crumbTs = Date.now();
-      return { crumb: _crumb, cookie: _cookie };
-    }
-  } catch { /* fall through */ }
-  return { crumb: null, cookie: null };
-}
-
-// ── YAHOO FINANCE SEARCH (news) ─────────────────────────────
-async function fetchYahooNews(ticker, limit, crumb, cookie) {
-  try {
-    let url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${limit}&quotesCount=0`;
-    if (crumb) url += `&crumb=${encodeURIComponent(crumb)}`;
-    const headers = { 'User-Agent': UA };
-    if (cookie) headers['Cookie'] = cookie;
+    const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(ticker)}&region=US&lang=en-US`;
     const r = await fetch(url, {
       signal: AbortSignal.timeout(6000),
-      headers,
+      headers: { 'User-Agent': UA },
     });
     if (!r.ok) {
-      console.error(`[stock-news] Yahoo search ${r.status} for ${ticker}`);
+      console.error(`[stock-news] Yahoo RSS ${r.status} for ${ticker}`);
       return [];
     }
-    const data = await r.json();
-    if (!data.news || !Array.isArray(data.news)) return [];
-    return data.news.map(a => ({
-      ticker,
-      title: a.title || '',
-      text: '',
-      url: a.link || '',
-      source: a.publisher || '',
-      date: a.providerPublishTime
-        ? new Date(a.providerPublishTime * 1000).toISOString()
-        : '',
-    }));
+    const xml = await r.text();
+
+    // Simple RSS XML parsing (no dependency needed)
+    const articles = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let match;
+    while ((match = itemRegex.exec(xml)) !== null && articles.length < limit) {
+      const block = match[1];
+      const title = (block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+      const link = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
+      const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
+      const source = (block.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1] || '';
+      if (title) {
+        articles.push({
+          ticker,
+          title: decodeXML(title.trim()),
+          text: '',
+          url: link.trim(),
+          source: decodeXML(source.trim()),
+          date: pubDate ? new Date(pubDate.trim()).toISOString() : '',
+        });
+      }
+    }
+    return articles;
   } catch (e) {
-    console.error(`[stock-news] Yahoo fetch error for ${ticker}:`, e.message);
+    console.error(`[stock-news] RSS error for ${ticker}:`, e.message);
     return [];
   }
+}
+
+// Decode basic XML entities
+function decodeXML(s) {
+  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'");
 }
 
 // ── HANDLER ───────────────────────────────────────────────
@@ -107,7 +93,7 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
-  // Accept either ?tickers=AAPL,MSFT (batch) or ?ticker=AAPL (legacy single)
+  // Accept either ?tickers=AAPL,MSFT (batch) or ?ticker=AAPL (single)
   const raw = req.query.tickers || req.query.ticker || '';
   if (!raw) return res.status(400).json({ error: 'No tickers provided' });
 
@@ -131,14 +117,11 @@ export default async function handler(req, res) {
     const isSingle = tickers.length === 1;
     const perTicker = isSingle ? 5 : Math.max(2, Math.floor(10 / tickers.length));
 
-    // Get Yahoo crumb once for the batch
-    const { crumb, cookie } = await getCrumb();
-
-    // Fetch news for each ticker in parallel via Yahoo Finance search
+    // Fetch news for each ticker in parallel via Yahoo RSS
     const allArticles = [];
     await Promise.allSettled(
       tickers.map(async (ticker) => {
-        const articles = await fetchYahooNews(ticker, perTicker, crumb, cookie);
+        const articles = await fetchYahooRSS(ticker, perTicker);
         allArticles.push(...articles);
       })
     );
