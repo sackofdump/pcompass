@@ -17,7 +17,7 @@ function setCached(key, data) {
 }
 
 // ── VALID RANGES ─────────────────────────────────────────
-const VALID_RANGES = new Set(['1d', '5d', '1mo', '3mo']);
+const VALID_RANGES = new Set(['1d', '5d', '1mo', '3mo', '1y', '5y']);
 
 // ── FETCH SPARKLINE FROM YAHOO FINANCE ───────────────────
 async function fetchSparkline(ticker, range) {
@@ -26,7 +26,7 @@ async function fetchSparkline(ticker, range) {
   if (cached) return cached;
 
   try {
-    const interval = range === '1d' ? '5m' : '1d';
+    const interval = range === '1d' ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
     const r = await fetch(url, {
       headers: {
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
 
   // Validate range
   if (!VALID_RANGES.has(range)) {
-    return res.status(400).json({ error: 'Invalid range. Use: 5d, 1mo, 3mo' });
+    return res.status(400).json({ error: 'Invalid range. Use: 1d, 5d, 1mo, 3mo, 1y, 5y' });
   }
 
   // Deduplicate and sanitize tickers

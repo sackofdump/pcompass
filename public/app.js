@@ -2418,13 +2418,16 @@ function renderPortfolioOverview() {
     '<div class="portfolio-overview">' +
       '<div class="portfolio-overview-header">' +
         '<div class="portfolio-overview-name">' + escapeHTML(pName) + '</div>' +
-        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
+        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()" style="margin-right:6px;">Edit</button>' +
+        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview();expandUploadZone(document.querySelector(\'.upload-compact-trigger\'))">📷 Import</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
         '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
         '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
+        '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
+        '<button class="chart-range-btn" data-range="5y" onclick="loadPortfolioChartRange(\'5y\')">5Y</button>' +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
