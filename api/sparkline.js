@@ -19,21 +19,64 @@ function setCached(key, data) {
 // ── VALID RANGES ─────────────────────────────────────────
 const VALID_RANGES = new Set(['1d', '5d', '1mo', '3mo', '1y', '5y']);
 
+// ── YAHOO CRUMB + COOKIE (cached) ───────────────────────
+let _crumb = null;
+let _cookie = null;
+let _crumbTs = 0;
+const CRUMB_TTL = 30 * 60 * 1000; // refresh every 30 min
+
+async function getCrumb() {
+  if (_crumb && _cookie && Date.now() - _crumbTs < CRUMB_TTL) {
+    return { crumb: _crumb, cookie: _cookie };
+  }
+  try {
+    // Step 1: get consent cookie
+    const consentRes = await fetch('https://fc.yahoo.com', {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(4000),
+    });
+    const setCookies = consentRes.headers.get('set-cookie') || '';
+
+    // Step 2: get crumb with cookie
+    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cookie': setCookies.split(';')[0] || '',
+      },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (crumbRes.ok) {
+      _crumb = await crumbRes.text();
+      _cookie = setCookies.split(';')[0] || '';
+      _crumbTs = Date.now();
+      return { crumb: _crumb, cookie: _cookie };
+    }
+  } catch {
+    // Fall through — use no crumb
+  }
+  return { crumb: null, cookie: null };
+}
+
 // ── FETCH SPARKLINE FROM YAHOO FINANCE ───────────────────
-async function fetchSparkline(ticker, range) {
+async function fetchSparkline(ticker, range, crumb, cookie) {
   const cacheKey = `${ticker}:${range}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
   try {
     const interval = range === '1d' ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+    let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+    if (crumb) url += `&crumb=${encodeURIComponent(crumb)}`;
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json',
+    };
+    if (cookie) headers['Cookie'] = cookie;
+
     const r = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(6000),
+      headers,
+      signal: AbortSignal.timeout(4000),
     });
     if (!r.ok) return null;
     const data = await r.json();
@@ -84,7 +127,7 @@ export default async function handler(req, res) {
 
   // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!await checkRateLimit(ip, 'sparkline', 20)) {
+  if (!await checkRateLimit(ip, 'sparkline', 30)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
@@ -110,17 +153,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Too many tickers. Max 40 per request.' });
   }
 
-  // Fetch in parallel, batches of 10
+  // Get Yahoo crumb for better reliability
+  const { crumb, cookie } = await getCrumb();
+
+  // Fetch ALL tickers in parallel (no batching — much faster)
   const output = {};
-  for (let i = 0; i < tickerList.length; i += 10) {
-    const batch = tickerList.slice(i, i + 10);
-    const results = await Promise.allSettled(
-      batch.map(async (ticker) => {
-        const data = await fetchSparkline(ticker, range);
-        output[ticker] = data;
-      })
-    );
-  }
+  await Promise.allSettled(
+    tickerList.map(async (ticker) => {
+      const data = await fetchSparkline(ticker, range, crumb, cookie);
+      if (data) output[ticker] = data;
+    })
+  );
 
   // Edge cache: 4hr on CDN, 30min stale-while-revalidate
   res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=1800');

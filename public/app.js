@@ -2106,32 +2106,68 @@ function selectAutocomplete(ticker) {
 
 // ── SPARKLINE CHART VIEW ─────────────────────────────────────
 
-function fetchSparklineData(tickers, range) {
-  range = range || '1mo';
-  var CACHE_KEY = 'pc_sparkline_' + range + '_' + tickers.slice().sort().join(',');
-  var CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+var _sparkCache = {}; // in-memory per-ticker cache
+var _SPARK_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+function _getSparkCached(ticker, range) {
+  var key = ticker + ':' + range;
+  // Check in-memory first
+  if (_sparkCache[key] && Date.now() - _sparkCache[key].ts < _SPARK_CACHE_TTL) {
+    return _sparkCache[key].data;
+  }
+  // Check localStorage
   try {
-    var cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      var parsed = JSON.parse(cached);
-      if (Date.now() - parsed.ts < CACHE_TTL) {
-        return Promise.resolve(parsed.data);
+    var raw = localStorage.getItem('pc_sp_' + key);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (Date.now() - parsed.ts < _SPARK_CACHE_TTL) {
+        _sparkCache[key] = parsed;
+        return parsed.data;
       }
     }
   } catch(e) { /* ignore */ }
-  return fetch('/api/sparkline?tickers=' + tickers.join(',') + '&range=' + range)
+  return null;
+}
+
+function _setSparkCached(ticker, range, data) {
+  var key = ticker + ':' + range;
+  var entry = { data: data, ts: Date.now() };
+  _sparkCache[key] = entry;
+  try { localStorage.setItem('pc_sp_' + key, JSON.stringify(entry)); } catch(e) {}
+}
+
+function fetchSparklineData(tickers, range) {
+  range = range || '1mo';
+  // Separate cached vs uncached tickers
+  var result = {};
+  var uncached = [];
+  for (var i = 0; i < tickers.length; i++) {
+    var cached = _getSparkCached(tickers[i], range);
+    if (cached) {
+      result[tickers[i]] = cached;
+    } else {
+      uncached.push(tickers[i]);
+    }
+  }
+  // If all cached, return immediately
+  if (uncached.length === 0) return Promise.resolve(result);
+  // Fetch only uncached tickers
+  return fetch('/api/sparkline?tickers=' + uncached.join(',') + '&range=' + range)
     .then(function(res) {
-      if (!res.ok) return null;
+      if (!res.ok) return result;
       return res.json();
     })
     .then(function(data) {
-      if (!data || data.error) return null;
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: data, ts: Date.now() }));
-      } catch(e) { /* quota exceeded */ }
-      return data;
+      if (!data || data.error) return result;
+      for (var t in data) {
+        if (data[t]) {
+          result[t] = data[t];
+          _setSparkCached(t, range, data[t]);
+        }
+      }
+      return result;
     })
-    .catch(function() { return null; });
+    .catch(function() { return Object.keys(result).length > 0 ? result : null; });
 }
 
 function renderSparklineSVG(closes, width, height, positive) {
@@ -2199,8 +2235,8 @@ function fetchAndRenderSparklines() {
     });
   }
 
-  // Phase 2: Load sparkline chart SVGs async (slower — Yahoo Finance API)
-  fetchSparklineData(tickers, '1d').then(function(sparkData) {
+  // Phase 2: Load sparkline chart SVGs in progressive chunks (5 at a time)
+  function _renderSparkBatch(sparkData) {
     if (!sparkData) return;
     holdings.forEach(function(h) {
       if (!sparkData[h.ticker]) return;
@@ -2213,7 +2249,13 @@ function fetchAndRenderSparklines() {
         svgEl.innerHTML = renderSparklineSVG(sd.closes, 200, 50, positive);
       }
     });
-  });
+  }
+  var CHUNK = 5;
+  for (var c = 0; c < tickers.length; c += CHUNK) {
+    (function(chunk) {
+      fetchSparklineData(chunk, '1d').then(_renderSparkBatch);
+    })(tickers.slice(c, c + CHUNK));
+  }
 }
 
 // ── EXPANDED CHART MODAL ────────────────────────────────────
