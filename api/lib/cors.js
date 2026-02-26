@@ -7,6 +7,8 @@ export const ALLOWED_ORIGINS = [
 export function getAllowedOrigin(req) {
   const origin = req.headers.origin || '';
   if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  // Allow requests with no origin (same-origin, server-to-server, or native app WebView)
+  if (!origin || origin === 'null') return ALLOWED_ORIGINS[0];
   return null;
 }
 

@@ -46,9 +46,11 @@ export default async function handler(req, res) {
 
   try {
     // Verify Apple id_token JWT against Apple's public keys
+    // Accept both Service ID (web Sign-in) and Bundle ID (iOS native Sign-in)
+    const validAudiences = [process.env.APPLE_SERVICE_ID, 'com.pcompass.app'].filter(Boolean);
     const { payload } = await jose.jwtVerify(id_token, APPLE_JWKS, {
       issuer: 'https://appleid.apple.com',
-      audience: process.env.APPLE_SERVICE_ID,
+      audience: validAudiences,
     });
 
     const appleId = payload.sub;

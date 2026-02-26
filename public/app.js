@@ -427,25 +427,32 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ── ANALYZE ──────────────────────────────────────────────
-function scoreETF(etf, profile) {
+function scoreETF(etf, profile, missingSectorNames) {
   let score = 70;
   if (etf.sectors.includes('all')) {
-    score += 5;
+    // Broad market ETFs get a moderate boost — they fill gaps broadly
+    score += missingSectorNames.length > 3 ? 8 : 3;
   } else {
     etf.sectors.forEach(s => {
-      if (profile.sectors[s] && profile.sectors[s] > 30) score -= 10;
-      if (profile.sectors[s] && profile.sectors[s] < 10) score += 8;
-      if (!profile.sectors[s]) score += 12;
+      var current = profile.sectors[s] || 0;
+      var isMissing = missingSectorNames.indexOf(s) >= 0;
+      var target = SECTOR_TARGETS[s] || {agg:0,mod:0,con:0};
+      var maxTarget = Math.max(target.agg, target.mod, target.con);
+      if (current === 0 && isMissing && maxTarget >= 5) score += 22;
+      else if (current === 0 && isMissing) score += 14;
+      else if (current === 0) score += 6;
+      else if (current < 10 && isMissing) score += 10;
+      else if (current > 30) score -= 12;
     });
   }
   return Math.min(99, Math.max(50, score));
 }
 
-function getTopETFs(category, profile, n) {
+function getTopETFs(category, profile, n, missingSectorNames) {
   const owned = holdings.map(h => h.ticker);
   return ETF_DB[category]
     .filter(e => !owned.includes(e.ticker))
-    .map(e => ({...e, score:scoreETF(e, profile)}))
+    .map(e => ({...e, score:scoreETF(e, profile, missingSectorNames)}))
     .sort((a,b) => b.score - a.score)
     .slice(0, n);
 }
@@ -461,16 +468,19 @@ function analyze() {
   const profile = getPortfolioProfile();
   const {sectors} = profile;
 
-  const aggressiveETFs = getTopETFs('aggressive', profile, 3);
-  const moderateETFs   = getTopETFs('moderate',   profile, 3);
-  const conservativeETFs = getTopETFs('conservative', profile, 3);
-
-  // Sector bars
+  // Compute missing sectors first so recommendations can use them
   const heldSectors = Object.entries(sectors).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
   const missingSectors = Object.entries(SECTOR_TARGETS)
     .filter(([name, t]) => !(sectors[name] > 0) && (t.agg >= 3 || t.mod >= 3 || t.con >= 3))
     .sort((a,b) => Math.max(b[1].agg,b[1].mod,b[1].con) - Math.max(a[1].agg,a[1].mod,a[1].con))
     .slice(0, 8);
+  const missingSectorNames = missingSectors.map(function(e) { return e[0]; });
+
+  const aggressiveETFs = getTopETFs('aggressive', profile, 3, missingSectorNames);
+  const moderateETFs   = getTopETFs('moderate',   profile, 3, missingSectorNames);
+  const conservativeETFs = getTopETFs('conservative', profile, 3, missingSectorNames);
+
+  // Sector bars
 
   const maxVal = Math.max(...heldSectors.map(([,v]) => v), 1);
   const capVal = Math.min(maxVal, 35); // cap so bars look fuller even with small %
@@ -510,8 +520,14 @@ function analyze() {
       .filter(p => !ownedTickers.includes(p.ticker) && !p.avoidIfHeld.some(t => ownedTickers.includes(t)) && riskAllowed.includes(p.risk))
       .map(p => {
         let score = 50;
-        if (!ownedSectors.includes(p.sector)) score += 28;
-        else if ((sectors[p.sector]||0) < 10) score += 14;
+        var isMissing = missingSectorNames.indexOf(p.sector) >= 0;
+        var target = SECTOR_TARGETS[p.sector] || {agg:0,mod:0,con:0};
+        var maxTarget = Math.max(target.agg, target.mod, target.con);
+        if (!ownedSectors.includes(p.sector) && isMissing && maxTarget >= 5) score += 30;
+        else if (!ownedSectors.includes(p.sector) && isMissing) score += 20;
+        else if (!ownedSectors.includes(p.sector)) score += 10;
+        else if ((sectors[p.sector]||0) < 10 && isMissing) score += 14;
+        else if ((sectors[p.sector]||0) > 30) score -= 10;
         if (p.risk === 'Low') score += 6;
         if (p.risk === 'Very High') score -= 8;
         // Boost/penalise with live momentum (±15 pts max)
@@ -1580,11 +1596,6 @@ function renderSidebarAccount() {
 
 async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
-  if (typeof currentUser === 'undefined' || !currentUser) {
-    showToast('Sign in to save portfolios');
-    if (typeof showAuthModalOptimized === 'function') showAuthModalOptimized();
-    return;
-  }
   const portfolios = getSavedPortfolios();
   if (portfolios.length >= MAX_SLOTS) { showToast('Max ' + MAX_SLOTS + ' portfolios — delete one to save a new one.'); return; }
   const name = 'Portfolio ' + (portfolios.length + 1);
@@ -1592,7 +1603,10 @@ async function savePortfolio() {
   savePortfoliosLS(portfolios);
   _activePortfolioIdx = portfolios.length - 1;
   _activePortfolioSnapshot = JSON.stringify(holdings);
+  localStorage.setItem('pc_last_portfolio', String(_activePortfolioIdx));
   renderSidebarPortfolios();
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+  if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
   showToast('✓ Portfolio saved!');
 }
 

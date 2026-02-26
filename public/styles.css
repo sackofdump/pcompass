@@ -1506,15 +1506,16 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 10px 5px 0;
+    padding: 8px 14px 8px 0;
     background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     border-left: 3px solid var(--muted);
     cursor: pointer;
     transition: border-color var(--transition-fast), background var(--transition-fast);
     white-space: nowrap;
     position: relative;
+    min-width: 110px;
   }
   .pstrip-card:hover { border-color: var(--accent); }
   .pstrip-card.active {
@@ -1528,13 +1529,13 @@
     background-clip: text;
   }
 
-  .pstrip-info { padding-left: 10px; }
+  .pstrip-info { padding-left: 12px; }
   .pstrip-name {
     font-family: 'DM Sans', sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text);
-    max-width: 90px;
+    max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.2;
@@ -1545,6 +1546,17 @@
     color: var(--muted);
     line-height: 1.2;
   }
+  .pstrip-edit {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 4px;
+    opacity: 0.5;
+    transition: opacity var(--transition-fast);
+  }
+  .pstrip-edit:hover { opacity: 1; color: var(--accent); }
   .pstrip-change {
     font-family: 'Space Mono', monospace;
     font-size: 10px;
