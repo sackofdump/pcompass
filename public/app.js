@@ -1579,7 +1579,7 @@ async function savePortfolio() {
   showToast('✓ Portfolio saved!');
 }
 
-function loadPortfolio(idx) {
+function loadPortfolio(idx, silent) {
   const portfolios = getSavedPortfolios();
   if (!portfolios[idx]) return;
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
@@ -1599,7 +1599,7 @@ function loadPortfolio(idx) {
   }
   if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
   closeSidebar();
-  showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
+  if (!silent) showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
 }
 
 function deletePortfolio(idx) {

@@ -1014,10 +1014,10 @@ function getAuthHeaders() {
     try {
       currentUser = JSON.parse(saved);
       updateUserUI();
-      // Auto-load default or last portfolio
+      // Auto-load default or last portfolio (silent — no toast on refresh)
       var defIdx = typeof getDefaultPortfolioIdx === 'function' ? getDefaultPortfolioIdx() : -1;
       if (defIdx >= 0 && typeof loadPortfolio === 'function') {
-        loadPortfolio(defIdx);
+        loadPortfolio(defIdx, true);
       }
     } catch(e) {
       localStorage.removeItem('pc_user');
