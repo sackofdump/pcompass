@@ -116,16 +116,35 @@ function totalAllocation() {
 
 function addStock() {
   let ticker = document.getElementById('tickerInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const pct = parseFloat(document.getElementById('pctInput').value);
+  const pctInput = document.getElementById('pctInput').value;
+  let pct = parseFloat(pctInput);
   const err = document.getElementById('errorMsg');
   err.textContent = '';
   if (!ticker) { err.textContent = 'Enter a ticker symbol.'; return; }
-  if (!pct || pct <= 0) { err.textContent = 'Enter a valid percentage.'; return; }
   // Resolve ticker alias (e.g. RVI → RVTY)
   const dbEntry = STOCK_DB[ticker];
   if (dbEntry && dbEntry.alias) ticker = dbEntry.alias;
   if (holdings.find(h => h.ticker === ticker)) { err.textContent = ticker + ' already added.'; return; }
-  if (totalAllocation() + pct > 100.05) { err.textContent = 'Total exceeds 100%.'; return; }
+  // If no % entered, auto-calculate equal weight across all holdings
+  if (!pctInput || isNaN(pct) || pct <= 0) {
+    var remaining = 100 - totalAllocation();
+    if (remaining <= 0) {
+      // Re-balance all holdings equally
+      pct = Math.round((100 / (holdings.length + 1)) * 10) / 10;
+      holdings.forEach(function(h) { h.pct = pct; });
+    } else {
+      pct = Math.round(remaining * 10) / 10;
+    }
+  }
+  if (totalAllocation() + pct > 100.05) {
+    // Shrink to fit
+    pct = Math.round((100 - totalAllocation()) * 10) / 10;
+    if (pct <= 0) {
+      // Re-balance all holdings equally
+      pct = Math.round((100 / (holdings.length + 1)) * 10) / 10;
+      holdings.forEach(function(h) { h.pct = pct; });
+    }
+  }
   const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0, cap:'unknown'};
   holdings.push({ticker, pct, ...info});
   document.getElementById('tickerInput').value = '';
