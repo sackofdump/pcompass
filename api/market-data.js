@@ -217,27 +217,44 @@ async function fetchBatch(tickerList) {
   // Try Polygon batch first (single API call for all tickers)
   const polygonResults = await fetchPolygonBatch(uncached);
   const stillMissing = [];
+  const needExtendedHours = []; // Polygon returned CLOSED — try Yahoo for after-hours price
   for (const ticker of uncached) {
     if (polygonResults[ticker]) {
-      setCached(ticker, polygonResults[ticker]);
       results[ticker] = polygonResults[ticker];
+      // If market is closed, Yahoo might have a more recent extended hours price
+      if (polygonResults[ticker].marketState === 'CLOSED') {
+        needExtendedHours.push(ticker);
+      } else {
+        setCached(ticker, polygonResults[ticker]);
+      }
     } else {
       stillMissing.push(ticker);
     }
   }
 
-  // Fallback: Yahoo then FMP for any tickers Polygon missed
-  if (stillMissing.length > 0) {
+  // Try Yahoo for extended hours prices + any tickers Polygon missed entirely
+  const yahooNeeded = [...stillMissing, ...needExtendedHours];
+  if (yahooNeeded.length > 0) {
     const { crumb, cookie } = await getCrumb();
     await Promise.allSettled(
-      stillMissing.map(async (ticker) => {
+      yahooNeeded.map(async (ticker) => {
         let result = await fetchYahoo(ticker, crumb, cookie);
-        if (!result) result = await fetchFMP(ticker);
         if (result) {
+          // Yahoo has a better price if it differs from Polygon (extended hours)
           setCached(ticker, result);
           results[ticker] = result;
+        } else if (!results[ticker]) {
+          // Only try FMP if we have nothing at all
+          result = await fetchFMP(ticker);
+          if (result) {
+            setCached(ticker, result);
+            results[ticker] = result;
+          } else {
+            results[ticker] = null;
+          }
         } else {
-          results[ticker] = null;
+          // Keep Polygon result as fallback
+          setCached(ticker, results[ticker]);
         }
       })
     );
