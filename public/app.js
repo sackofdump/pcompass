@@ -578,6 +578,22 @@ function getTopETFs(category, profile, n, missingSectorNames) {
     .slice(0, n);
 }
 
+function getAllTopETFs(profile, n, missingSectorNames) {
+  const owned = holdings.map(h => h.ticker);
+  const seen = {};
+  const all = [];
+  ['aggressive','moderate','conservative'].forEach(function(cat) {
+    (ETF_DB[cat] || []).forEach(function(e) {
+      if (owned.includes(e.ticker) || seen[e.ticker]) return;
+      seen[e.ticker] = true;
+      all.push({...e, score: scoreETF(e, profile, missingSectorNames)});
+    });
+  });
+  return all.filter(function(e) { return e.score >= 40; })
+    .sort(function(a,b) { return b.score - a.score; })
+    .slice(0, n);
+}
+
 function matchLabel(score) {
   if (score >= 85) return '<span class="match-score match-high">✦ Best match to balance your portfolio</span>';
   return '<span class="match-score match-med">◈ Good match to balance your portfolio</span>';
@@ -597,9 +613,7 @@ function analyze() {
     .slice(0, 8);
   const missingSectorNames = missingSectors.map(function(e) { return e[0]; });
 
-  const aggressiveETFs = getTopETFs('aggressive', profile, 3, missingSectorNames);
-  const moderateETFs   = getTopETFs('moderate',   profile, 3, missingSectorNames);
-  const conservativeETFs = getTopETFs('conservative', profile, 3, missingSectorNames);
+  const allTopETFs = getAllTopETFs(profile, 6, missingSectorNames);
 
   // Sector bars
 
@@ -626,26 +640,36 @@ function analyze() {
   const sectorBars = heldSectors.map(([n,v]) => makeBar(n,v,false)).join('') +
     (missingSectors.length > 0 ? '<div class="sector-divider"><span>Not in your portfolio</span></div>' + missingSectors.map(([n]) => makeBar(n,0,true)).join('') : '');
 
-  // Stock picks per strategy
+  // Stock picks — unified scoring based on portfolio profile
   const ownedTickers = holdings.map(h => h.ticker);
   const ownedSectors = Object.keys(sectors).filter(s => (sectors[s]||0) > 5);
   const safeStr = s => s.replace(/'/g,"\\'").replace(/"/g,'&quot;');
 
+  // Determine portfolio risk profile for pick filtering
+  var _profileRiskKey = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
+  var _profileTargetKey = {aggressive:'agg',moderate:'mod',conservative:'con'}[_profileRiskKey];
+  // Allow a broader risk range — include adjacent tier
+  var _riskAllowed = {
+    aggressive:['High','Very High','Medium'],
+    moderate:['Medium','Low','High','Very High'],
+    conservative:['Low','Medium','High'],
+  }[_profileRiskKey] || ['Medium','Low','High'];
+
   function getScoredPicks(strategyKey, marketData) {
-    const riskAllowed = {
+    // Legacy per-strategy function kept for pro-picks compatibility
+    var sKey = strategyKey || _profileRiskKey;
+    var riskAllowed = {
       aggressive:['High','Very High','Medium'],
       moderate:['Medium','Low','High'],
       conservative:['Low','Medium'],
-    }[strategyKey] || ['Medium'];
+    }[sKey] || ['Medium'];
     var groupExposure = _computeGroupExposure(sectors);
-    // Map strategy to target key for sector-gap scoring
-    var strategyTargetKey = {aggressive:'agg',moderate:'mod',conservative:'con'}[strategyKey];
+    var strategyTargetKey = {aggressive:'agg',moderate:'mod',conservative:'con'}[sKey];
     return STOCK_PICKS
       .filter(p => {
         if (ownedTickers.includes(p.ticker)) return false;
         if (p.avoidIfHeld.some(t => ownedTickers.includes(t))) return false;
         if (!riskAllowed.includes(p.risk)) return false;
-        // Exclude stocks in sectors the user already has >15% — would worsen concentration
         var currentAlloc = sectors[p.sector] || 0;
         if (currentAlloc > 15) return false;
         return true;
@@ -657,17 +681,67 @@ function analyze() {
         var maxTarget = Math.max(target.agg, target.mod, target.con);
         var stratTarget = target[strategyTargetKey] || 0;
         var currentAlloc = sectors[p.sector] || 0;
-        // Boost stocks that fill gaps in portfolio (balance-first)
         if (!ownedSectors.includes(p.sector) && isMissing && maxTarget >= 5) score += 30;
         else if (!ownedSectors.includes(p.sector) && isMissing) score += 20;
         else if (!ownedSectors.includes(p.sector)) score += 10;
         else if (currentAlloc < 10 && isMissing) score += 14;
-        // Bonus for filling underweight sectors relative to strategy target
         if (stratTarget > 0 && currentAlloc < stratTarget) {
           score += Math.round((stratTarget - currentAlloc) * 0.8);
         }
         if (p.risk === 'Low') score += 6;
         if (p.risk === 'Very High') score -= 8;
+        var g = _getSectorGroup(p.sector);
+        if (g && groupExposure[g] > 25) score -= 20;
+        if (typeof CORRELATED_PAIRS !== 'undefined') {
+          CORRELATED_PAIRS.forEach(function(pair) {
+            var stocks = pair[0], etfs = pair[1];
+            if (etfs.indexOf(p.ticker) >= 0) {
+              var overlap = stocks.filter(function(t) { return ownedTickers.indexOf(t) >= 0; });
+              if (overlap.length >= 2) score -= 15;
+            }
+          });
+        }
+        const md = marketData && marketData[p.ticker];
+        if (md) score += Math.round((md.momentum - 50) * 0.3);
+        return {...p, score, isStock:true};
+      })
+      .filter(p => p.score >= 40)
+      .sort((a,b) => b.score - a.score)
+      .slice(0,8);
+  }
+
+  function getUnifiedPicks(marketData) {
+    var groupExposure = _computeGroupExposure(sectors);
+    return STOCK_PICKS
+      .filter(function(p) {
+        if (ownedTickers.includes(p.ticker)) return false;
+        if (p.avoidIfHeld.some(function(t) { return ownedTickers.includes(t); })) return false;
+        if (!_riskAllowed.includes(p.risk)) return false;
+        var currentAlloc = sectors[p.sector] || 0;
+        if (currentAlloc > 15) return false;
+        return true;
+      })
+      .map(function(p) {
+        var score = 50;
+        var isMissing = missingSectorNames.indexOf(p.sector) >= 0;
+        var target = SECTOR_TARGETS[p.sector] || {agg:0,mod:0,con:0};
+        var maxTarget = Math.max(target.agg, target.mod, target.con);
+        var stratTarget = target[_profileTargetKey] || 0;
+        var currentAlloc = sectors[p.sector] || 0;
+        // Boost stocks that fill gaps in portfolio
+        if (!ownedSectors.includes(p.sector) && isMissing && maxTarget >= 5) score += 30;
+        else if (!ownedSectors.includes(p.sector) && isMissing) score += 20;
+        else if (!ownedSectors.includes(p.sector)) score += 10;
+        else if (currentAlloc < 10 && isMissing) score += 14;
+        // Underweight sector bonus
+        if (stratTarget > 0 && currentAlloc < stratTarget) {
+          score += Math.round((stratTarget - currentAlloc) * 0.8);
+        }
+        // Risk alignment bonus
+        if (_profileRiskKey === 'aggressive' && (p.risk === 'High' || p.risk === 'Very High')) score += 5;
+        else if (_profileRiskKey === 'moderate' && p.risk === 'Medium') score += 5;
+        else if (_profileRiskKey === 'conservative' && p.risk === 'Low') score += 8;
+        if (p.risk === 'Very High' && _profileRiskKey !== 'aggressive') score -= 10;
         // Group exposure penalty
         var g = _getSectorGroup(p.sector);
         if (g && groupExposure[g] > 25) score -= 20;
@@ -681,14 +755,14 @@ function analyze() {
             }
           });
         }
-        // Boost/penalise with live momentum (±15 pts max)
-        const md = marketData && marketData[p.ticker];
+        // Live momentum
+        var md = marketData && marketData[p.ticker];
         if (md) score += Math.round((md.momentum - 50) * 0.3);
-        return {...p, score, isStock:true};
+        return Object.assign({}, p, {score: score, isStock: true});
       })
-      .filter(p => p.score >= 40) // Only show stocks that genuinely help balance the portfolio
-      .sort((a,b) => b.score - a.score)
-      .slice(0,8);
+      .filter(function(p) { return p.score >= 40; })
+      .sort(function(a,b) { return b.score - a.score; })
+      .slice(0, 12);
   }
 
   // ── Market data badge HTML helper ────────────────────────
@@ -756,25 +830,16 @@ function analyze() {
       const liveScore = e.score + (md ? Math.round((md.momentum - 50) * 0.3) : 0);
       return {...e, score: liveScore, isStock: false};
     });
-
-    // All items combined and sorted by score — best portfolio-balancing picks first
     const allItems = [...taggedEtfs, ...picks].sort((a,b) => b.score - a.score);
-
-    // Primary: first 5 (from truncated free data)
     const primaryItems = allItems.slice(0,5);
     const primaryHTML = primaryItems.map(item => buildItemHTML(item, type, marketData)).join('');
-
-    // Expose buildItemHTML and marketData for dynamic pro pick rendering
     _lastBuildItemHTML = buildItemHTML;
     _lastMarketData = marketData;
-
-    // Show-more container — available to all users (static data, no API cost)
     const extraHTML =
       '<div class="show-more-items" id="show-more-' + type + '"></div>' +
       '<button class="btn-show-more" id="show-more-btn-' + type + '" onclick="toggleShowMore(\'' + type + '\')" data-shown="0">' +
         '✦ See more stocks' +
       '</button>';
-
     return '<div class="strategy-card"><div class="strategy-header strategy-toggle" onclick="toggleStrategyCard(this)">' +
       '<div class="strategy-label">' +
       '<span class="strategy-badge badge-' + type + '">' + label + '</span>' +
@@ -782,6 +847,32 @@ function analyze() {
       '<span class="strategy-chevron">&#9662;</span><span class="strategy-expand-hint">tap to expand</span></div>' +
       '<span class="strategy-desc">' + desc + '</span></div>' +
       '<div class="etf-list strategy-collapsed">' + primaryHTML + extraHTML + '</div></div>';
+  }
+
+  function buildUnifiedRecommendations(marketData) {
+    var picks = getUnifiedPicks(marketData);
+    var taggedEtfs = allTopETFs.map(function(e) {
+      var md = marketData && marketData[e.ticker];
+      var liveScore = e.score + (md ? Math.round((md.momentum - 50) * 0.3) : 0);
+      return Object.assign({}, e, {score: liveScore, isStock: false});
+    });
+    var allItems = taggedEtfs.concat(picks).sort(function(a,b) { return b.score - a.score; });
+    // Deduplicate
+    var seen = {};
+    allItems = allItems.filter(function(item) {
+      if (seen[item.ticker]) return false;
+      seen[item.ticker] = true;
+      return true;
+    });
+    var primaryItems = allItems.slice(0, 8);
+    var html = primaryItems.map(function(item) { return buildItemHTML(item, 'rec', marketData); }).join('');
+    _lastBuildItemHTML = buildItemHTML;
+    _lastMarketData = marketData;
+    html += '<div class="show-more-items" id="show-more-rec"></div>' +
+      '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMore(\'rec\')" data-shown="0">' +
+        '✦ See more stocks' +
+      '</button>';
+    return html;
   }
 
   function renderResultsPanel(marketData) {
@@ -943,20 +1034,12 @@ function analyze() {
       rebalanceHTML +
       '<div class="rebalance-panel recommended-panel">' +
         '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
-          '<h2 class="section-title">Recommended Stocks</h2>' + statusHTML +
+          '<h2 class="section-title">Recommended for You</h2>' + statusHTML +
           '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
         '</div>' +
         '<div class="panel-body recommended-body">' +
-          (function() {
-            var cards = [
-              {key:'aggressive', label:'Aggressive', desc:'High growth, high risk', etfs:aggressiveETFs},
-              {key:'moderate',   label:'Moderate',   desc:'Growth with stability',  etfs:moderateETFs},
-              {key:'conservative',label:'Conservative',desc:'Capital preservation', etfs:conservativeETFs}
-            ];
-            var bestMatch = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
-            cards.sort(function(a,b) { return (a.key === bestMatch ? -1 : b.key === bestMatch ? 1 : 0); });
-            return cards.map(function(c) { return strategyCard(c.key, c.label, c.desc, c.etfs, marketData); }).join('');
-          })() +
+          '<div class="rec-subtitle">Based on your portfolio\'s risk profile, sector gaps, and diversification needs.</div>' +
+          '<div class="etf-list">' + buildUnifiedRecommendations(marketData) + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from FMP &middot; Ranked by portfolio fit + live momentum.</span></div>';
@@ -970,30 +1053,13 @@ function analyze() {
       el.addEventListener('click',      () => toggleStrategy(s));
     });
 
-    // Add "Best match" badge and auto-expand the matching card
-    (function() {
-      var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
-      var cards = document.querySelectorAll('.strategy-card');
-      cards.forEach(function(card) {
-        var badge = card.querySelector('.strategy-badge');
-        var slot = card.querySelector('.strategy-best-match-slot');
-        if (badge && slot && badge.classList.contains('badge-' + matchType)) {
-          slot.innerHTML = '<span class="strategy-best-match">Best match for you</span>';
-          // Auto-expand best-match strategy card
-          var list = card.querySelector('.etf-list');
-          if (list) list.classList.remove('strategy-collapsed');
-        }
-      });
-    })();
+    // (Strategy card expansion removed — unified recommendation list is always visible)
   }
 
-  // Collect only the tickers actually rendered (max ~15)
+  // Collect only the tickers actually rendered
   const renderedTickers = [];
-  [aggressiveETFs, moderateETFs, conservativeETFs].forEach(etfs => {
-    etfs.slice(0,3).forEach(e => renderedTickers.push(e.ticker));
-  });
-  [getScoredPicks('aggressive',null), getScoredPicks('moderate',null), getScoredPicks('conservative',null)]
-    .forEach(picks => picks.forEach(p => renderedTickers.push(p.ticker)));
+  allTopETFs.forEach(function(e) { renderedTickers.push(e.ticker); });
+  getUnifiedPicks(null).forEach(function(p) { renderedTickers.push(p.ticker); });
   const tickersToFetch = [...new Set(renderedTickers)];
 
   // Render immediately with loading placeholders
@@ -2115,11 +2181,14 @@ function _renderProPicksForStrategy(type, proData) {
   const profile = getPortfolioProfile();
   const ownedSectors = Object.keys(profile.sectors).filter(s => (profile.sectors[s]||0) > 5);
 
-  const riskAllowed = {
-    aggressive:['High','Very High','Medium'],
-    moderate:['Medium','Low','High'],
-    conservative:['Low','Medium'],
-  }[type] || ['Medium'];
+  // For unified 'rec' type, use broad risk allowance based on portfolio profile
+  var riskAllowed;
+  if (type === 'rec') {
+    var rk = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
+    riskAllowed = {aggressive:['High','Very High','Medium'], moderate:['Medium','Low','High','Very High'], conservative:['Low','Medium','High']}[rk] || ['Medium','Low','High'];
+  } else {
+    riskAllowed = {aggressive:['High','Very High','Medium'], moderate:['Medium','Low','High'], conservative:['Low','Medium']}[type] || ['Medium'];
+  }
 
   // Score and filter pro stock picks
   const picks = (proData.stocks || [])
@@ -2137,13 +2206,26 @@ function _renderProPicksForStrategy(type, proData) {
     .sort((a,b) => b.score - a.score)
     .slice(0,20);
 
-  // Score and filter pro ETFs for this strategy
-  const proEtfs = (proData.etfs && proData.etfs[type]) || [];
+  // Score and filter pro ETFs — merge all categories for unified type
+  var proEtfs = [];
+  if (type === 'rec') {
+    ['aggressive','moderate','conservative'].forEach(function(cat) {
+      (proData.etfs && proData.etfs[cat] || []).forEach(function(e) { proEtfs.push(e); });
+    });
+  } else {
+    proEtfs = (proData.etfs && proData.etfs[type]) || [];
+  }
   const etfs = proEtfs
     .filter(e => !ownedTickers.includes(e.ticker))
     .map(e => ({...e, score:70, isStock:false}));
 
-  const allExtraRaw = [...etfs, ...picks].slice(0, 20);
+  // Deduplicate
+  var seen = {};
+  const allExtraRaw = [...etfs, ...picks].filter(function(item) {
+    if (seen[item.ticker]) return false;
+    seen[item.ticker] = true;
+    return true;
+  }).slice(0, 20);
   // Round down to multiple of 5 for clean "see more" batches
   const allExtra = allExtraRaw.slice(0, Math.floor(allExtraRaw.length / 5) * 5);
   if (allExtra.length === 0) return '';
