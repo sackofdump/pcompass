@@ -266,7 +266,10 @@ function renderHoldings() {
 
   if (_holdingsView === 'chart' && holdings.length >= 3) {
     list.className = 'sparkline-grid' + (holdings.length > 8 && !_gridExpanded ? ' grid-collapsed' : '');
-    list.innerHTML = holdings.map(h => {
+    var cardsSorted = holdings.slice().sort(function(a, b) {
+      return ((b.shares || 0) * _getPrice(b.ticker)) - ((a.shares || 0) * _getPrice(a.ticker));
+    });
+    list.innerHTML = cardsSorted.map(h => {
       const dbEntry = STOCK_DB[h.ticker] || {};
       const companyName = dbEntry.name || h.ticker;
       const sectorColor = SECTOR_COLORS[h.sector] || SECTOR_COLORS['Other'] || '#475569';
