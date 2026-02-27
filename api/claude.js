@@ -7,9 +7,9 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── DB-BACKED RATE LIMITER ───────────────────────────────
 const LIMITS = {
-  free:      { requests: 3,  windowMs: 60 * 60 * 1000 },       // 3/hr
+  free:      { requests: 50, windowMs: 60 * 60 * 1000 },       // 50/hr
   pro:       { requests: 50, windowMs: 60 * 60 * 1000 },       // 50/hr
-  screenshot:{ requests: 3,  windowMs: 24 * 60 * 60 * 1000 },  // 3/day free
+  screenshot:{ requests: 50, windowMs: 24 * 60 * 60 * 1000 },  // 50/day
 };
 
 async function checkRateLimitDB(clientKey, endpoint, limitKey) {

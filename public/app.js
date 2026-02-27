@@ -1102,7 +1102,7 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
     });
     const rawText = await res.text();
     if (res.status === 429) {
-      showPaywall('ai');
+      textEl.textContent = 'Rate limit reached — please wait a minute and try again.';
       return;
     }
     if (!res.ok) {
