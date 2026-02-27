@@ -337,10 +337,11 @@ function renderHoldings() {
   chip.textContent = holdings.length + ' holdings';
   btn.disabled = holdings.length === 0;
 
-  // Hide examples when a portfolio is loaded, show when empty
+  // Hide examples only when user has saved portfolios
   const exEl = document.getElementById('examplePortfolios');
   if (exEl) {
-    exEl.style.display = holdings.length > 0 ? 'none' : 'block';
+    var hasSaved = getSavedPortfolios().length > 0;
+    exEl.style.display = (holdings.length > 0 && hasSaved) ? 'none' : 'block';
   }
 
   // Show/hide what-if simulator
@@ -2027,7 +2028,8 @@ function showToast(msg) {
 (function initExamples() {
   const exEl = document.getElementById('examplePortfolios');
   if (!exEl) return;
-  if (holdings.length > 0) exEl.style.display = 'none';
+  var hasSaved = getSavedPortfolios().length > 0;
+  if (holdings.length > 0 && hasSaved) exEl.style.display = 'none';
 })();
 
 // Sidebar portfolios are rendered on-demand when sidebar opens
@@ -3049,49 +3051,46 @@ function _equityTick() {
     }
     recalcPortfolioPct();
 
-    // ── EQUITY ──
+    // ── Compute portfolio % change (weighted avg of each stock's 1D changePct) ──
+    var totalWeight = 0;
+    var weightedPct = 0;
+    for (var i = 0; i < holdings.length; i++) {
+      var h = holdings[i];
+      var md = raw[h.ticker];
+      if (md && md.price && md.changePct != null) {
+        var w = (h.shares || 0) * Number(md.price);
+        totalWeight += w;
+        weightedPct += w * Number(md.changePct);
+      }
+    }
+    var portfolioPct = totalWeight > 0 ? weightedPct / totalWeight : 0;
+    var dir = portfolioPct >= 0 ? 'up' : 'down';
+
+    // ── EQUITY — always set, flash on every fetch ──
     var eq = getTotalEquity();
     var eqEl = document.getElementById('equityTicker');
     if (eqEl && eq > 0) {
-      var eqText = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-      var oldText = eqEl.textContent;
-      eqEl.textContent = eqText;
-
-      // Flash green/red on change, then back to white
-      if (oldText !== '--' && oldText !== eqText && _lastEquityValue > 0) {
-        var dir = eq > _lastEquityValue ? 'up' : 'down';
-        eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
-        void eqEl.offsetWidth;
-        eqEl.classList.add('eq-flash-' + dir);
-        setTimeout(function() { eqEl.classList.remove('eq-flash-up', 'eq-flash-down'); }, 1200);
-        _applyBubbleGlow(dir);
-      }
+      eqEl.textContent = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+      // Brief color flash based on portfolio direction
+      eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
+      void eqEl.offsetWidth;
+      eqEl.classList.add('eq-flash-' + dir);
+      setTimeout(function() { eqEl.classList.remove('eq-flash-up', 'eq-flash-down'); }, 1200);
       _lastEquityValue = eq;
     }
 
-    // ── % CHANGE (weighted avg of 1D changePct from market data) ──
+    // ── % BADGE — always set ──
     var pctEl = document.getElementById('pctBadge');
-    if (pctEl) {
-      var totalWeight = 0;
-      var weightedPct = 0;
-      for (var i = 0; i < holdings.length; i++) {
-        var h = holdings[i];
-        var md = raw[h.ticker];
-        if (md && md.price && md.changePct != null) {
-          var w = (h.shares || 0) * Number(md.price);
-          totalWeight += w;
-          weightedPct += w * Number(md.changePct);
-        }
-      }
-      if (totalWeight > 0) {
-        var pct = weightedPct / totalWeight;
-        var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
-        var sign = pct > 0 ? '+' : '';
-        pctEl.textContent = sign + pct.toFixed(2) + '%';
-        pctEl.className = 'portfolio-perf-badge ' + cls;
-        _lastPctValue = pct;
-      }
+    if (pctEl && totalWeight > 0) {
+      var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
+      var sign = portfolioPct > 0 ? '+' : '';
+      pctEl.textContent = sign + portfolioPct.toFixed(2) + '%';
+      pctEl.className = 'portfolio-perf-badge ' + cls;
+      _lastPctValue = portfolioPct;
     }
+
+    // ── PULSE the border on every fetch ──
+    _applyBubbleGlow(dir);
 
     // ── MARKET CLOSED LABEL ──
     var perfBadge = document.getElementById('portfolioOverviewPerf');
