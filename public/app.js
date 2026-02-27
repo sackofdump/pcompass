@@ -2597,6 +2597,7 @@ function renderPortfolioOverview() {
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
         '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
         '<button class="chart-range-btn" data-range="5y" onclick="loadPortfolioChartRange(\'5y\')">5Y</button>' +
+        '<button class="chart-live-btn" id="chartLiveBtn" onclick="toggleChartLive()"><span class="live-dot"></span>LIVE</button>' +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
@@ -2631,7 +2632,113 @@ function renderPortfolioOverview() {
   loadPortfolioChartRange('1d');
 }
 
+// ── LIVE CHART MODE ──────────────────────────────────────────
+var _chartLiveTimer = null;
+var _chartLiveActive = false;
+var _CHART_LIVE_INTERVAL = 5 * 1000; // 5 seconds
+
+function toggleChartLive() {
+  if (_chartLiveActive) {
+    _stopChartLive();
+  } else {
+    _startChartLive();
+  }
+}
+
+function _startChartLive() {
+  var btn = document.getElementById('chartLiveBtn');
+  if (!btn) return;
+
+  // Force 1D range when going live
+  var container = document.getElementById('portfolioOverviewChart');
+  if (container) {
+    container.querySelectorAll('.chart-range-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.range === '1d');
+    });
+  }
+
+  _chartLiveActive = true;
+  btn.classList.add('active');
+
+  // Add glow to chart area
+  var chartArea = document.getElementById('portfolioOverviewChartArea');
+  if (chartArea) chartArea.classList.add('live-active');
+
+  // Immediate refresh
+  _liveChartTick();
+
+  // Poll every 5 seconds
+  _chartLiveTimer = setInterval(_liveChartTick, _CHART_LIVE_INTERVAL);
+}
+
+function _stopChartLive() {
+  _chartLiveActive = false;
+  if (_chartLiveTimer) {
+    clearInterval(_chartLiveTimer);
+    _chartLiveTimer = null;
+  }
+  var btn = document.getElementById('chartLiveBtn');
+  if (btn) btn.classList.remove('active');
+  var chartArea = document.getElementById('portfolioOverviewChartArea');
+  if (chartArea) chartArea.classList.remove('live-active');
+}
+
+function _liveChartTick() {
+  var chartArea = document.getElementById('portfolioOverviewChartArea');
+  var perfBadge = document.getElementById('portfolioOverviewPerf');
+  if (!chartArea) { _stopChartLive(); return; }
+
+  var tickers = holdings.map(function(h) { return h.ticker; });
+  if (tickers.length === 0) return;
+
+  // Bust caches for live data
+  for (var i = 0; i < tickers.length; i++) {
+    var key = tickers[i] + ':1d';
+    if (typeof _sparkCache !== 'undefined') delete _sparkCache[key];
+    try { localStorage.removeItem('pc_sp_' + key); } catch(e) {}
+  }
+  // Also bust market data cache
+  var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
+  try { localStorage.removeItem(cacheKey); } catch(e) {}
+
+  // Fetch fresh sparkline + prices
+  fetchSparklineData(tickers, '1d').then(function(sparkData) {
+    if (!sparkData || Object.keys(sparkData).length === 0) return;
+    var result = computePortfolioLine(sparkData, holdings);
+    if (!result || result.closes.length < 2) return;
+    chartArea.innerHTML = renderSparklineSVG(result.closes, 500, 220, result.positive);
+    if (perfBadge) {
+      var pct = result.changePct;
+      var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
+      var sign = pct > 0 ? '+' : '';
+      perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+    }
+  });
+
+  // Also update prices on sparkline cards
+  if (typeof fetchMarketDataCached === 'function') {
+    fetchMarketDataCached(tickers).then(function(marketData) {
+      if (!marketData) return;
+      holdings.forEach(function(h) {
+        if (!marketData[h.ticker]) return;
+        var md = marketData[h.ticker];
+        var priceEl = document.getElementById('spark-price-' + h.ticker);
+        var changeEl = document.getElementById('spark-change-' + h.ticker);
+        if (priceEl) priceEl.textContent = '$' + md.price.toFixed(2);
+        if (changeEl) {
+          var pct = md.changePct;
+          var isUp = pct >= 0;
+          changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '% 1D';
+          changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
+        }
+      });
+    });
+  }
+}
+
+// Stop live mode when switching ranges manually
 function loadPortfolioChartRange(range) {
+  if (_chartLiveActive && range !== '1d') _stopChartLive();
   var chartArea = document.getElementById('portfolioOverviewChartArea');
   var perfBadge = document.getElementById('portfolioOverviewPerf');
   if (!chartArea) return;
@@ -2693,6 +2800,7 @@ function loadPortfolioChartRange(range) {
 }
 
 function hidePortfolioOverview() {
+  if (typeof _stopChartLive === 'function') _stopChartLive();
   var container = document.getElementById('portfolioOverviewChart');
   var inputSections = document.getElementById('inputSections');
   if (container) container.style.display = 'none';
