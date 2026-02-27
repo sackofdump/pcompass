@@ -1264,7 +1264,9 @@ function highlightWhatIf() {
 // ── PATCH 1: MARKET DATA localStorage CACHE ──────────────────
 async function fetchMarketDataCached(tickersToFetch) {
   const CACHE_KEY = 'pc_market_' + tickersToFetch.slice().sort().join(',');
-  const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+  // During market hours: 60s cache. Outside: 1 hour
+  var isLive = typeof getMarketStatus === 'function' && getMarketStatus().isOpen;
+  const CACHE_TTL = isLive ? 60 * 1000 : 60 * 60 * 1000;
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {

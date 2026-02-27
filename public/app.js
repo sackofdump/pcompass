@@ -917,6 +917,11 @@ function analyze() {
     renderResultsPanel(marketData);
     updateRefreshBtn();
   })();
+
+  // Start live refresh if market is open
+  if (typeof _startLiveRefresh === 'function' && typeof getMarketStatus === 'function' && getMarketStatus().isOpen) {
+    _startLiveRefresh();
+  }
 }
 
 // ── LIVE BADGE PATCHER ───────────────────────────────────
@@ -2072,12 +2077,18 @@ function selectAutocomplete(ticker) {
 // ── SPARKLINE CHART VIEW ─────────────────────────────────────
 
 var _sparkCache = {}; // in-memory per-ticker cache
-var _SPARK_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+function _getSparkCacheTTL(range) {
+  var isLive = typeof getMarketStatus === 'function' && getMarketStatus().isOpen;
+  if (isLive && (range === '1d' || range === '5d')) return 60 * 1000; // 60s during market hours
+  return 4 * 60 * 60 * 1000; // 4 hours otherwise
+}
 
 function _getSparkCached(ticker, range) {
   var key = ticker + ':' + range;
+  var ttl = _getSparkCacheTTL(range);
   // Check in-memory first
-  if (_sparkCache[key] && Date.now() - _sparkCache[key].ts < _SPARK_CACHE_TTL) {
+  if (_sparkCache[key] && Date.now() - _sparkCache[key].ts < ttl) {
     return _sparkCache[key].data;
   }
   // Check localStorage
@@ -2085,7 +2096,7 @@ function _getSparkCached(ticker, range) {
     var raw = localStorage.getItem('pc_sp_' + key);
     if (raw) {
       var parsed = JSON.parse(raw);
-      if (Date.now() - parsed.ts < _SPARK_CACHE_TTL) {
+      if (Date.now() - parsed.ts < ttl) {
         _sparkCache[key] = parsed;
         return parsed.data;
       }
@@ -2222,6 +2233,110 @@ function fetchAndRenderSparklines() {
     })(tickers.slice(c, c + CHUNK));
   }
 }
+
+// ── REAL-TIME AUTO-REFRESH (during market hours) ─────────────
+var _liveRefreshTimer = null;
+var _LIVE_REFRESH_INTERVAL = 60 * 1000; // 60 seconds
+
+function _startLiveRefresh() {
+  if (_liveRefreshTimer) return; // already running
+  _liveRefreshTimer = setInterval(function() {
+    if (typeof getMarketStatus !== 'function') return;
+    if (!getMarketStatus().isOpen) {
+      _stopLiveRefresh();
+      return;
+    }
+    if (holdings.length === 0) return;
+
+    // Silently refresh prices on sparkline cards
+    var tickers = holdings.map(function(h) { return h.ticker; });
+    if (typeof fetchMarketDataCached === 'function') {
+      fetchMarketDataCached(tickers).then(function(marketData) {
+        if (!marketData) return;
+        holdings.forEach(function(h) {
+          if (!marketData[h.ticker]) return;
+          var md = marketData[h.ticker];
+          var priceEl = document.getElementById('spark-price-' + h.ticker);
+          var changeEl = document.getElementById('spark-change-' + h.ticker);
+          if (priceEl) priceEl.textContent = '$' + md.price.toFixed(2);
+          if (changeEl) {
+            var pct = md.changePct;
+            var isUp = pct >= 0;
+            changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '% 1D';
+            changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
+          }
+        });
+      });
+    }
+
+    // Refresh sparkline chart SVGs (1d range)
+    var CHUNK = 5;
+    for (var c = 0; c < tickers.length; c += CHUNK) {
+      (function(chunk) {
+        fetchSparklineData(chunk, '1d').then(function(sparkData) {
+          if (!sparkData) return;
+          holdings.forEach(function(h) {
+            if (!sparkData[h.ticker]) return;
+            var sd = sparkData[h.ticker];
+            var svgEl = document.getElementById('spark-svg-' + h.ticker);
+            if (svgEl && sd.closes && sd.closes.length >= 2) {
+              var first = sd.closes[0];
+              var last = sd.closes[sd.closes.length - 1];
+              svgEl.innerHTML = renderSparklineSVG(sd.closes, 200, 50, last >= first);
+            }
+          });
+        });
+      })(tickers.slice(c, c + CHUNK));
+    }
+
+    // Refresh portfolio overview chart if on 1D view
+    var chartArea = document.getElementById('portfolioOverviewChartArea');
+    if (chartArea) {
+      var activeBtn = document.querySelector('#portfolioOverviewChart .chart-range-btn.active');
+      var range = activeBtn ? activeBtn.dataset.range : '1d';
+      if (range === '1d') loadPortfolioChartRange('1d');
+    }
+
+    // Update market status badge
+    if (typeof updateHoldingsMarketStatus === 'function') updateHoldingsMarketStatus();
+
+    // Update portfolio strip performance
+    if (typeof fetchPortfolioPerformance === 'function') {
+      fetchPortfolioPerformance().then(function(pm) {
+        if (pm && typeof renderPortfolioStrip === 'function') renderPortfolioStrip(pm);
+      });
+    }
+  }, _LIVE_REFRESH_INTERVAL);
+}
+
+function _stopLiveRefresh() {
+  if (_liveRefreshTimer) {
+    clearInterval(_liveRefreshTimer);
+    _liveRefreshTimer = null;
+  }
+}
+
+// Start live refresh check on page load and when holdings change
+(function initLiveRefresh() {
+  function checkAndStart() {
+    if (typeof getMarketStatus === 'function' && getMarketStatus().isOpen && holdings.length > 0) {
+      _startLiveRefresh();
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(checkAndStart, 3000); });
+  } else {
+    setTimeout(checkAndStart, 3000);
+  }
+  // Also re-check every 5 minutes in case market opens/closes
+  setInterval(function() {
+    if (typeof getMarketStatus === 'function' && getMarketStatus().isOpen && holdings.length > 0) {
+      _startLiveRefresh();
+    } else {
+      _stopLiveRefresh();
+    }
+  }, 5 * 60 * 1000);
+})();
 
 // ── EXPANDED CHART MODAL ────────────────────────────────────
 

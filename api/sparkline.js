@@ -3,12 +3,16 @@ import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── IN-MEMORY CACHE ─────────────────────────────────────
 const cache = new Map();
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min
 
-function getCached(key) {
+function getCacheTtl(range) {
+  // Intraday data caches shorter for real-time feel
+  return range === '1d' ? 60 * 1000 : 30 * 60 * 1000; // 1 min for 1d, 30 min for others
+}
+
+function getCached(key, range) {
   const entry = cache.get(key);
   if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL_MS) { cache.delete(key); return null; }
+  if (Date.now() - entry.ts > getCacheTtl(range)) { cache.delete(key); return null; }
   return entry.data;
 }
 
@@ -19,25 +23,69 @@ function setCached(key, data) {
 // ── VALID RANGES ─────────────────────────────────────────
 const VALID_RANGES = new Set(['1d', '5d', '1mo', '3mo', '1y', '5y']);
 
-// ── YAHOO CRUMB + COOKIE (cached) ───────────────────────
+// ── POLYGON RANGE MAPPING ────────────────────────────────
+const POLYGON_RANGE_MAP = {
+  '1d':  { multiplier: 5,  timespan: 'minute', daysBack: 1 },
+  '5d':  { multiplier: 30, timespan: 'minute', daysBack: 7 },
+  '1mo': { multiplier: 1,  timespan: 'day',    daysBack: 35 },
+  '3mo': { multiplier: 1,  timespan: 'day',    daysBack: 95 },
+  '1y':  { multiplier: 1,  timespan: 'week',   daysBack: 370 },
+  '5y':  { multiplier: 1,  timespan: 'week',   daysBack: 1850 },
+};
+
+// ── FETCH SPARKLINE FROM POLYGON.IO (primary) ────────────
+async function fetchPolygon(ticker, range) {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) return null;
+
+  const config = POLYGON_RANGE_MAP[range];
+  if (!config) return null;
+
+  try {
+    const to = new Date();
+    const from = new Date(to.getTime() - config.daysBack * 24 * 60 * 60 * 1000);
+
+    const fmt = d => d.toISOString().split('T')[0]; // YYYY-MM-DD
+    const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/${config.multiplier}/${config.timespan}/${fmt(from)}/${fmt(to)}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+
+    if (!data?.results || data.results.length < 2) return null;
+
+    const closes = [];
+    const timestamps = [];
+    for (const bar of data.results) {
+      if (bar.c != null) {
+        closes.push(Math.round(bar.c * 100) / 100);
+        timestamps.push(Math.floor(bar.t / 1000)); // Polygon uses ms, we store seconds
+      }
+    }
+
+    if (closes.length < 2) return null;
+    return { closes, timestamps };
+  } catch {
+    return null;
+  }
+}
+
+// ── YAHOO CRUMB + COOKIE (fallback) ─────────────────────
 let _crumb = null;
 let _cookie = null;
 let _crumbTs = 0;
-const CRUMB_TTL = 30 * 60 * 1000; // refresh every 30 min
+const CRUMB_TTL = 30 * 60 * 1000;
 
 async function getCrumb() {
   if (_crumb && _cookie && Date.now() - _crumbTs < CRUMB_TTL) {
     return { crumb: _crumb, cookie: _cookie };
   }
   try {
-    // Step 1: get consent cookie
     const consentRes = await fetch('https://fc.yahoo.com', {
       redirect: 'manual',
       signal: AbortSignal.timeout(4000),
     });
     const setCookies = consentRes.headers.get('set-cookie') || '';
-
-    // Step 2: get crumb with cookie
     const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -51,21 +99,14 @@ async function getCrumb() {
       _crumbTs = Date.now();
       return { crumb: _crumb, cookie: _cookie };
     }
-  } catch {
-    // Fall through — use no crumb
-  }
+  } catch { /* fall through */ }
   return { crumb: null, cookie: null };
 }
 
-// ── FETCH SPARKLINE FROM YAHOO FINANCE ───────────────────
-async function fetchSparkline(ticker, range, crumb, cookie) {
-  const cacheKey = `${ticker}:${range}`;
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
-
+// ── FETCH SPARKLINE FROM YAHOO FINANCE (fallback) ────────
+async function fetchYahoo(ticker, range, crumb, cookie) {
   const interval = range === '1d' ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
 
-  // Try with crumb first, then without as fallback
   for (const useCrumb of [true, false]) {
     try {
       let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
@@ -78,12 +119,9 @@ async function fetchSparkline(ticker, range, crumb, cookie) {
         if (cookie) headers['Cookie'] = cookie;
       }
 
-      const r = await fetch(url, {
-        headers,
-        signal: AbortSignal.timeout(5000),
-      });
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
       if (!r.ok) {
-        if (useCrumb && crumb) continue; // retry without crumb
+        if (useCrumb && crumb) continue;
         return null;
       }
       const data = await r.json();
@@ -97,7 +135,6 @@ async function fetchSparkline(ticker, range, crumb, cookie) {
       const timestamps = result.timestamp;
       if (!closes || !timestamps || closes.length < 2) return null;
 
-      // Filter out null values while keeping timestamps aligned
       const filtered = { closes: [], timestamps: [] };
       for (let i = 0; i < closes.length; i++) {
         if (closes[i] != null) {
@@ -107,7 +144,6 @@ async function fetchSparkline(ticker, range, crumb, cookie) {
       }
 
       if (filtered.closes.length < 2) return null;
-      setCached(cacheKey, filtered);
       return filtered;
     } catch {
       if (useCrumb && crumb) continue;
@@ -117,9 +153,28 @@ async function fetchSparkline(ticker, range, crumb, cookie) {
   return null;
 }
 
+// ── COMBINED FETCH (Polygon primary, Yahoo fallback) ─────
+async function fetchSparkline(ticker, range, crumb, cookie) {
+  const cacheKey = `${ticker}:${range}`;
+  const cached = getCached(cacheKey, range);
+  if (cached) return cached;
+
+  // Try Polygon first
+  let result = await fetchPolygon(ticker, range);
+
+  // Fallback to Yahoo
+  if (!result) {
+    result = await fetchYahoo(ticker, range, crumb, cookie);
+  }
+
+  if (result) {
+    setCached(cacheKey, result);
+  }
+  return result;
+}
+
 // ── HANDLER ──────────────────────────────────────────────
 export default async function handler(req, res) {
-  // CORS
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(req);
   setSecurityHeaders(res);
@@ -138,21 +193,18 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
 
-  // Rate limit by IP
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!await checkRateLimit(ip, 'sparkline', 30)) {
+  if (!await checkRateLimit(ip, 'sparkline', 60)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
   const { tickers, range = '1mo' } = req.query;
   if (!tickers) return res.status(400).json({ error: 'No tickers provided' });
 
-  // Validate range
   if (!VALID_RANGES.has(range)) {
     return res.status(400).json({ error: 'Invalid range. Use: 1d, 5d, 1mo, 3mo, 1y, 5y' });
   }
 
-  // Deduplicate and sanitize tickers
   const tickerList = [...new Set(
     tickers.split(',')
       .map(t => t.trim().toUpperCase().replace(/[^A-Z0-9.]/g, ''))
@@ -166,10 +218,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Too many tickers. Max 40 per request.' });
   }
 
-  // Get Yahoo crumb for better reliability
+  // Get Yahoo crumb as fallback
   const { crumb, cookie } = await getCrumb();
 
-  // Fetch ALL tickers in parallel (no batching — much faster)
   const output = {};
   await Promise.allSettled(
     tickerList.map(async (ticker) => {
@@ -178,7 +229,10 @@ export default async function handler(req, res) {
     })
   );
 
-  // Edge cache: 4hr on CDN, 30min stale-while-revalidate
-  res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=1800');
+  // Shorter edge cache for intraday, longer for historical
+  const edgeCache = range === '1d' ? 's-maxage=60, stale-while-revalidate=30'
+    : range === '5d' ? 's-maxage=300, stale-while-revalidate=120'
+    : 's-maxage=14400, stale-while-revalidate=1800';
+  res.setHeader('Cache-Control', edgeCache);
   return res.status(200).json(output);
 }
