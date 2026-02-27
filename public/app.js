@@ -2698,10 +2698,7 @@ function renderPortfolioOverview() {
         '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
-        (function() {
-          var mOpen = getMarketStatus().isOpen;
-          return '<button class="chart-range-btn chart-range-live' + (mOpen ? '' : ' disabled') + '" data-range="live"' + (mOpen ? ' onclick="loadPortfolioChartRange(\'live\')"' : ' title="Market is closed"') + '><span class="live-dot"></span>Live</button>';
-        })() +
+        '<button class="chart-range-btn chart-range-live" data-range="live" onclick="loadPortfolioChartRange(\'live\')"><span class="live-dot"></span>Live</button>' +
         '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
         '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
