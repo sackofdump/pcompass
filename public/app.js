@@ -450,17 +450,22 @@ function scoreETF(etf, profile, missingSectorNames) {
     // Broad market ETFs get a moderate boost — they fill gaps broadly
     score += missingSectorNames.length > 3 ? 8 : 3;
   } else {
+    var overlapCount = 0;
+    var gapCount = 0;
     etf.sectors.forEach(s => {
       var current = profile.sectors[s] || 0;
       var isMissing = missingSectorNames.indexOf(s) >= 0;
       var target = SECTOR_TARGETS[s] || {agg:0,mod:0,con:0};
       var maxTarget = Math.max(target.agg, target.mod, target.con);
-      if (current === 0 && isMissing && maxTarget >= 5) score += 22;
-      else if (current === 0 && isMissing) score += 14;
-      else if (current === 0) score += 6;
-      else if (current < 10 && isMissing) score += 10;
-      else if (current > 30) score -= 12;
+      if (current === 0 && isMissing && maxTarget >= 5) { score += 22; gapCount++; }
+      else if (current === 0 && isMissing) { score += 14; gapCount++; }
+      else if (current === 0) { score += 6; gapCount++; }
+      else if (current < 10 && isMissing) { score += 10; gapCount++; }
+      else if (current > 20) { score -= 18; overlapCount++; }
+      else if (current > 10) { score -= 8; overlapCount++; }
     });
+    // Heavy penalty if most/all of ETF's sectors overlap with what user already owns heavily
+    if (overlapCount > 0 && gapCount === 0) score -= 25;
 
     // Group exposure penalty: if ALL of the ETF's sectors are in groups
     // that already have >25% portfolio exposure, penalize heavily
@@ -469,7 +474,7 @@ function scoreETF(etf, profile, missingSectorNames) {
       var g = _getSectorGroup(s);
       return g && groupExposure[g] > 25;
     });
-    if (allInOverexposed) score -= 20;
+    if (allInOverexposed) score -= 25;
 
     // Correlation penalty: if ETF appears in CORRELATED_PAIRS where
     // portfolio holds 2+ stocks from the correlated group
@@ -479,12 +484,12 @@ function scoreETF(etf, profile, missingSectorNames) {
         var stocks = pair[0], etfs = pair[1];
         if (etfs.indexOf(etf.ticker) >= 0) {
           var overlap = stocks.filter(function(t) { return ownedTickers.indexOf(t) >= 0; });
-          if (overlap.length >= 2) score -= 15;
+          if (overlap.length >= 2) score -= 20;
         }
       });
     }
   }
-  return Math.min(99, Math.max(50, score));
+  return Math.min(99, Math.max(0, score));
 }
 
 function getTopETFs(category, profile, n, missingSectorNames) {
@@ -492,6 +497,7 @@ function getTopETFs(category, profile, n, missingSectorNames) {
   return ETF_DB[category]
     .filter(e => !owned.includes(e.ticker))
     .map(e => ({...e, score:scoreETF(e, profile, missingSectorNames)}))
+    .filter(e => e.score >= 40)
     .sort((a,b) => b.score - a.score)
     .slice(0, n);
 }
@@ -651,16 +657,14 @@ function analyze() {
 
   function strategyCard(type, label, desc, etfs, marketData) {
     const picks = getScoredPicks(type, marketData);
-    const sortedEtfs = etfs.map(e => ({...e,isStock:false})).sort((a,b) => {
-      const ma = marketData && marketData[a.ticker];
-      const mb = marketData && marketData[b.ticker];
-      const aS = a.score + (ma ? Math.round((ma.momentum - 50) * 0.3) : 0);
-      const bS = b.score + (mb ? Math.round((mb.momentum - 50) * 0.3) : 0);
-      return bS - aS;
+    const taggedEtfs = etfs.map(e => {
+      const md = marketData && marketData[e.ticker];
+      const liveScore = e.score + (md ? Math.round((md.momentum - 50) * 0.3) : 0);
+      return {...e, score: liveScore, isStock: false};
     });
 
-    // All items combined: ETFs first, then stocks
-    const allItems = [...sortedEtfs.map(e => ({...e,isStock:false})), ...picks];
+    // All items combined and sorted by score — best portfolio-balancing picks first
+    const allItems = [...taggedEtfs, ...picks].sort((a,b) => b.score - a.score);
 
     // Primary: first 5 (from truncated free data)
     const primaryItems = allItems.slice(0,5);
@@ -2098,6 +2102,7 @@ function selectAutocomplete(ticker) {
 var _sparkCache = {}; // in-memory per-ticker cache
 
 function _getSparkCacheTTL(range) {
+  if (range === 'live') return 3 * 1000; // 3s for live
   var isLive = typeof getMarketStatus === 'function' && getMarketStatus().isOpen;
   if (isLive && (range === '1d' || range === '5d')) return 60 * 1000; // 60s during market hours
   return 4 * 60 * 60 * 1000; // 4 hours otherwise
@@ -2205,59 +2210,7 @@ function renderSparklineSVG(closes, width, height, positive) {
   return '<img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '" style="width:100%;height:100%;display:block;" alt="chart"/>';
 }
 
-function renderBarChartSVG(closes, width, height) {
-  if (!closes || closes.length < 2) return '';
-  var first = closes[0];
-  var min = Infinity, max = -Infinity;
-  for (var i = 0; i < closes.length; i++) {
-    if (closes[i] < min) min = closes[i];
-    if (closes[i] > max) max = closes[i];
-  }
-  var range = max - min || 1;
-  var padY = height * 0.06;
-  var padX = 2;
-  var usableH = height - padY * 2;
-  var gap = Math.max(1, Math.round(width * 0.003));
-  var barW = Math.max(1, (width - padX * 2 - gap * (closes.length - 1)) / closes.length);
-
-  var gradUp = 'bgu' + Math.random().toString(36).substr(2, 6);
-  var gradDn = 'bgd' + Math.random().toString(36).substr(2, 6);
-
-  var bars = '';
-  for (var i = 0; i < closes.length; i++) {
-    var x = padX + i * (barW + gap);
-    var barH = Math.max(1, ((closes[i] - min) / range) * usableH);
-    var y = padY + usableH - barH;
-    var up = closes[i] >= first;
-    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + barH.toFixed(1) + '" rx="0.5" fill="url(#' + (up ? gradUp : gradDn) + ')" opacity="0.85"/>';
-  }
-
-  var svg = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<defs>' +
-    '<linearGradient id="' + gradUp + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.9"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.3"/></linearGradient>' +
-    '<linearGradient id="' + gradDn + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ef4444" stop-opacity="0.9"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0.3"/></linearGradient>' +
-    '</defs>' +
-    bars +
-    '</svg>';
-
-  return '<img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '" style="width:100%;height:100%;display:block;" alt="bar chart"/>';
-}
-
-var _portfolioChartType = 'line'; // 'line' or 'bar'
-
-function setPortfolioChartType(type) {
-  _portfolioChartType = type;
-  document.querySelectorAll('.chart-type-btn').forEach(function(b) {
-    b.classList.toggle('active', b.dataset.type === type);
-  });
-  // Re-render current range
-  var activeBtn = document.querySelector('#portfolioOverviewChart .chart-range-btn.active');
-  var range = activeBtn ? activeBtn.dataset.range : '1d';
-  loadPortfolioChartRange(range);
-}
-
 function _renderPortfolioChart(closes, width, height, positive) {
-  if (_portfolioChartType === 'bar') return renderBarChartSVG(closes, width, height);
   return renderSparklineSVG(closes, width, height, positive);
 }
 
@@ -2672,13 +2625,6 @@ function renderPortfolioOverview() {
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
         '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
         '<button class="chart-range-btn" data-range="5y" onclick="loadPortfolioChartRange(\'5y\')">5Y</button>' +
-        '<span class="chart-type-divider"></span>' +
-        '<button class="chart-type-btn' + (_portfolioChartType === 'line' ? ' active' : '') + '" data-type="line" onclick="setPortfolioChartType(\'line\')" title="Line chart">' +
-          '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,10 4,6 7,8 10,3 13,5"/></svg>' +
-        '</button>' +
-        '<button class="chart-type-btn' + (_portfolioChartType === 'bar' ? ' active' : '') + '" data-type="bar" onclick="setPortfolioChartType(\'bar\')" title="Bar chart">' +
-          '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="7" width="2.5" height="6" rx="0.5"/><rect x="5" y="4" width="2.5" height="9" rx="0.5"/><rect x="9" y="2" width="2.5" height="11" rx="0.5"/></svg>' +
-        '</button>' +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
@@ -2739,15 +2685,15 @@ function _liveChartTick() {
 
   // Bust caches for live data
   for (var i = 0; i < tickers.length; i++) {
-    var key = tickers[i] + ':1d';
+    var key = tickers[i] + ':live';
     if (typeof _sparkCache !== 'undefined') delete _sparkCache[key];
     try { localStorage.removeItem('pc_sp_' + key); } catch(e) {}
   }
   var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
   try { localStorage.removeItem(cacheKey); } catch(e) {}
 
-  // Fetch fresh sparkline + prices
-  fetchSparklineData(tickers, '1d').then(function(sparkData) {
+  // Fetch fresh sparkline + prices (live = last 1 hour, 1-min bars)
+  fetchSparklineData(tickers, 'live').then(function(sparkData) {
     if (!sparkData || Object.keys(sparkData).length === 0) return;
     var result = computePortfolioLine(sparkData, holdings);
     if (!result || result.closes.length < 2) return;

@@ -5,8 +5,9 @@ import { checkRateLimit } from './lib/rate-limit.js';
 const cache = new Map();
 
 function getCacheTtl(range) {
-  // Intraday data caches shorter for real-time feel
-  return range === '1d' ? 60 * 1000 : 30 * 60 * 1000; // 1 min for 1d, 30 min for others
+  if (range === 'live') return 5 * 1000; // 5s for live
+  if (range === '1d') return 60 * 1000; // 1 min for 1d
+  return 30 * 60 * 1000; // 30 min for others
 }
 
 function getCached(key, range) {
@@ -21,10 +22,11 @@ function setCached(key, data) {
 }
 
 // ── VALID RANGES ─────────────────────────────────────────
-const VALID_RANGES = new Set(['1d', '5d', '1mo', '3mo', '1y', '5y']);
+const VALID_RANGES = new Set(['live', '1d', '5d', '1mo', '3mo', '1y', '5y']);
 
 // ── POLYGON RANGE MAPPING ────────────────────────────────
 const POLYGON_RANGE_MAP = {
+  'live': { multiplier: 1,  timespan: 'minute', hoursBack: 1 },
   '1d':  { multiplier: 5,  timespan: 'minute', daysBack: 1 },
   '5d':  { multiplier: 30, timespan: 'minute', daysBack: 7 },
   '1mo': { multiplier: 1,  timespan: 'day',    daysBack: 35 },
@@ -43,7 +45,9 @@ async function fetchPolygon(ticker, range) {
 
   try {
     const to = new Date();
-    const from = new Date(to.getTime() - config.daysBack * 24 * 60 * 60 * 1000);
+    const from = config.hoursBack
+      ? new Date(to.getTime() - config.hoursBack * 60 * 60 * 1000)
+      : new Date(to.getTime() - config.daysBack * 24 * 60 * 60 * 1000);
 
     const fmt = d => d.toISOString().split('T')[0]; // YYYY-MM-DD
     const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/${config.multiplier}/${config.timespan}/${fmt(from)}/${fmt(to)}?adjusted=true&sort=asc&apiKey=${apiKey}`;
@@ -229,8 +233,9 @@ export default async function handler(req, res) {
     })
   );
 
-  // Shorter edge cache for intraday, longer for historical
-  const edgeCache = range === '1d' ? 's-maxage=60, stale-while-revalidate=30'
+  // Shorter edge cache for live/intraday, longer for historical
+  const edgeCache = range === 'live' ? 'no-cache, no-store'
+    : range === '1d' ? 's-maxage=60, stale-while-revalidate=30'
     : range === '5d' ? 's-maxage=300, stale-while-revalidate=120'
     : 's-maxage=14400, stale-while-revalidate=1800';
   res.setHeader('Cache-Control', edgeCache);
