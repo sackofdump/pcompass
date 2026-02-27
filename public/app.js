@@ -450,22 +450,22 @@ function scoreETF(etf, profile, missingSectorNames) {
     // Broad market ETFs get a moderate boost — they fill gaps broadly
     score += missingSectorNames.length > 3 ? 8 : 3;
   } else {
-    var overlapCount = 0;
-    var gapCount = 0;
+    // HARD RULE: If ANY of the ETF's sectors is already >15% of the portfolio,
+    // this ETF would ADD to an overweight position — exclude it entirely
+    var hasOverweight = etf.sectors.some(s => (profile.sectors[s] || 0) > 15);
+    if (hasOverweight) return 0;
+
     etf.sectors.forEach(s => {
       var current = profile.sectors[s] || 0;
       var isMissing = missingSectorNames.indexOf(s) >= 0;
       var target = SECTOR_TARGETS[s] || {agg:0,mod:0,con:0};
       var maxTarget = Math.max(target.agg, target.mod, target.con);
-      if (current === 0 && isMissing && maxTarget >= 5) { score += 22; gapCount++; }
-      else if (current === 0 && isMissing) { score += 14; gapCount++; }
-      else if (current === 0) { score += 6; gapCount++; }
-      else if (current < 10 && isMissing) { score += 10; gapCount++; }
-      else if (current > 20) { score -= 18; overlapCount++; }
-      else if (current > 10) { score -= 8; overlapCount++; }
+      if (current === 0 && isMissing && maxTarget >= 5) score += 22;
+      else if (current === 0 && isMissing) score += 14;
+      else if (current === 0) score += 6;
+      else if (current < 10 && isMissing) score += 10;
+      else if (current > 10) score -= 15;
     });
-    // Heavy penalty if most/all of ETF's sectors overlap with what user already owns heavily
-    if (overlapCount > 0 && gapCount === 0) score -= 25;
 
     // Group exposure penalty: if ALL of the ETF's sectors are in groups
     // that already have >25% portfolio exposure, penalize heavily
@@ -474,7 +474,7 @@ function scoreETF(etf, profile, missingSectorNames) {
       var g = _getSectorGroup(s);
       return g && groupExposure[g] > 25;
     });
-    if (allInOverexposed) score -= 25;
+    if (allInOverexposed) score -= 30;
 
     // Correlation penalty: if ETF appears in CORRELATED_PAIRS where
     // portfolio holds 2+ stocks from the correlated group
@@ -565,7 +565,15 @@ function analyze() {
     // Map strategy to target key for sector-gap scoring
     var strategyTargetKey = {aggressive:'agg',moderate:'mod',conservative:'con'}[strategyKey];
     return STOCK_PICKS
-      .filter(p => !ownedTickers.includes(p.ticker) && !p.avoidIfHeld.some(t => ownedTickers.includes(t)) && riskAllowed.includes(p.risk))
+      .filter(p => {
+        if (ownedTickers.includes(p.ticker)) return false;
+        if (p.avoidIfHeld.some(t => ownedTickers.includes(t))) return false;
+        if (!riskAllowed.includes(p.risk)) return false;
+        // Exclude stocks in sectors the user already has >15% — would worsen concentration
+        var currentAlloc = sectors[p.sector] || 0;
+        if (currentAlloc > 15) return false;
+        return true;
+      })
       .map(p => {
         let score = 50;
         var isMissing = missingSectorNames.indexOf(p.sector) >= 0;
@@ -578,7 +586,6 @@ function analyze() {
         else if (!ownedSectors.includes(p.sector) && isMissing) score += 20;
         else if (!ownedSectors.includes(p.sector)) score += 10;
         else if (currentAlloc < 10 && isMissing) score += 14;
-        else if (currentAlloc > 30) score -= 10;
         // Bonus for filling underweight sectors relative to strategy target
         if (stratTarget > 0 && currentAlloc < stratTarget) {
           score += Math.round((stratTarget - currentAlloc) * 0.8);
@@ -851,7 +858,6 @@ function analyze() {
         '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
           '<h2 class="section-title">Recommended Stocks</h2>' + statusHTML +
           '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
-          '<span class="panel-expand-hint">tap to collapse</span>' +
         '</div>' +
         '<div class="panel-body recommended-body">' +
           (function() {
