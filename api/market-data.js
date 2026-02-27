@@ -29,7 +29,8 @@ async function fetchPolygon(ticker) {
     const snap = data?.ticker;
     if (!snap) return null;
 
-    const price = snap.lastTrade?.p ?? snap.min?.c ?? snap.prevDay?.c;
+    // Use extended hours price when available
+    const price = snap.lastQuote?.P || snap.lastTrade?.p || snap.min?.c || snap.prevDay?.c;
     const prevClose = snap.prevDay?.c;
     if (price == null) return null;
 
@@ -74,7 +75,8 @@ async function fetchPolygonBatch(tickers) {
       const sym = snap.ticker;
       if (!sym) continue;
 
-      const price = snap.lastTrade?.p ?? snap.min?.c ?? snap.prevDay?.c;
+      // Use extended hours price when available
+      const price = snap.lastQuote?.P || snap.lastTrade?.p || snap.min?.c || snap.prevDay?.c;
       const prevClose = snap.prevDay?.c;
       if (price == null) continue;
 
@@ -153,8 +155,9 @@ async function fetchYahoo(ticker, crumb, cookie) {
     const meta = data?.chart?.result?.[0]?.meta;
     if (!meta || meta.regularMarketPrice == null) return null;
 
-    const price = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+    // Use extended hours price when available
+    const price = meta.postMarketPrice || meta.preMarketPrice || meta.regularMarketPrice;
+    const prevClose = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
     const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
     const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
 

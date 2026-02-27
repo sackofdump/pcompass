@@ -2967,6 +2967,9 @@ function renderPortfolioOverview() {
     '</div>';
 
   container.style.display = 'block';
+  // Start idle breathing glow
+  var bubble = container.querySelector('.portfolio-overview');
+  if (bubble) bubble.classList.add('live-glow-idle');
   // Instead of hiding all inputSections, only hide the upload trigger, form, and manual label
   // so the holdings grid (square cards) stays visible
   if (inputSections) {
@@ -3069,20 +3072,26 @@ function _equityTick() {
     var portfolioPct = totalWeight > 0 ? weightedPct / totalWeight : 0;
     var dir = portfolioPct >= 0 ? 'up' : 'down';
 
-    // ── EQUITY — always set, flash on every fetch ──
+    // ── EQUITY — set text, only flash/pulse when value changes ──
     var eq = getTotalEquity();
     var eqEl = document.getElementById('equityTicker');
     if (eqEl && eq > 0) {
-      eqEl.textContent = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-      // Brief color flash based on portfolio direction
-      eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
-      void eqEl.offsetWidth;
-      eqEl.classList.add('eq-flash-' + dir);
-      setTimeout(function() { eqEl.classList.remove('eq-flash-up', 'eq-flash-down'); }, 1200);
+      var eqText = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+      var changed = eqEl.textContent !== eqText;
+      eqEl.textContent = eqText;
+
+      if (changed && _lastEquityValue > 0) {
+        var dir = eq > _lastEquityValue ? 'up' : 'down';
+        eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
+        void eqEl.offsetWidth;
+        eqEl.classList.add('eq-flash-' + dir);
+        setTimeout(function() { eqEl.classList.remove('eq-flash-up', 'eq-flash-down'); }, 1200);
+        _applyBubbleGlow(dir);
+      }
       _lastEquityValue = eq;
     }
 
-    // ── % BADGE — always set ──
+    // ── % BADGE — set text, stable color based on +/- ──
     var pctEl = document.getElementById('pctBadge');
     if (pctEl && totalWeight > 0) {
       var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
@@ -3091,9 +3100,6 @@ function _equityTick() {
       pctEl.className = 'portfolio-perf-badge ' + cls;
       _lastPctValue = portfolioPct;
     }
-
-    // ── PULSE the border on every fetch ──
-    _applyBubbleGlow(dir);
 
     // ── MARKET CLOSED LABEL ──
     var perfBadge = document.getElementById('portfolioOverviewPerf');
@@ -3133,12 +3139,17 @@ function _equityTick() {
 }
 
 function _applyBubbleGlow(direction) {
-  // direction: 'up' or 'down' — single pulse, not infinite
+  // direction: 'up' or 'down' — strong single pulse, then back to idle breathing
   var bubble = document.querySelector('.portfolio-overview');
   if (!bubble || !direction) return;
-  bubble.classList.remove('live-glow-up', 'live-glow-down');
-  void bubble.offsetWidth; // reset animation
+  bubble.classList.remove('live-glow-idle', 'live-glow-up', 'live-glow-down');
+  void bubble.offsetWidth;
   bubble.classList.add('live-glow-' + direction);
+  // After the strong pulse ends, return to idle breathing
+  setTimeout(function() {
+    bubble.classList.remove('live-glow-up', 'live-glow-down');
+    bubble.classList.add('live-glow-idle');
+  }, 1500);
 }
 
 function _stopChartLive() {
@@ -3285,7 +3296,7 @@ function hidePortfolioOverview() {
   if (typeof _stopChartLive === 'function') _stopChartLive();
   if (_equityTickerTimer) { clearInterval(_equityTickerTimer); _equityTickerTimer = null; }
   var bubble = document.querySelector('.portfolio-overview');
-  if (bubble) bubble.classList.remove('live-glow-up', 'live-glow-down');
+  if (bubble) bubble.classList.remove('live-glow-idle', 'live-glow-up', 'live-glow-down');
   var container = document.getElementById('portfolioOverviewChart');
   var inputSections = document.getElementById('inputSections');
   if (container) container.style.display = 'none';

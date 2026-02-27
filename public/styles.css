@@ -2345,7 +2345,15 @@
     vertical-align: middle;
   }
 
-  /* Live glow pulse on the entire portfolio bubble */
+  /* Barely-visible idle breathing — shows it's refreshing when price unchanged */
+  .portfolio-overview.live-glow-idle {
+    animation: live-glow-idle 5s ease-in-out infinite;
+  }
+  @keyframes live-glow-idle {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 6px 1px rgba(148,163,184,0.05); }
+  }
+  /* Stronger flash on actual price change */
   .portfolio-overview.live-glow-up {
     animation: live-glow-up 1.5s ease-in-out forwards;
   }
