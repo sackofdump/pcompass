@@ -1035,6 +1035,32 @@
     letter-spacing: 0.8px;
     margin: 6px 0 4px;
   }
+  .example-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 0 0 6px;
+    user-select: none;
+  }
+  .example-header-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+  }
+  .example-header-arrow {
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform 0.2s ease;
+  }
+  .example-header-arrow.collapsed {
+    transform: rotate(-90deg);
+  }
+  #simBody.collapsed {
+    display: none;
+  }
   .example-section-label:first-child { margin-top: 0; }
   .sim-label {
     display: block;

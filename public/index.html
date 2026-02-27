@@ -115,28 +115,34 @@
       <div class="portfolio-strip" id="portfolioStrip"></div>
 
       <div id="holdingsBody">
-      <!-- Simulations (always visible at top) -->
+      <!-- Simulation Examples (collapsible) -->
       <div class="example-portfolios" id="examplePortfolios">
-        <div class="example-section-label">Strategy</div>
-        <div class="onboarding-examples">
-          <button class="btn-example" onclick="loadExample('tech')">🚀 Aggressive Tech</button>
-          <button class="btn-example" onclick="loadExample('growth')">📈 Growth</button>
-          <button class="btn-example" onclick="loadExample('balanced')">⚖️ Balanced</button>
-          <button class="btn-example" onclick="loadExample('conservative')">🛡️ Conservative</button>
-          <button class="btn-example" onclick="loadExample('dividend')">💰 Dividend</button>
-          <button class="btn-example" onclick="loadExample('etfonly')">📊 ETF Only</button>
+        <div class="example-header" onclick="toggleSimulations()">
+          <span class="example-header-title">Simulation Examples</span>
+          <span class="example-header-arrow" id="simArrow">▾</span>
         </div>
-        <div class="example-section-label">Sector</div>
-        <div class="onboarding-examples">
-          <button class="btn-example" onclick="loadExample('energy')">⚡ Energy</button>
-          <button class="btn-example" onclick="loadExample('finance')">🏦 Finance</button>
-          <button class="btn-example" onclick="loadExample('healthcare')">💊 Healthcare</button>
-        </div>
-        <div class="example-section-label">Theme</div>
-        <div class="onboarding-examples">
-          <button class="btn-example" onclick="loadExample('ai')">🤖 AI & Chips</button>
-          <button class="btn-example" onclick="loadExample('crypto')">₿ Crypto</button>
-          <button class="btn-example" onclick="loadExample('smallcap')">🎯 Small Cap</button>
+        <div id="simBody">
+          <div class="example-section-label">Strategy</div>
+          <div class="onboarding-examples">
+            <button class="btn-example" onclick="loadExample('tech')">🚀 Aggressive Tech</button>
+            <button class="btn-example" onclick="loadExample('growth')">📈 Growth</button>
+            <button class="btn-example" onclick="loadExample('balanced')">⚖️ Balanced</button>
+            <button class="btn-example" onclick="loadExample('conservative')">🛡️ Conservative</button>
+            <button class="btn-example" onclick="loadExample('dividend')">💰 Dividend</button>
+            <button class="btn-example" onclick="loadExample('etfonly')">📊 ETF Only</button>
+          </div>
+          <div class="example-section-label">Sector</div>
+          <div class="onboarding-examples">
+            <button class="btn-example" onclick="loadExample('energy')">⚡ Energy</button>
+            <button class="btn-example" onclick="loadExample('finance')">🏦 Finance</button>
+            <button class="btn-example" onclick="loadExample('healthcare')">💊 Healthcare</button>
+          </div>
+          <div class="example-section-label">Theme</div>
+          <div class="onboarding-examples">
+            <button class="btn-example" onclick="loadExample('ai')">🤖 AI & Chips</button>
+            <button class="btn-example" onclick="loadExample('crypto')">₿ Crypto</button>
+            <button class="btn-example" onclick="loadExample('smallcap')">🎯 Small Cap</button>
+          </div>
         </div>
       </div>
 

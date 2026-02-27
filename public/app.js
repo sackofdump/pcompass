@@ -171,6 +171,8 @@ function addStock() {
   const err = document.getElementById('errorMsg');
   err.textContent = '';
   if (!ticker) { err.textContent = 'Enter a ticker symbol.'; return; }
+  // Adding a stock manually means it's no longer a simulation
+  if (_isExamplePortfolio) { _isExamplePortfolio = false; _activeSimName = ''; }
   // Resolve ticker alias (e.g. RVI → RVTY)
   const dbEntry = STOCK_DB[ticker];
   if (dbEntry && dbEntry.alias) ticker = dbEntry.alias;
@@ -392,6 +394,8 @@ function clearAllHoldings() {
   holdings.length = 0;
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
+  _isExamplePortfolio = false;
+  _activeSimName = '';
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze</strong></div></div>';
   renderHoldings();
@@ -409,6 +413,8 @@ function newPortfolio() {
   // Deactivate current portfolio and start fresh
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
+  _isExamplePortfolio = false;
+  _activeSimName = '';
   holdings.length = 0;
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze</strong></div></div>';
@@ -1384,6 +1390,8 @@ function removePreviewItem(i) {
 
 function importAll() {
   // Clear existing holdings when importing a full portfolio from screenshots
+  _isExamplePortfolio = false;
+  _activeSimName = '';
   if (previewHoldings.length >= 3) {
     holdings.length = 0;
   }
@@ -1836,6 +1844,8 @@ async function savePortfolio() {
 function loadPortfolio(idx, silent) {
   const portfolios = getSavedPortfolios();
   if (!portfolios[idx]) return;
+  _isExamplePortfolio = false;
+  _activeSimName = '';
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   // Ensure shares field exists (backward compat with old pct-only portfolios)
   // Only estimate if shares is missing/zero — trust fractional shares like 0.0003
@@ -1932,6 +1942,14 @@ function expandInputSections() {
 }
 
 var _isExamplePortfolio = false;
+var _activeSimName = '';
+
+var _simNames = {
+  tech: 'Aggressive Tech', growth: 'Growth', balanced: 'Balanced',
+  conservative: 'Conservative', dividend: 'Dividend', etfonly: 'ETF Only',
+  energy: 'Energy', finance: 'Finance', healthcare: 'Healthcare',
+  ai: 'AI & Chips', crypto: 'Crypto', smallcap: 'Small Cap'
+};
 
 function loadExample(key) {
   const example = EXAMPLE_PORTFOLIOS[key];
@@ -1940,11 +1958,20 @@ function loadExample(key) {
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
   _isExamplePortfolio = true;
+  _activeSimName = (_simNames[key] || key) + ' Simulation';
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   recalcPortfolioPct();
   renderHoldings();
   collapseInputSections();
   if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+}
+
+function toggleSimulations() {
+  var body = document.getElementById('simBody');
+  var arrow = document.getElementById('simArrow');
+  if (!body) return;
+  body.classList.toggle('collapsed');
+  if (arrow) arrow.classList.toggle('collapsed');
 }
 
 
@@ -2906,8 +2933,8 @@ function renderPortfolioOverview() {
   if (typeof expandHoldingsPanel === 'function') expandHoldingsPanel();
 
   var portfolios = getSavedPortfolios();
-  var pName = (_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx] && portfolios[_activePortfolioIdx].name) || 'My Portfolio';
   var isSim = _isExamplePortfolio;
+  var pName = isSim ? _activeSimName : ((_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx] && portfolios[_activePortfolioIdx].name) || 'My Portfolio');
 
   container.innerHTML =
     '<div class="portfolio-overview">' +
@@ -2937,9 +2964,7 @@ function renderPortfolioOverview() {
     '</div>';
 
   container.style.display = 'block';
-  // Start idle breathing glow
-  var bubble = container.querySelector('.portfolio-overview');
-  if (bubble) bubble.classList.add('live-glow-idle');
+  // Idle glow will be controlled by _equityTick based on market state
   // Instead of hiding all inputSections, only hide the upload trigger, form, and manual label
   // so the holdings grid (square cards) stays visible
   if (inputSections) {
@@ -3071,6 +3096,25 @@ function _equityTick() {
       _lastPctValue = portfolioPct;
     }
 
+    // ── MARKET STATE → idle glow only when closed ──
+    var anyMarketState = null;
+    for (var t in raw) {
+      if (raw[t] && raw[t].marketState) { anyMarketState = raw[t].marketState; break; }
+    }
+    var marketClosed = !anyMarketState || anyMarketState === 'CLOSED';
+    var bubble = document.querySelector('.portfolio-overview');
+    if (bubble) {
+      if (marketClosed) {
+        // Add idle breathing glow when market is closed (if not already pulsing)
+        if (!bubble.classList.contains('live-glow-up') && !bubble.classList.contains('live-glow-down')) {
+          bubble.classList.add('live-glow-idle');
+        }
+      } else {
+        // Market open — no idle glow, only strong pulse on price change
+        bubble.classList.remove('live-glow-idle');
+      }
+    }
+
     // ── MARKET CLOSED LABEL ──
     var perfBadge = document.getElementById('portfolioOverviewPerf');
     if (perfBadge) {
@@ -3109,16 +3153,15 @@ function _equityTick() {
 }
 
 function _applyBubbleGlow(direction) {
-  // direction: 'up' or 'down' — strong single pulse, then back to idle breathing
+  // direction: 'up' or 'down' — strong single pulse
   var bubble = document.querySelector('.portfolio-overview');
   if (!bubble || !direction) return;
   bubble.classList.remove('live-glow-idle', 'live-glow-up', 'live-glow-down');
   void bubble.offsetWidth;
   bubble.classList.add('live-glow-' + direction);
-  // After the strong pulse ends, return to idle breathing
+  // After the strong pulse ends, _equityTick will manage idle glow based on market state
   setTimeout(function() {
     bubble.classList.remove('live-glow-up', 'live-glow-down');
-    bubble.classList.add('live-glow-idle');
   }, 1500);
 }
 
