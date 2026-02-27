@@ -16,7 +16,93 @@ function setCached(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── YAHOO CRUMB + COOKIE (shared with sparkline pattern) ──
+// ── FETCH QUOTE VIA POLYGON.IO (primary) ─────────────────
+async function fetchPolygon(ticker) {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) return null;
+  try {
+    // Snapshot endpoint gives current price + prev close + market status in one call
+    const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}?apiKey=${apiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const snap = data?.ticker;
+    if (!snap) return null;
+
+    const price = snap.lastTrade?.p ?? snap.min?.c ?? snap.prevDay?.c;
+    const prevClose = snap.prevDay?.c;
+    if (price == null) return null;
+
+    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+    const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+
+    // Determine market state from session
+    const session = snap.market || data.market;
+    let marketState = 'CLOSED';
+    if (session === 'open' || session === 'regular') marketState = 'REGULAR';
+    else if (session === 'pre' || session === 'pre-market') marketState = 'PRE';
+    else if (session === 'post' || session === 'after-hours' || session === 'extended-hours') marketState = 'POST';
+
+    return {
+      price: Math.round(price * 100) / 100,
+      changePct: Math.round(changePct * 100) / 100,
+      change: Math.round(changePct * 100) / 100,
+      momentum: Math.round(momentum),
+      marketState,
+      name: snap.name || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── POLYGON BATCH SNAPSHOT ───────────────────────────────
+// Fetches up to 40 tickers in a single API call
+async function fetchPolygonBatch(tickers) {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) return {};
+  try {
+    const tickerParam = tickers.join(',');
+    const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickerParam}&apiKey=${apiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return {};
+    const data = await r.json();
+    if (!data?.tickers || !Array.isArray(data.tickers)) return {};
+
+    const results = {};
+    for (const snap of data.tickers) {
+      const sym = snap.ticker;
+      if (!sym) continue;
+
+      const price = snap.lastTrade?.p ?? snap.min?.c ?? snap.prevDay?.c;
+      const prevClose = snap.prevDay?.c;
+      if (price == null) continue;
+
+      const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+      const momentum = Math.min(100, Math.max(0, 50 + changePct * 5));
+
+      let marketState = 'CLOSED';
+      const session = snap.market || data.market;
+      if (session === 'open' || session === 'regular') marketState = 'REGULAR';
+      else if (session === 'pre' || session === 'pre-market') marketState = 'PRE';
+      else if (session === 'post' || session === 'after-hours' || session === 'extended-hours') marketState = 'POST';
+
+      results[sym] = {
+        price: Math.round(price * 100) / 100,
+        changePct: Math.round(changePct * 100) / 100,
+        change: Math.round(changePct * 100) / 100,
+        momentum: Math.round(momentum),
+        marketState,
+        name: snap.name || '',
+      };
+    }
+    return results;
+  } catch {
+    return {};
+  }
+}
+
+// ── YAHOO CRUMB + COOKIE (fallback) ─────────────────────
 let _crumb = null;
 let _cookie = null;
 let _crumbTs = 0;
@@ -49,7 +135,7 @@ async function getCrumb() {
   return { crumb: null, cookie: null };
 }
 
-// ── FETCH QUOTE VIA YAHOO FINANCE (primary) ──────────────
+// ── FETCH QUOTE VIA YAHOO FINANCE (fallback) ─────────────
 async function fetchYahoo(ticker, crumb, cookie) {
   try {
     let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
@@ -125,22 +211,34 @@ async function fetchBatch(tickerList) {
   }
   if (uncached.length === 0) return results;
 
-  // Get Yahoo crumb once for the batch
-  const { crumb, cookie } = await getCrumb();
+  // Try Polygon batch first (single API call for all tickers)
+  const polygonResults = await fetchPolygonBatch(uncached);
+  const stillMissing = [];
+  for (const ticker of uncached) {
+    if (polygonResults[ticker]) {
+      setCached(ticker, polygonResults[ticker]);
+      results[ticker] = polygonResults[ticker];
+    } else {
+      stillMissing.push(ticker);
+    }
+  }
 
-  // Fetch all uncached in parallel: Yahoo first, FMP fallback
-  await Promise.allSettled(
-    uncached.map(async (ticker) => {
-      let result = await fetchYahoo(ticker, crumb, cookie);
-      if (!result) result = await fetchFMP(ticker);
-      if (result) {
-        setCached(ticker, result);
-        results[ticker] = result;
-      } else {
-        results[ticker] = null;
-      }
-    })
-  );
+  // Fallback: Yahoo then FMP for any tickers Polygon missed
+  if (stillMissing.length > 0) {
+    const { crumb, cookie } = await getCrumb();
+    await Promise.allSettled(
+      stillMissing.map(async (ticker) => {
+        let result = await fetchYahoo(ticker, crumb, cookie);
+        if (!result) result = await fetchFMP(ticker);
+        if (result) {
+          setCached(ticker, result);
+          results[ticker] = result;
+        } else {
+          results[ticker] = null;
+        }
+      })
+    );
+  }
 
   return results;
 }

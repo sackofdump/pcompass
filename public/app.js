@@ -537,6 +537,8 @@ function analyze() {
       conservative:['Low','Medium'],
     }[strategyKey] || ['Medium'];
     var groupExposure = _computeGroupExposure(sectors);
+    // Map strategy to target key for sector-gap scoring
+    var strategyTargetKey = {aggressive:'agg',moderate:'mod',conservative:'con'}[strategyKey];
     return STOCK_PICKS
       .filter(p => !ownedTickers.includes(p.ticker) && !p.avoidIfHeld.some(t => ownedTickers.includes(t)) && riskAllowed.includes(p.risk))
       .map(p => {
@@ -544,11 +546,18 @@ function analyze() {
         var isMissing = missingSectorNames.indexOf(p.sector) >= 0;
         var target = SECTOR_TARGETS[p.sector] || {agg:0,mod:0,con:0};
         var maxTarget = Math.max(target.agg, target.mod, target.con);
+        var stratTarget = target[strategyTargetKey] || 0;
+        var currentAlloc = sectors[p.sector] || 0;
+        // Boost stocks that fill gaps in portfolio (balance-first)
         if (!ownedSectors.includes(p.sector) && isMissing && maxTarget >= 5) score += 30;
         else if (!ownedSectors.includes(p.sector) && isMissing) score += 20;
         else if (!ownedSectors.includes(p.sector)) score += 10;
-        else if ((sectors[p.sector]||0) < 10 && isMissing) score += 14;
-        else if ((sectors[p.sector]||0) > 30) score -= 10;
+        else if (currentAlloc < 10 && isMissing) score += 14;
+        else if (currentAlloc > 30) score -= 10;
+        // Bonus for filling underweight sectors relative to strategy target
+        if (stratTarget > 0 && currentAlloc < stratTarget) {
+          score += Math.round((stratTarget - currentAlloc) * 0.8);
+        }
         if (p.risk === 'Low') score += 6;
         if (p.risk === 'Very High') score -= 8;
         // Group exposure penalty
@@ -569,6 +578,7 @@ function analyze() {
         if (md) score += Math.round((md.momentum - 50) * 0.3);
         return {...p, score, isStock:true};
       })
+      .filter(p => p.score >= 40) // Only show stocks that genuinely help balance the portfolio
       .sort((a,b) => b.score - a.score)
       .slice(0,8);
   }
@@ -784,7 +794,7 @@ function analyze() {
       '</div>' +
       '<div class="analysis-bar">' +
         '<div class="analysis-bar-header panel-toggle" onclick="togglePanel(this)">' +
-          '<h2 class="section-title">Portfolio Breakdown &amp; Strategies</h2>' +
+          '<h2 class="section-title">Portfolio Breakdown</h2>' +
           '<span class="panel-expand-hint">tap to collapse</span><span class="panel-chevron panel-chevron-open">&#9662;</span>' +
         '</div>' +
         '<div class="panel-body">' +
@@ -821,9 +831,16 @@ function analyze() {
           '<span class="panel-expand-hint">tap to collapse</span>' +
         '</div>' +
         '<div class="panel-body recommended-body">' +
-          strategyCard('aggressive','Aggressive','High growth, high risk', aggressiveETFs, marketData) +
-          strategyCard('moderate','Moderate','Growth with stability', moderateETFs, marketData) +
-          strategyCard('conservative','Conservative','Capital preservation', conservativeETFs, marketData) +
+          (function() {
+            var cards = [
+              {key:'aggressive', label:'Aggressive', desc:'High growth, high risk', etfs:aggressiveETFs},
+              {key:'moderate',   label:'Moderate',   desc:'Growth with stability',  etfs:moderateETFs},
+              {key:'conservative',label:'Conservative',desc:'Capital preservation', etfs:conservativeETFs}
+            ];
+            var bestMatch = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
+            cards.sort(function(a,b) { return (a.key === bestMatch ? -1 : b.key === bestMatch ? 1 : 0); });
+            return cards.map(function(c) { return strategyCard(c.key, c.label, c.desc, c.etfs, marketData); }).join('');
+          })() +
         '</div>' +
       '</div>' +
       '<div class="disclaimer-footer">&#9432; For informational purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.<br><span style="opacity:0.6">Prices from FMP &middot; Ranked by portfolio fit + live momentum.</span></div>';
@@ -837,7 +854,7 @@ function analyze() {
       el.addEventListener('click',      () => toggleStrategy(s));
     });
 
-    // Add "Best match" badge below strategy badge for the matching card
+    // Add "Best match" badge and auto-expand the matching card
     (function() {
       var matchType = profile.beta >= 1.3 ? 'aggressive' : profile.beta >= 0.85 ? 'moderate' : 'conservative';
       var cards = document.querySelectorAll('.strategy-card');
@@ -846,6 +863,9 @@ function analyze() {
         var slot = card.querySelector('.strategy-best-match-slot');
         if (badge && slot && badge.classList.contains('badge-' + matchType)) {
           slot.innerHTML = '<span class="strategy-best-match">Best match for you</span>';
+          // Auto-expand best-match strategy card
+          var list = card.querySelector('.etf-list');
+          if (list) list.classList.remove('strategy-collapsed');
         }
       });
     })();

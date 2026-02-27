@@ -175,8 +175,10 @@
       </div>
 
       <div class="holdings-view-toggle" id="holdingsViewToggle" style="display:none">
+        <span class="holdings-label">Your Holdings</span>
         <button class="view-btn" onclick="setHoldingsView('list')" data-view="list">List</button>
         <button class="view-btn active" onclick="setHoldingsView('chart')" data-view="chart">Charts</button>
+        <span class="holdings-market-status" id="holdingsMarketStatus"></span>
         <button class="pstrip-refresh" id="pstripRefresh" onclick="refreshPortfolioStrip()" title="Refresh prices">&#8635;</button>
       </div>
       <div class="stock-list" id="stockList"></div>

@@ -573,8 +573,10 @@ function _buildPortfolioDrawer() {
 function renderPortfolioDrawer() {
   var drawer = _buildPortfolioDrawer();
   var portfolios = getSavedPortfolios();
+  var pm = _lastPerfMap;
   var html = '<div class="pdrawer-panel">';
   html += '<div class="pdrawer-header"><span class="pdrawer-title">My Portfolios</span>'
+    + '<button class="pdrawer-add" onclick="closePortfolioDrawer();savePortfolio()" title="New portfolio">＋</button>'
     + '<button class="pdrawer-close" onclick="closePortfolioDrawer()">\u2715</button></div>';
   if (portfolios.length === 0) {
     html += '<div class="pdrawer-empty">No saved portfolios yet.<br>Add holdings and tap <strong>Save</strong>.</div>';
@@ -587,9 +589,16 @@ function renderPortfolioDrawer() {
       var riskColor = typeof getPortfolioRiskColor === 'function' ? getPortfolioRiskColor(p.holdings) : 'var(--muted)';
       var isDefault = (typeof getDefaultPortfolioIdx === 'function' && getDefaultPortfolioIdx() === i);
       var starHtml = '<button class="pdrawer-star' + (isDefault ? ' active' : '') + '" onclick="event.stopPropagation();toggleDefaultPortfolio(' + i + ')" title="' + (isDefault ? 'Remove default' : 'Set as default') + '">' + (isDefault ? '\u2605' : '\u2606') + '</button>';
+      var changeHTML = '';
+      if (pm && pm[i] != null) {
+        var ch = pm[i];
+        var chDir = ch > 0.05 ? 'up' : ch < -0.05 ? 'down' : 'flat';
+        var chSign = ch > 0 ? '+' : '';
+        changeHTML = '<span class="pdrawer-change ' + chDir + '">' + chSign + ch.toFixed(2) + '%</span>';
+      }
       html += '<div class="pdrawer-item' + (isActive ? ' active' : '') + '" style="border-left-color:' + riskColor + '">'
         + starHtml
-        + '<div class="pdrawer-info" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()"><div class="pdrawer-name">' + escapeHTML(p.name) + '</div>'
+        + '<div class="pdrawer-info" onclick="loadPortfolio(' + i + ');closePortfolioDrawer()"><div class="pdrawer-name">' + escapeHTML(p.name) + changeHTML + '</div>'
         + '<div class="pdrawer-count">' + count + ' holding' + (count !== 1 ? 's' : '') + '</div></div>'
         + '<button class="pstrip-edit" onclick="event.stopPropagation();renamePortfolio(' + i + ')" title="Rename">&#9998;</button>'
         + '<button class="pdrawer-delete" onclick="quickDeletePortfolio(' + i + ')" title="Delete">&#128465;</button>'
@@ -1683,6 +1692,17 @@ async function fetchPortfolioPerformance(forceRefresh) {
   return perfMap;
 }
 
+function updateHoldingsMarketStatus() {
+  var el = document.getElementById('holdingsMarketStatus');
+  if (!el) return;
+  if (typeof getMarketStatus !== 'function') return;
+  var s = getMarketStatus();
+  var label = s.isOpen ? 'Live' : s.isPrePost ? 'Pre/Post' : 'Closed';
+  var dot = s.isOpen ? '<span style="color:#22c55e">\u25CF</span> ' : '\u25CF ';
+  el.innerHTML = dot + label;
+  el.className = 'holdings-market-status' + (s.isOpen ? ' live' : '');
+}
+
 window.refreshPortfolioStrip = async function() {
   var btn = document.getElementById('pstripRefresh');
   if (btn) {
@@ -1712,6 +1732,7 @@ window.refreshPortfolioStrip = async function() {
     } else {
       renderPortfolioStrip(null);
     }
+    updateHoldingsMarketStatus();
     // Also refresh sparkline charts and holdings card prices
     if (typeof fetchAndRenderSparklines === 'function') fetchAndRenderSparklines();
     // Refresh portfolio overview chart if visible
@@ -1738,6 +1759,7 @@ window.refreshPortfolioStrip = async function() {
   }
   function boot() {
     renderPortfolioStrip(null);
+    updateHoldingsMarketStatus();
     fetchPortfolioPerformance().then(function(perfMap) {
       if (perfMap) renderPortfolioStrip(perfMap);
     }).catch(function() {});
