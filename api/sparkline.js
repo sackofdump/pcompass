@@ -28,7 +28,7 @@ const VALID_RANGES = new Set(['live', '1d', '5d', '1mo', '3mo', 'ytd', '1y', 'al
 function getPolygonConfig(range) {
   const map = {
     'live': { multiplier: 1,  timespan: 'minute', hoursBack: 1 },
-    '1d':  { multiplier: 5,  timespan: 'minute', daysBack: 1 },
+    '1d':  { multiplier: 1,  timespan: 'minute', daysBack: 1 },
     '5d':  { multiplier: 30, timespan: 'minute', daysBack: 7 },
     '1mo': { multiplier: 1,  timespan: 'day',    daysBack: 35 },
     '3mo': { multiplier: 1,  timespan: 'day',    daysBack: 95 },
@@ -74,6 +74,23 @@ async function fetchPolygon(ticker, range) {
       if (bar.c != null) {
         closes.push(Math.round(bar.c * 100) / 100);
         timestamps.push(Math.floor(bar.t / 1000)); // Polygon uses ms, we store seconds
+      }
+    }
+
+    if (closes.length < 2) return null;
+
+    // For 1D range, filter to only the last trading session
+    // Find the last overnight gap (>2 hours between bars) and keep data after it
+    if (range === '1d' && timestamps.length > 2) {
+      let lastGapIdx = 0;
+      for (let i = 1; i < timestamps.length; i++) {
+        if (timestamps[i] - timestamps[i - 1] > 7200) { // >2 hour gap = overnight
+          lastGapIdx = i;
+        }
+      }
+      if (lastGapIdx > 0) {
+        closes.splice(0, lastGapIdx);
+        timestamps.splice(0, lastGapIdx);
       }
     }
 

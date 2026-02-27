@@ -287,15 +287,23 @@ function renderHoldings() {
         <div class="spark-sector-dot" style="background:${sectorColor}"></div>
       </div>`;
     }).join('');
-    // Add expand/collapse button if many holdings
+    // Add expand/collapse button AFTER the grid (not inside it, since overflow:hidden clips it)
+    var oldExpandBtn = document.getElementById('gridExpandWrapper');
+    if (oldExpandBtn) oldExpandBtn.remove();
     if (holdings.length > 8) {
+      var wrapper = document.createElement('div');
+      wrapper.id = 'gridExpandWrapper';
       if (_gridExpanded) {
-        list.innerHTML += '<div class="grid-expand-btn" onclick="toggleGridExpand()"><span class="grid-expand-arrow up"></span>Show Less</div>';
+        wrapper.innerHTML = '<div class="grid-expand-btn" onclick="toggleGridExpand()"><span class="grid-expand-arrow up"></span>Show Less</div>';
       } else {
-        list.innerHTML += '<div class="grid-fade-overlay"></div><div class="grid-expand-btn" onclick="toggleGridExpand()"><span class="grid-expand-arrow"></span>' + (holdings.length - 8) + ' more stocks</div>';
+        wrapper.innerHTML = '<div class="grid-fade-overlay"></div><div class="grid-expand-btn" onclick="toggleGridExpand()"><span class="grid-expand-arrow"></span>' + (holdings.length - 8) + ' more stocks</div>';
       }
+      list.parentNode.insertBefore(wrapper, list.nextSibling);
     }
   } else {
+    // Clean up grid expand wrapper when switching views
+    var oldWrapper = document.getElementById('gridExpandWrapper');
+    if (oldWrapper) oldWrapper.remove();
     list.className = 'stock-list';
     // Sort by equity (highest first)
     var sorted = holdings.slice().sort(function(a, b) {
@@ -2758,7 +2766,7 @@ function computePortfolioLine(sparkData, holdingsArr) {
   for (var i = 0; i < holdingsArr.length; i++) {
     var h = holdingsArr[i];
     if (sparkData[h.ticker] && sparkData[h.ticker].closes && sparkData[h.ticker].closes.length >= 2) {
-      valid.push({ pct: h.pct, closes: sparkData[h.ticker].closes });
+      valid.push({ pct: h.pct, closes: sparkData[h.ticker].closes, timestamps: sparkData[h.ticker].timestamps || [] });
     }
   }
   if (valid.length === 0) return null;
@@ -2786,14 +2794,19 @@ function computePortfolioLine(sparkData, holdingsArr) {
     portfolioLine.push(val);
   }
 
+  // Use timestamps from the first valid holding (they should be aligned)
+  var timestamps = valid[0].timestamps.slice(0, minLen);
+
   var first = portfolioLine[0];
   var last = portfolioLine[portfolioLine.length - 1];
-  return { closes: portfolioLine, positive: last >= first, changePct: ((last - first) / first) * 100 };
+  return { closes: portfolioLine, timestamps: timestamps, positive: last >= first, changePct: ((last - first) / first) * 100 };
 }
 
 // ── CHART CROSSHAIR ──────────────────────────────────────────
 var _chartCloses = null; // current portfolio chart data
 var _chartFirstClose = 0;
+var _chartTimestamps = null; // timestamps for crosshair time display
+var _chartActiveRange = '1d'; // current range for time formatting
 
 function _setupChartCrosshair() {
   var chartArea = document.getElementById('portfolioOverviewChartArea');
@@ -2805,11 +2818,12 @@ function _setupChartCrosshair() {
 
   var overlay = document.createElement('div');
   overlay.className = 'chart-crosshair-overlay';
-  overlay.innerHTML = '<div class="crosshair-line"></div><div class="crosshair-dot"></div>';
+  overlay.innerHTML = '<div class="crosshair-line"></div><div class="crosshair-dot"></div><div class="crosshair-time"></div>';
   chartArea.appendChild(overlay);
 
   var line = overlay.querySelector('.crosshair-line');
   var dot = overlay.querySelector('.crosshair-dot');
+  var timeLabel = overlay.querySelector('.crosshair-time');
 
   function handleMove(clientX) {
     if (!_chartCloses || _chartCloses.length < 2) return;
@@ -2836,6 +2850,26 @@ function _setupChartCrosshair() {
     dot.style.top = (yPct * 100) + '%';
     dot.style.display = 'block';
     line.style.display = 'block';
+
+    // Show time/date label
+    if (_chartTimestamps && _chartTimestamps[idx]) {
+      var d = new Date(_chartTimestamps[idx] * 1000);
+      var timeStr;
+      if (_chartActiveRange === 'live' || _chartActiveRange === '1d') {
+        timeStr = d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      } else if (_chartActiveRange === '5d') {
+        timeStr = d.toLocaleDateString([], {weekday:'short'}) + ' ' + d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      } else if (_chartActiveRange === '1y' || _chartActiveRange === 'all') {
+        timeStr = d.toLocaleDateString([], {month:'short', year:'numeric'});
+      } else {
+        timeStr = d.toLocaleDateString([], {month:'short', day:'numeric'});
+      }
+      timeLabel.textContent = timeStr;
+      timeLabel.style.left = leftPx + '%';
+      timeLabel.style.display = 'block';
+    } else {
+      timeLabel.style.display = 'none';
+    }
 
     // Update equity and % display
     var eqEl = document.getElementById('equityTicker');
@@ -2864,6 +2898,7 @@ function _setupChartCrosshair() {
   function handleEnd() {
     line.style.display = 'none';
     dot.style.display = 'none';
+    timeLabel.style.display = 'none';
     // Restore live values
     var eq = getTotalEquity();
     var eqEl = document.getElementById('equityTicker');
@@ -3037,8 +3072,8 @@ var _equityTickerTimer = null;
 
 function _startEquityTicker() {
   if (_equityTickerTimer) return;
-  // First tick immediately (no delay)
-  _equityTick();
+  // Short delay to ensure patches.js has loaded (defines fetchMarketDataCached)
+  setTimeout(_equityTick, 500);
   _equityTickerTimer = setInterval(_equityTick, 5000);
 }
 
@@ -3129,7 +3164,7 @@ function _equityTick() {
       if (chartArea && result.closes.length >= 2) {
         chartArea.classList.remove('chart-loading');
         chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
-        _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
+        _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _chartTimestamps = result.timestamps || null; _setupChartCrosshair();
       }
 
       var pct = result.changePct;
@@ -3178,7 +3213,7 @@ function _liveChartTick() {
     if (!result || result.closes.length < 2) return;
     chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
-    _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
+    _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _chartTimestamps = result.timestamps || null; _setupChartCrosshair();
     // Don't overwrite perfBadge — _equityTick handles equity + % updates
   });
 
@@ -3207,6 +3242,7 @@ function _liveChartTick() {
 }
 
 function loadPortfolioChartRange(range) {
+  _chartActiveRange = range;
   // Always stop any existing live polling first
   _stopChartLive();
   var chartArea = document.getElementById('portfolioOverviewChartArea');
@@ -3265,7 +3301,7 @@ function loadPortfolioChartRange(range) {
           return;
         }
         chartArea.innerHTML = _renderPortfolioChart(retryResult.closes, 500, 220, retryResult.positive);
-        _chartCloses = retryResult.closes; _chartFirstClose = retryResult.closes[0]; _setupChartCrosshair();
+        _chartCloses = retryResult.closes; _chartFirstClose = retryResult.closes[0]; _chartTimestamps = retryResult.timestamps || null; _setupChartCrosshair();
         if (perfBadge) {
           var pct = retryResult.changePct;
           _updatePctBadge(perfBadge, pct);
@@ -3275,7 +3311,7 @@ function loadPortfolioChartRange(range) {
     }
     chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
-    _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
+    _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _chartTimestamps = result.timestamps || null; _setupChartCrosshair();
 
     // Show performance badge (% only — equity is owned by _equityTick)
     if (perfBadge) {
