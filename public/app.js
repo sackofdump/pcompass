@@ -1703,6 +1703,22 @@ function renderSidebarAccount() {
 async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
+
+  // If editing an existing portfolio, overwrite it (with confirmation)
+  if (_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx]) {
+    var pName = portfolios[_activePortfolioIdx].name;
+    if (!confirm('Overwrite "' + pName + '" with current holdings?')) return;
+    portfolios[_activePortfolioIdx].holdings = JSON.parse(JSON.stringify(holdings));
+    savePortfoliosLS(portfolios);
+    _activePortfolioSnapshot = JSON.stringify(holdings);
+    renderSidebarPortfolios();
+    if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+    if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+    showToast('✓ "' + pName + '" updated!');
+    return;
+  }
+
+  // New portfolio
   if (portfolios.length >= MAX_SLOTS) { showToast('Max ' + MAX_SLOTS + ' portfolios — delete one to save a new one.'); return; }
 
   // Prevent duplicate: check if current holdings match any existing portfolio
@@ -2685,14 +2701,22 @@ var _chartLiveTimer = null;
 var _chartLiveActive = false;
 var _CHART_LIVE_INTERVAL = 5 * 1000; // 5 seconds
 
+function _applyBubbleGlow(changePct) {
+  var bubble = document.querySelector('.portfolio-overview');
+  if (!bubble) return;
+  bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
+  if (typeof getMarketStatus === 'function' && getMarketStatus().isOpen) {
+    var cls = changePct > 0.01 ? 'up' : changePct < -0.01 ? 'down' : 'flat';
+    bubble.classList.add('live-glow-' + cls);
+  }
+}
+
 function _stopChartLive() {
   _chartLiveActive = false;
   if (_chartLiveTimer) {
     clearInterval(_chartLiveTimer);
     _chartLiveTimer = null;
   }
-  var bubble = document.querySelector('.portfolio-overview');
-  if (bubble) bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
 }
 
 function _liveChartTick() {
@@ -2724,12 +2748,7 @@ function _liveChartTick() {
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
       perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
-      // Apply glow to entire bubble based on gains/losses
-      var bubble = document.querySelector('.portfolio-overview');
-      if (bubble) {
-        bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
-        bubble.classList.add('live-glow-' + cls);
-      }
+      _applyBubbleGlow(pct);
     }
   });
 
@@ -2812,6 +2831,7 @@ function loadPortfolioChartRange(range) {
           var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
           var sign = pct > 0 ? '+' : '';
           perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+          _applyBubbleGlow(pct);
         }
       });
       return;
@@ -2825,12 +2845,15 @@ function loadPortfolioChartRange(range) {
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
       perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+      _applyBubbleGlow(pct);
     }
   });
 }
 
 function hidePortfolioOverview() {
   if (typeof _stopChartLive === 'function') _stopChartLive();
+  var bubble = document.querySelector('.portfolio-overview');
+  if (bubble) bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
   var container = document.getElementById('portfolioOverviewChart');
   var inputSections = document.getElementById('inputSections');
   if (container) container.style.display = 'none';
