@@ -197,16 +197,16 @@ function editCardShares(ticker, el) {
   input.type = 'number';
   input.className = 'spark-card-alloc-input';
   input.value = orig;
-  input.min = '0.01';
+  input.min = '0.000001';
   input.max = '999999';
-  input.step = '0.01';
+  input.step = 'any';
   el.replaceWith(input);
   input.focus();
   input.select();
   function commit() {
     var val = parseFloat(input.value);
     if (!val || val <= 0) val = orig;
-    h.shares = Math.round(val * 100) / 100;
+    h.shares = Math.round(val * 1000000) / 1000000;
     recalcPortfolioPct();
     renderHoldings();
     if (_holdingsView === 'chart' && holdings.length >= 3) fetchAndRenderSparklines();
@@ -1809,11 +1809,12 @@ function loadPortfolio(idx, silent) {
   if (!portfolios[idx]) return;
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   // Ensure shares field exists (backward compat with old pct-only portfolios)
-  var needsSharesEstimate = holdings.some(function(h) { return !h.shares || h.shares <= 1; });
+  // Only estimate if shares is missing/zero — trust fractional shares like 0.0003
+  var needsSharesEstimate = holdings.every(function(h) { return !h.shares; });
   if (needsSharesEstimate) {
     var PORTFOLIO_VALUE = 10000; // Assume $10k portfolio for estimation
     holdings.forEach(function(h) {
-      if (!h.shares || h.shares <= 1) {
+      if (!h.shares) {
         var price = _getPrice(h.ticker);
         if (price > 0 && h.pct > 0) {
           h.shares = Math.max(1, Math.round((h.pct / 100) * PORTFOLIO_VALUE / price));
@@ -2974,7 +2975,33 @@ function _totalEquityHTML() {
     '</span>';
 }
 
-// Subtle pop animation on a ticker element
+// Update % badge without touching equity (append/replace inside perfBadge)
+function _updatePctBadge(perfBadge, pct) {
+  if (!perfBadge) return;
+  var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
+  var sign = pct > 0 ? '+' : '';
+  var newText = sign + pct.toFixed(2) + '%';
+  var existing = perfBadge.querySelector('.portfolio-perf-badge');
+  if (existing) {
+    existing.className = 'portfolio-perf-badge ' + cls;
+    _tickerAnimate(existing, newText);
+  } else {
+    var span = document.createElement('span');
+    span.className = 'portfolio-perf-badge ' + cls;
+    span.innerHTML = '<span class="ticker-value">' + newText + '</span>';
+    perfBadge.appendChild(span);
+  }
+  // Ensure market closed text
+  var closedEl = perfBadge.querySelector('.chart-market-closed');
+  var closedHTML = _marketClosedHTML();
+  if (!closedEl && closedHTML) {
+    perfBadge.insertAdjacentHTML('beforeend', closedHTML);
+  }
+  _applyBubbleGlow(pct);
+  _lastPctValue = pct;
+}
+
+// Subtle pop animation on a ticker element — only animates if text actually changed
 function _tickerAnimate(el, newText) {
   if (!el) return;
   var inner = el.querySelector('.ticker-value');
@@ -2982,6 +3009,7 @@ function _tickerAnimate(el, newText) {
     el.textContent = newText;
     return;
   }
+  if (inner.textContent === newText) return; // no change, skip animation
   inner.textContent = newText;
   inner.classList.remove('ticker-pop');
   void inner.offsetWidth;
@@ -2993,8 +3021,8 @@ var _equityTickerTimer = null;
 
 function _startEquityTicker() {
   if (_equityTickerTimer) return;
-  // First tick immediately
-  setTimeout(_equityTick, 2000);
+  // First tick immediately (no delay)
+  _equityTick();
   _equityTickerTimer = setInterval(_equityTick, 5000);
 }
 
@@ -3013,13 +3041,16 @@ function _equityTick() {
     var eq = getTotalEquity();
     var eqFormatted = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 
-    // If equity/% elements don't exist yet, build them
+    // If equity element doesn't exist yet, create it (without overwriting existing children)
     var eqEl = document.getElementById('equityTicker');
     if (!eqEl && eq > 0) {
-      perfBadge.innerHTML = _totalEquityHTML() +
-        '<span class="portfolio-perf-badge"><span class="ticker-value">--</span></span>' +
-        _marketClosedHTML();
-      eqEl = document.getElementById('equityTicker');
+      var eqSpan = document.createElement('span');
+      eqSpan.className = 'chart-total-equity';
+      eqSpan.id = 'equityTicker';
+      eqSpan.innerHTML = '<span class="ticker-value">$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
+      perfBadge.insertBefore(eqSpan, perfBadge.firstChild);
+      _lastEquityValue = eq;
+      eqEl = eqSpan;
     }
 
     // Animate equity with subtle pop + color hint on change
@@ -3032,9 +3063,6 @@ function _equityTick() {
       }
       _lastEquityValue = eq;
     }
-
-    // Animate % change
-    var pctBadge = perfBadge.querySelector('.portfolio-perf-badge');
 
     // Update card prices
     holdings.forEach(function(h) {
@@ -3090,16 +3118,7 @@ function _equityTick() {
       }
 
       var pct = result.changePct;
-      var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
-      var sign = pct > 0 ? '+' : '';
-      var newPctText = sign + pct.toFixed(2) + '%';
-
-      if (pctBadge) {
-        pctBadge.className = 'portfolio-perf-badge ' + cls;
-        _tickerAnimate(pctBadge, newPctText);
-        _lastPctValue = pct;
-      }
-      _applyBubbleGlow(pct);
+      _updatePctBadge(perfBadge, pct);
     });
   });
 }
@@ -3180,7 +3199,13 @@ function loadPortfolioChartRange(range) {
   if (!chartArea) return;
   chartArea.classList.add('chart-loading');
   chartArea.innerHTML = '<div class="chart-loading-pulse" style="height:220px;border-radius:8px;"></div>';
-  if (perfBadge) perfBadge.innerHTML = '';
+  // Only clear the % badge, keep equity intact (equity is owned by _equityTick)
+  if (perfBadge) {
+    var pctBadgeOld = perfBadge.querySelector('.portfolio-perf-badge');
+    if (pctBadgeOld) pctBadgeOld.remove();
+    var closedOld = perfBadge.querySelector('.chart-market-closed');
+    if (closedOld) closedOld.remove();
+  }
 
   // Update active range button
   var container = document.getElementById('portfolioOverviewChart');
@@ -3228,10 +3253,7 @@ function loadPortfolioChartRange(range) {
         _chartCloses = retryResult.closes; _chartFirstClose = retryResult.closes[0]; _setupChartCrosshair();
         if (perfBadge) {
           var pct = retryResult.changePct;
-          var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
-          var sign = pct > 0 ? '+' : '';
-          perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '"><span class="ticker-value">' + sign + pct.toFixed(2) + '%</span></span>' + _marketClosedHTML();
-          _applyBubbleGlow(pct);
+          _updatePctBadge(perfBadge, pct);
         }
       });
       return;
@@ -3240,13 +3262,10 @@ function loadPortfolioChartRange(range) {
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
     _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
 
-    // Show performance badge
+    // Show performance badge (% only — equity is owned by _equityTick)
     if (perfBadge) {
       var pct = result.changePct;
-      var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
-      var sign = pct > 0 ? '+' : '';
-      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '"><span class="ticker-value">' + sign + pct.toFixed(2) + '%</span></span>' + _marketClosedHTML();
-      _applyBubbleGlow(pct);
+      _updatePctBadge(perfBadge, pct);
     }
   });
 }
