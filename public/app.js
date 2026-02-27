@@ -284,7 +284,6 @@ function renderHoldings() {
           <span class="spark-price" id="spark-price-${escapeHTML(h.ticker)}">--</span>
           <span class="spark-change" id="spark-change-${escapeHTML(h.ticker)}"></span>
         </div>
-        <div class="spark-sector-dot" style="background:${sectorColor}"></div>
       </div>`;
     }).join('');
     // Add expand/collapse button AFTER the grid (not inside it, since overflow:hidden clips it)
@@ -1089,7 +1088,13 @@ function getMarketStatus() {
     (etTime >= 4 && etTime < 9.5) || (etTime >= 16 && etTime < 20)
   );
 
-  return { isOpen, isPrePost, isWeekday };
+  // Weekend pause: Friday 7pm ET through Sunday 7pm ET
+  var isWeekendPause = false;
+  if (etDay === 5 && etTime >= 19) isWeekendPause = true;       // Friday after 7pm
+  if (etDay === 6) isWeekendPause = true;                        // Saturday all day
+  if (etDay === 0 && etTime < 19) isWeekendPause = true;         // Sunday before 7pm
+
+  return { isOpen, isPrePost, isWeekday, isWeekendPause };
 }
 
 // ── MARKET DATA MANUAL REFRESH ───────────────────────────
@@ -1617,7 +1622,7 @@ function addFromWhatIf() {
 })();
 
 // ── PORTFOLIO SAVE/LOAD ───────────────────────────────────
-const MAX_SLOTS = 3;
+const MAX_SLOTS = 5;
 function getSavedPortfolios() { try { return JSON.parse(localStorage.getItem('pc_portfolios') || '[]'); } catch { return []; } }
 function savePortfoliosLS(p) { localStorage.setItem('pc_portfolios', JSON.stringify(p)); }
 
@@ -2993,8 +2998,10 @@ var _chartLiveActive = false;
 var _CHART_LIVE_INTERVAL = 5 * 1000; // 5 seconds
 
 function _marketClosedHTML() {
-  if (typeof getMarketStatus === 'function' && !getMarketStatus().isOpen) {
-    return '<span class="chart-market-closed">Market Closed</span>';
+  if (typeof getMarketStatus === 'function') {
+    var ms = getMarketStatus();
+    if (ms.isWeekendPause) return '<span class="chart-market-closed">Weekend</span>';
+    if (!ms.isOpen) return '<span class="chart-market-closed">Closed</span>';
   }
   return '';
 }
@@ -3052,7 +3059,7 @@ function _updatePctBadge(perfBadge, pct) {
   _lastPctValue = pct;
 }
 
-// Subtle pop animation on a ticker element — only animates if text actually changed
+// Subtle pop animation on a ticker element
 function _tickerAnimate(el, newText) {
   if (!el) return;
   var inner = el.querySelector('.ticker-value');
@@ -3060,11 +3067,13 @@ function _tickerAnimate(el, newText) {
     el.textContent = newText;
     return;
   }
-  if (inner.textContent === newText) return; // no change, skip animation
+  var changed = inner.textContent !== newText;
   inner.textContent = newText;
-  inner.classList.remove('ticker-pop');
-  void inner.offsetWidth;
-  inner.classList.add('ticker-pop');
+  if (changed) {
+    inner.classList.remove('ticker-pop');
+    void inner.offsetWidth;
+    inner.classList.add('ticker-pop');
+  }
 }
 
 // ── GLOBAL EQUITY TICKER (always-on, every 5s) ──────────
@@ -3073,26 +3082,36 @@ var _equityTickerTimer = null;
 function _startEquityTicker() {
   if (_equityTickerTimer) return;
   // Short delay to ensure patches.js has loaded (defines fetchMarketDataCached)
-  setTimeout(_equityTick, 500);
+  setTimeout(_equityTick, 800);
   _equityTickerTimer = setInterval(_equityTick, 5000);
 }
 
+var _equityTickCount = 0;
 function _equityTick() {
+  _equityTickCount++;
   if (holdings.length === 0) return;
+  // After first tick, skip refresh during weekend pause (Fri 7pm – Sun 7pm ET)
+  if (_equityTickCount > 1 && typeof getMarketStatus === 'function' && getMarketStatus().isWeekendPause) return;
   var perfBadge = document.getElementById('portfolioOverviewPerf');
   if (!perfBadge) return;
 
   var tickers = holdings.map(function(h) { return h.ticker; });
-  if (typeof fetchMarketDataCached !== 'function') return;
+  if (typeof fetchMarketDataCached !== 'function') {
+    console.warn('[equity-tick] fetchMarketDataCached not available yet');
+    return;
+  }
 
   fetchMarketDataCached(tickers).then(function(marketData) {
-    if (!marketData) return;
+    if (!marketData) {
+      console.warn('[equity-tick] no market data returned');
+      return;
+    }
     recalcPortfolioPct(marketData);
 
     var eq = getTotalEquity();
     var eqFormatted = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 
-    // If equity element doesn't exist yet, create it with placeholder so first animate triggers
+    // Ensure equity element exists
     var eqEl = document.getElementById('equityTicker');
     if (!eqEl && eq > 0) {
       var eqSpan = document.createElement('span');
@@ -3103,13 +3122,22 @@ function _equityTick() {
       eqEl = eqSpan;
     }
 
-    // Animate equity with subtle pop + color hint on change
+    // Always set equity text directly
     if (eqEl && eq > 0) {
-      _tickerAnimate(eqEl, eqFormatted);
-      // Soft color flash on actual price change
-      eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
-      if (Math.abs(eq - _lastEquityValue) > 0.01) {
-        eqEl.classList.add(eq > _lastEquityValue ? 'eq-flash-up' : 'eq-flash-down');
+      var inner = eqEl.querySelector('.ticker-value');
+      if (inner) {
+        var oldText = inner.textContent;
+        inner.textContent = eqFormatted;
+        // Pop animation + color flash only when value actually changes
+        if (oldText !== eqFormatted) {
+          inner.classList.remove('ticker-pop');
+          void inner.offsetWidth;
+          inner.classList.add('ticker-pop');
+          eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
+          if (_lastEquityValue > 0) {
+            eqEl.classList.add(eq > _lastEquityValue ? 'eq-flash-up' : 'eq-flash-down');
+          }
+        }
       }
       _lastEquityValue = eq;
     }
@@ -3190,6 +3218,8 @@ function _stopChartLive() {
 }
 
 function _liveChartTick() {
+  // Skip during weekend pause
+  if (typeof getMarketStatus === 'function' && getMarketStatus().isWeekendPause) return;
   var chartArea = document.getElementById('portfolioOverviewChartArea');
   var perfBadge = document.getElementById('portfolioOverviewPerf');
   if (!chartArea) { _stopChartLive(); return; }
