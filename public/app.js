@@ -1378,6 +1378,25 @@ function importAll() {
   if (trigger) trigger.classList.remove('expanded');
   if (uploadExp) uploadExp.classList.remove('expanded');
   if (skipped.length > 0) document.getElementById('errorMsg').textContent = 'Duplicates skipped: ' + skipped.join(', ');
+  // Auto-save the imported portfolio
+  if (holdings.length > 0) {
+    var portfolios = getSavedPortfolios();
+    if (portfolios.length < MAX_SLOTS) {
+      var name = 'Imported Portfolio ' + (portfolios.length + 1);
+      portfolios.push({name: name, holdings: JSON.parse(JSON.stringify(holdings))});
+      savePortfoliosLS(portfolios);
+      _activePortfolioIdx = portfolios.length - 1;
+      _activePortfolioSnapshot = JSON.stringify(holdings);
+      localStorage.setItem('pc_last_portfolio', String(_activePortfolioIdx));
+      renderSidebarPortfolios();
+      if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+      showToast('✓ Portfolio saved!');
+    }
+  }
+  // Show portfolio overview with chart if 3+ holdings
+  if (holdings.length >= 3 && typeof renderPortfolioOverview === 'function') {
+    renderPortfolioOverview();
+  }
 }
 
 // ── THEME TOGGLE ─────────────────────────────────────────
@@ -2756,6 +2775,98 @@ function computePortfolioLine(sparkData, holdingsArr) {
   return { closes: portfolioLine, positive: last >= first, changePct: ((last - first) / first) * 100 };
 }
 
+// ── CHART CROSSHAIR ──────────────────────────────────────────
+var _chartCloses = null; // current portfolio chart data
+var _chartFirstClose = 0;
+
+function _setupChartCrosshair() {
+  var chartArea = document.getElementById('portfolioOverviewChartArea');
+  if (!chartArea) return;
+
+  // Remove old overlay if exists
+  var old = chartArea.querySelector('.chart-crosshair-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'chart-crosshair-overlay';
+  overlay.innerHTML = '<div class="crosshair-line"></div><div class="crosshair-dot"></div>';
+  chartArea.appendChild(overlay);
+
+  var line = overlay.querySelector('.crosshair-line');
+  var dot = overlay.querySelector('.crosshair-dot');
+
+  function handleMove(clientX) {
+    if (!_chartCloses || _chartCloses.length < 2) return;
+    var rect = chartArea.getBoundingClientRect();
+    var x = clientX - rect.left;
+    var pct = Math.max(0, Math.min(1, x / rect.width));
+    var idx = Math.round(pct * (_chartCloses.length - 1));
+    var val = _chartCloses[idx];
+    var changePct = _chartFirstClose > 0 ? ((val - _chartFirstClose) / _chartFirstClose) * 100 : 0;
+
+    // Position line and dot
+    var leftPx = pct * 100;
+    line.style.left = leftPx + '%';
+    dot.style.left = leftPx + '%';
+
+    // Calculate Y position for dot
+    var min = Infinity, max = -Infinity;
+    for (var i = 0; i < _chartCloses.length; i++) {
+      if (_chartCloses[i] < min) min = _chartCloses[i];
+      if (_chartCloses[i] > max) max = _chartCloses[i];
+    }
+    var range = max - min || 1;
+    var yPct = 1 - (val - min) / range;
+    dot.style.top = (yPct * 100) + '%';
+    dot.style.display = 'block';
+    line.style.display = 'block';
+
+    // Update equity and % display
+    var eqEl = document.getElementById('equityTicker');
+    var perfBadge = document.getElementById('portfolioOverviewPerf');
+    var pctBadge = perfBadge ? perfBadge.querySelector('.portfolio-perf-badge') : null;
+
+    // Scale equity by the portfolio value ratio at this point
+    var totalEq = getTotalEquity();
+    var lastClose = _chartCloses[_chartCloses.length - 1];
+    var pointEq = lastClose > 0 ? totalEq * (val / lastClose) : totalEq;
+    var eqFormatted = '$' + pointEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    if (eqEl) {
+      var inner = eqEl.querySelector('.ticker-value');
+      if (inner) inner.textContent = eqFormatted;
+    }
+    if (pctBadge) {
+      var cls = changePct > 0.01 ? 'up' : changePct < -0.01 ? 'down' : 'flat';
+      var sign = changePct > 0 ? '+' : '';
+      pctBadge.className = 'portfolio-perf-badge ' + cls;
+      var inner2 = pctBadge.querySelector('.ticker-value');
+      if (inner2) inner2.textContent = sign + changePct.toFixed(2) + '%';
+    }
+  }
+
+  function handleEnd() {
+    line.style.display = 'none';
+    dot.style.display = 'none';
+    // Restore live values
+    var eq = getTotalEquity();
+    var eqEl = document.getElementById('equityTicker');
+    if (eqEl && eq > 0) {
+      var inner = eqEl.querySelector('.ticker-value');
+      if (inner) inner.textContent = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    // % will be restored by next _equityTick
+  }
+
+  overlay.addEventListener('mousemove', function(e) { handleMove(e.clientX); });
+  overlay.addEventListener('mouseleave', handleEnd);
+  overlay.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (e.touches[0]) handleMove(e.touches[0].clientX);
+  }, { passive: false });
+  overlay.addEventListener('touchend', handleEnd);
+}
+
 function renderPortfolioOverview() {
   var container = document.getElementById('portfolioOverviewChart');
   var inputSections = document.getElementById('inputSections');
@@ -2840,7 +2951,21 @@ function _marketClosedHTML() {
 var _lastEquityValue = 0;
 var _lastPctValue = null;
 
+function _hasRealPrices() {
+  // Check if we have real (non-approximate) prices for at least one holding
+  for (var i = 0; i < holdings.length; i++) {
+    if (_holdingsPriceCache[holdings[i].ticker]) return true;
+  }
+  return false;
+}
+
 function _totalEquityHTML() {
+  // Don't show equity until real prices are fetched (avoids stale APPROX_PRICES jump)
+  if (!_hasRealPrices()) {
+    return '<span class="chart-total-equity" id="equityTicker">' +
+      '<span class="ticker-value">--</span>' +
+      '</span>';
+  }
   var eq = getTotalEquity();
   if (eq <= 0) return '';
   _lastEquityValue = eq;
@@ -2875,6 +3000,8 @@ function _startEquityTicker() {
 
 function _equityTick() {
   if (holdings.length === 0) return;
+  var perfBadge = document.getElementById('portfolioOverviewPerf');
+  if (!perfBadge) return;
 
   var tickers = holdings.map(function(h) { return h.ticker; });
   if (typeof fetchMarketDataCached !== 'function') return;
@@ -2886,8 +3013,16 @@ function _equityTick() {
     var eq = getTotalEquity();
     var eqFormatted = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 
-    // Animate equity with subtle pop + color hint on change
+    // If equity/% elements don't exist yet, build them
     var eqEl = document.getElementById('equityTicker');
+    if (!eqEl && eq > 0) {
+      perfBadge.innerHTML = _totalEquityHTML() +
+        '<span class="portfolio-perf-badge"><span class="ticker-value">--</span></span>' +
+        _marketClosedHTML();
+      eqEl = document.getElementById('equityTicker');
+    }
+
+    // Animate equity with subtle pop + color hint on change
     if (eqEl && eq > 0) {
       _tickerAnimate(eqEl, eqFormatted);
       // Soft color flash on actual price change
@@ -2899,8 +3034,7 @@ function _equityTick() {
     }
 
     // Animate % change
-    var perfBadge = document.getElementById('portfolioOverviewPerf');
-    var pctBadge = perfBadge ? perfBadge.querySelector('.portfolio-perf-badge') : null;
+    var pctBadge = perfBadge.querySelector('.portfolio-perf-badge');
 
     // Update card prices
     holdings.forEach(function(h) {
@@ -2917,10 +3051,17 @@ function _equityTick() {
       }
     });
 
-    // Re-render list view if active
+    // Update list view equity values in place (no full re-render)
     if (typeof _holdingsView !== 'undefined' && _holdingsView === 'list') {
-      var list = document.getElementById('stockList');
-      if (list) renderHoldings();
+      document.querySelectorAll('.stock-equity').forEach(function(el) {
+        var ticker = el.closest('.stock-item')?.querySelector('.stock-ticker')?.textContent;
+        if (!ticker) return;
+        var h = holdings.find(function(x) { return x.ticker === ticker; });
+        if (!h) return;
+        var price = _getPrice(h.ticker);
+        var equity = (h.shares || 0) * price;
+        el.textContent = price > 0 ? '$' + equity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
+      });
     }
 
     // Update chart + % change badge with animation
@@ -2945,6 +3086,7 @@ function _equityTick() {
       if (chartArea && result.closes.length >= 2) {
         chartArea.classList.remove('chart-loading');
         chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
+        _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
       }
 
       var pct = result.changePct;
@@ -3002,6 +3144,7 @@ function _liveChartTick() {
     if (!result || result.closes.length < 2) return;
     chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
+    _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
     // Don't overwrite perfBadge — _equityTick handles equity + % updates
   });
 
@@ -3082,6 +3225,7 @@ function loadPortfolioChartRange(range) {
           return;
         }
         chartArea.innerHTML = _renderPortfolioChart(retryResult.closes, 500, 220, retryResult.positive);
+        _chartCloses = retryResult.closes; _chartFirstClose = retryResult.closes[0]; _setupChartCrosshair();
         if (perfBadge) {
           var pct = retryResult.changePct;
           var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
@@ -3094,6 +3238,7 @@ function loadPortfolioChartRange(range) {
     }
     chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
+    _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _setupChartCrosshair();
 
     // Show performance badge
     if (perfBadge) {

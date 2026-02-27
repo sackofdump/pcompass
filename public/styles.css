@@ -2408,9 +2408,41 @@
     height: 100%;
     display: block;
   }
+  /* Chart crosshair overlay */
+  .chart-crosshair-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    cursor: crosshair;
+  }
+  .crosshair-line {
+    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255,255,255,0.3);
+    pointer-events: none;
+    transform: translateX(-0.5px);
+  }
+  .crosshair-dot {
+    display: none;
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 6px rgba(255,255,255,0.3);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+
   .portfolio-overview-perf {
     display: flex;
     justify-content: center;
+    align-items: center;
+    gap: 4px;
     margin-top: 8px;
   }
   .portfolio-perf-badge {
