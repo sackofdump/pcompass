@@ -1264,10 +1264,8 @@ function highlightWhatIf() {
 // ── PATCH 1: MARKET DATA localStorage CACHE ──────────────────
 async function fetchMarketDataCached(tickersToFetch) {
   const CACHE_KEY = 'pc_market_' + tickersToFetch.slice().sort().join(',');
-  // During live polling: 5s cache. Market hours: 60s. Outside: 1 hour
-  var isLivePolling = typeof _chartLiveActive !== 'undefined' && _chartLiveActive;
-  var isMarketOpen = typeof getMarketStatus === 'function' && getMarketStatus().isOpen;
-  const CACHE_TTL = isLivePolling ? 5 * 1000 : isMarketOpen ? 60 * 1000 : 60 * 60 * 1000;
+  // Always use 5s cache — equity ticker refreshes every 5s
+  const CACHE_TTL = 5 * 1000;
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {

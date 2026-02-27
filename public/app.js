@@ -1791,7 +1791,20 @@ function loadPortfolio(idx, silent) {
   if (!portfolios[idx]) return;
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   // Ensure shares field exists (backward compat with old pct-only portfolios)
-  holdings.forEach(function(h) { if (!h.shares && h.pct) h.shares = 1; });
+  var needsSharesEstimate = holdings.some(function(h) { return !h.shares || h.shares <= 1; });
+  if (needsSharesEstimate) {
+    var PORTFOLIO_VALUE = 10000; // Assume $10k portfolio for estimation
+    holdings.forEach(function(h) {
+      if (!h.shares || h.shares <= 1) {
+        var price = _getPrice(h.ticker);
+        if (price > 0 && h.pct > 0) {
+          h.shares = Math.max(1, Math.round((h.pct / 100) * PORTFOLIO_VALUE / price));
+        } else {
+          h.shares = 1;
+        }
+      }
+    });
+  }
   _activePortfolioIdx = idx;
   _activePortfolioSnapshot = JSON.stringify(holdings);
   localStorage.setItem('pc_last_portfolio', String(idx));
@@ -2839,11 +2852,6 @@ function _equityTick() {
   if (!perfBadge || holdings.length === 0) return;
 
   var tickers = holdings.map(function(h) { return h.ticker; });
-
-  // Bust market data cache for fresh prices
-  var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
-  try { localStorage.removeItem(cacheKey); } catch(e) {}
-
   if (typeof fetchMarketDataCached !== 'function') return;
 
   fetchMarketDataCached(tickers).then(function(marketData) {
