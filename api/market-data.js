@@ -3,7 +3,7 @@ import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
 const cache = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min in-function cache (edge handles the 1hr)
+const CACHE_TTL_MS = 15 * 1000; // 15s cache — allows near-real-time equity updates
 
 function getCached(key) {
   const entry = cache.get(key);
