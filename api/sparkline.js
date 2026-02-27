@@ -109,11 +109,13 @@ async function getCrumb() {
 
 // ── FETCH SPARKLINE FROM YAHOO FINANCE (fallback) ────────
 async function fetchYahoo(ticker, range, crumb, cookie) {
-  const interval = range === '1d' ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
+  // Yahoo doesn't support 'live' — map to 1d with 1m interval, trim later
+  const yahooRange = range === 'live' ? '1d' : range;
+  const interval = (range === 'live') ? '1m' : (range === '1d') ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
 
   for (const useCrumb of [true, false]) {
     try {
-      let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+      let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${yahooRange}`;
       const headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json',
@@ -148,6 +150,20 @@ async function fetchYahoo(ticker, range, crumb, cookie) {
       }
 
       if (filtered.closes.length < 2) return null;
+
+      // For live range, trim to last 1 hour of data
+      if (range === 'live' && filtered.timestamps.length > 0) {
+        const cutoff = filtered.timestamps[filtered.timestamps.length - 1] - 3600; // 1 hour back
+        const trimmed = { closes: [], timestamps: [] };
+        for (let i = 0; i < filtered.timestamps.length; i++) {
+          if (filtered.timestamps[i] >= cutoff) {
+            trimmed.closes.push(filtered.closes[i]);
+            trimmed.timestamps.push(filtered.timestamps[i]);
+          }
+        }
+        if (trimmed.closes.length >= 2) return trimmed;
+      }
+
       return filtered;
     } catch {
       if (useCrumb && crumb) continue;
