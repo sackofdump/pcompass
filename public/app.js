@@ -714,11 +714,8 @@ function analyze() {
     var groupExposure = _computeGroupExposure(sectors);
     return STOCK_PICKS
       .filter(function(p) {
+        // Only exclude stocks the user already owns
         if (ownedTickers.includes(p.ticker)) return false;
-        if (p.avoidIfHeld.some(function(t) { return ownedTickers.includes(t); })) return false;
-        if (!_riskAllowed.includes(p.risk)) return false;
-        var currentAlloc = sectors[p.sector] || 0;
-        if (currentAlloc > 15) return false;
         return true;
       })
       .map(function(p) {
@@ -728,36 +725,39 @@ function analyze() {
         var maxTarget = Math.max(target.agg, target.mod, target.con);
         var stratTarget = target[_profileTargetKey] || 0;
         var currentAlloc = sectors[p.sector] || 0;
-        // Boost stocks that fill gaps in portfolio
+        // Big boost for stocks that fill missing sectors
         if (!ownedSectors.includes(p.sector) && isMissing && maxTarget >= 5) score += 30;
         else if (!ownedSectors.includes(p.sector) && isMissing) score += 20;
         else if (!ownedSectors.includes(p.sector)) score += 10;
         else if (currentAlloc < 10 && isMissing) score += 14;
+        // Penalty for overweight sectors (soft — still shows them, just ranked lower)
+        if (currentAlloc > 20) score -= 15;
+        else if (currentAlloc > 15) score -= 8;
         // Underweight sector bonus
         if (stratTarget > 0 && currentAlloc < stratTarget) {
-          score += Math.round((stratTarget - currentAlloc) * 0.8);
+          score += Math.round((stratTarget - currentAlloc) * 0.6);
         }
         // Market cap quality bonus — prefer large/mega caps
         var cap = p.cap || (STOCK_DB[p.ticker] || {}).cap || 'unknown';
-        if (cap === 'mega') score += 12;
-        else if (cap === 'large') score += 8;
-        else if (cap === 'mid') score += 3;
-        else if (cap === 'small') score -= 2;
+        if (cap === 'mega') score += 15;
+        else if (cap === 'large') score += 10;
+        else if (cap === 'mid') score += 4;
+        else if (cap === 'small') score += 0;
         // Risk alignment bonus
         if (_profileRiskKey === 'aggressive' && (p.risk === 'High' || p.risk === 'Very High')) score += 5;
         else if (_profileRiskKey === 'moderate' && p.risk === 'Medium') score += 5;
         else if (_profileRiskKey === 'conservative' && p.risk === 'Low') score += 8;
-        if (p.risk === 'Very High' && _profileRiskKey !== 'aggressive') score -= 10;
-        // Group exposure penalty
+        if (p.risk === 'Very High' && _profileRiskKey !== 'aggressive') score -= 5;
+        // Group exposure penalty (soft)
         var g = _getSectorGroup(p.sector);
-        if (g && groupExposure[g] > 25) score -= 20;
+        if (g && groupExposure[g] > 30) score -= 10;
         // Correlation penalty
         if (typeof CORRELATED_PAIRS !== 'undefined') {
           CORRELATED_PAIRS.forEach(function(pair) {
             var stocks = pair[0], etfs = pair[1];
             if (etfs.indexOf(p.ticker) >= 0) {
               var overlap = stocks.filter(function(t) { return ownedTickers.indexOf(t) >= 0; });
-              if (overlap.length >= 2) score -= 15;
+              if (overlap.length >= 2) score -= 10;
             }
           });
         }
@@ -766,7 +766,6 @@ function analyze() {
         if (md) score += Math.round((md.momentum - 50) * 0.3);
         return Object.assign({}, p, {score: score, isStock: true});
       })
-      .filter(function(p) { return p.score >= 40; })
       .sort(function(a,b) { return b.score - a.score; })
       .slice(0, 100);
   }
