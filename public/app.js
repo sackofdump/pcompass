@@ -2662,8 +2662,8 @@ function renderPortfolioOverview() {
     '<div class="portfolio-overview">' +
       '<div class="portfolio-overview-header">' +
         '<div class="portfolio-overview-name">' + escapeHTML(pName) + '</div>' +
-        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()" style="margin-right:6px;">Edit</button>' +
-        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview();expandUploadZone(document.querySelector(\'.upload-compact-trigger\'))">📷 Import</button>' +
+        '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
+        '<button class="chart-live-btn" id="chartLiveBtn" onclick="toggleChartLive()"><span class="live-dot"></span>LIVE</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
         '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
@@ -2679,7 +2679,6 @@ function renderPortfolioOverview() {
         '<button class="chart-type-btn' + (_portfolioChartType === 'bar' ? ' active' : '') + '" data-type="bar" onclick="setPortfolioChartType(\'bar\')" title="Bar chart">' +
           '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="7" width="2.5" height="6" rx="0.5"/><rect x="5" y="4" width="2.5" height="9" rx="0.5"/><rect x="9" y="2" width="2.5" height="11" rx="0.5"/></svg>' +
         '</button>' +
-        '<button class="chart-live-btn" id="chartLiveBtn" onclick="toggleChartLive()"><span class="live-dot"></span>LIVE</button>' +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
@@ -2711,7 +2710,8 @@ function renderPortfolioOverview() {
     fetchAndRenderSparklines();
   }
 
-  loadPortfolioChartRange('1d');
+  // Start in live mode by default
+  _startChartLive();
 }
 
 // ── LIVE CHART MODE ──────────────────────────────────────────
@@ -2742,11 +2742,7 @@ function _startChartLive() {
   _chartLiveActive = true;
   btn.classList.add('active');
 
-  // Add glow to chart area
-  var chartArea = document.getElementById('portfolioOverviewChartArea');
-  if (chartArea) chartArea.classList.add('live-active');
-
-  // Immediate refresh
+  // Immediate refresh (glow applied after first data comes back)
   _liveChartTick();
 
   // Poll every 5 seconds
@@ -2761,8 +2757,8 @@ function _stopChartLive() {
   }
   var btn = document.getElementById('chartLiveBtn');
   if (btn) btn.classList.remove('active');
-  var chartArea = document.getElementById('portfolioOverviewChartArea');
-  if (chartArea) chartArea.classList.remove('live-active');
+  var bubble = document.querySelector('.portfolio-overview');
+  if (bubble) bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
 }
 
 function _liveChartTick() {
@@ -2794,6 +2790,12 @@ function _liveChartTick() {
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
       perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+      // Apply glow to entire bubble based on gains/losses
+      var bubble = document.querySelector('.portfolio-overview');
+      if (bubble) {
+        bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
+        bubble.classList.add('live-glow-' + cls);
+      }
     }
   });
 
