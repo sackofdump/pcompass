@@ -187,6 +187,15 @@ function editCardAlloc(ticker, el) {
   });
 }
 
+function toggleHoldingsGrid() {
+  var list = document.getElementById('stockList');
+  var chevron = document.getElementById('holdingsGridChevron');
+  if (!list) return;
+  var collapsed = list.style.display === 'none';
+  list.style.display = collapsed ? '' : 'none';
+  if (chevron) chevron.style.transform = collapsed ? '' : 'rotate(-90deg)';
+}
+
 function setHoldingsView(view) {
   _holdingsView = view;
   document.querySelectorAll('.view-btn').forEach(b => {
@@ -2624,7 +2633,10 @@ function renderPortfolioOverview() {
         '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
-        '<button class="chart-range-btn chart-range-live" data-range="live" onclick="loadPortfolioChartRange(\'live\')"><span class="live-dot"></span>Live</button>' +
+        (function() {
+          var mOpen = getMarketStatus().isOpen;
+          return '<button class="chart-range-btn chart-range-live' + (mOpen ? '' : ' disabled') + '" data-range="live"' + (mOpen ? ' onclick="loadPortfolioChartRange(\'live\')"' : ' title="Market is closed"') + '><span class="live-dot"></span>Live</button>';
+        })() +
         '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
         '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
@@ -2635,7 +2647,9 @@ function renderPortfolioOverview() {
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
       '</div>' +
-      '<div class="portfolio-overview-perf" id="portfolioOverviewPerf"></div>' +
+      '<div class="portfolio-overview-perf" id="portfolioOverviewPerf">' +
+        (getMarketStatus().isOpen ? '' : '<span class="chart-market-closed">Market Closed</span>') +
+      '</div>' +
     '</div>';
 
   container.style.display = 'block';
