@@ -2208,23 +2208,27 @@
   .chart-range-btn:hover { border-color: var(--accent); color: var(--text); }
   .chart-range-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.08); }
 
-  /* Live Chart Button */
-  .chart-live-btn {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-    margin-left: auto;
-    display: flex;
+  /* Live range button */
+  .chart-range-live {
+    display: inline-flex !important;
     align-items: center;
-    gap: 5px;
-    transition: border-color 0.2s, color 0.2s, background 0.2s;
-    letter-spacing: 0.5px;
+    gap: 4px;
+  }
+  .chart-range-live .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+    transition: background 0.3s;
+  }
+  .chart-range-live.active .live-dot {
+    background: var(--accent);
+    animation: live-range-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes live-range-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,229,160,0.5); }
+    50% { opacity: 0.6; box-shadow: 0 0 6px 2px rgba(0,229,160,0.3); }
   }
   .chart-type-divider {
     width: 1px;
@@ -2249,29 +2253,6 @@
   }
   .chart-type-btn:hover { border-color: var(--accent); color: var(--text); }
   .chart-type-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.08); }
-
-  .chart-live-btn:hover { border-color: #ef4444; color: var(--text); }
-  .chart-live-btn.active {
-    border-color: #ef4444;
-    color: #ef4444;
-    background: rgba(239,68,68,0.08);
-  }
-  .live-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--muted);
-    display: inline-block;
-    transition: background 0.3s;
-  }
-  .chart-live-btn.active .live-dot {
-    background: #ef4444;
-    animation: live-pulse 1.4s ease-in-out infinite;
-  }
-  @keyframes live-pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
-    50% { opacity: 0.6; box-shadow: 0 0 8px 3px rgba(239,68,68,0.3); }
-  }
 
   /* Live glow pulse on the entire portfolio bubble */
   .portfolio-overview.live-glow-up {

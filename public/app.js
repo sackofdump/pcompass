@@ -2663,10 +2663,10 @@ function renderPortfolioOverview() {
       '<div class="portfolio-overview-header">' +
         '<div class="portfolio-overview-name">' + escapeHTML(pName) + '</div>' +
         '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
-        '<button class="chart-live-btn" id="chartLiveBtn" onclick="toggleChartLive()"><span class="live-dot"></span>LIVE</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
-        '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
+        '<button class="chart-range-btn chart-range-live active" data-range="live" onclick="loadPortfolioChartRange(\'live\')"><span class="live-dot"></span>Live</button>' +
+        '<button class="chart-range-btn" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
         '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
@@ -2711,7 +2711,7 @@ function renderPortfolioOverview() {
   }
 
   // Start in live mode by default
-  _startChartLive();
+  loadPortfolioChartRange('live');
 }
 
 // ── LIVE CHART MODE ──────────────────────────────────────────
@@ -2719,44 +2719,12 @@ var _chartLiveTimer = null;
 var _chartLiveActive = false;
 var _CHART_LIVE_INTERVAL = 5 * 1000; // 5 seconds
 
-function toggleChartLive() {
-  if (_chartLiveActive) {
-    _stopChartLive();
-  } else {
-    _startChartLive();
-  }
-}
-
-function _startChartLive() {
-  var btn = document.getElementById('chartLiveBtn');
-  if (!btn) return;
-
-  // Force 1D range when going live
-  var container = document.getElementById('portfolioOverviewChart');
-  if (container) {
-    container.querySelectorAll('.chart-range-btn').forEach(function(b) {
-      b.classList.toggle('active', b.dataset.range === '1d');
-    });
-  }
-
-  _chartLiveActive = true;
-  btn.classList.add('active');
-
-  // Immediate refresh (glow applied after first data comes back)
-  _liveChartTick();
-
-  // Poll every 5 seconds
-  _chartLiveTimer = setInterval(_liveChartTick, _CHART_LIVE_INTERVAL);
-}
-
 function _stopChartLive() {
   _chartLiveActive = false;
   if (_chartLiveTimer) {
     clearInterval(_chartLiveTimer);
     _chartLiveTimer = null;
   }
-  var btn = document.getElementById('chartLiveBtn');
-  if (btn) btn.classList.remove('active');
   var bubble = document.querySelector('.portfolio-overview');
   if (bubble) bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
 }
@@ -2775,7 +2743,6 @@ function _liveChartTick() {
     if (typeof _sparkCache !== 'undefined') delete _sparkCache[key];
     try { localStorage.removeItem('pc_sp_' + key); } catch(e) {}
   }
-  // Also bust market data cache
   var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
   try { localStorage.removeItem(cacheKey); } catch(e) {}
 
@@ -2784,6 +2751,7 @@ function _liveChartTick() {
     if (!sparkData || Object.keys(sparkData).length === 0) return;
     var result = computePortfolioLine(sparkData, holdings);
     if (!result || result.closes.length < 2) return;
+    chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
     if (perfBadge) {
       var pct = result.changePct;
@@ -2820,9 +2788,9 @@ function _liveChartTick() {
   }
 }
 
-// Stop live mode when switching ranges manually
 function loadPortfolioChartRange(range) {
-  if (_chartLiveActive && range !== '1d') _stopChartLive();
+  // Always stop any existing live polling first
+  _stopChartLive();
   var chartArea = document.getElementById('portfolioOverviewChartArea');
   var perfBadge = document.getElementById('portfolioOverviewPerf');
   if (!chartArea) return;
@@ -2836,6 +2804,14 @@ function loadPortfolioChartRange(range) {
     container.querySelectorAll('.chart-range-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.range === range);
     });
+  }
+
+  // Live mode: immediate tick + start polling every 5s
+  if (range === 'live') {
+    _chartLiveActive = true;
+    _liveChartTick();
+    _chartLiveTimer = setInterval(_liveChartTick, _CHART_LIVE_INTERVAL);
+    return;
   }
 
   var tickers = holdings.map(function(h) { return h.ticker; });
