@@ -313,11 +313,10 @@ function renderHoldings() {
   chip.textContent = totalEq > 0 ? '$' + totalEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' total' : holdings.length + ' holdings';
   btn.disabled = holdings.length === 0;
 
-  // Hide onboarding when user has holdings OR has saved portfolios
-  const ob = document.getElementById('onboardingBanner');
-  if (ob) {
-    const hasSaved = getSavedPortfolios().length > 0;
-    ob.style.display = (holdings.length > 0 || hasSaved) ? 'none' : 'block';
+  // Hide examples when a portfolio is loaded, show when empty
+  const exEl = document.getElementById('examplePortfolios');
+  if (exEl) {
+    exEl.style.display = holdings.length > 0 ? 'none' : 'block';
   }
 
   // Show/hide what-if simulator
@@ -1927,11 +1926,11 @@ function showToast(msg) {
 })();
 
 // ── EXPORT PDF ────────────────────────────────────────────
-// ── ONBOARDING INIT ───────────────────────────────────────
-(function initOnboarding() {
-  const banner = document.getElementById('onboardingBanner');
-  if (!banner) return;
-  if (holdings.length > 0) banner.style.display = 'none';
+// ── EXAMPLE PORTFOLIOS INIT ──────────────────────────────
+(function initExamples() {
+  const exEl = document.getElementById('examplePortfolios');
+  if (!exEl) return;
+  if (holdings.length > 0) exEl.style.display = 'none';
 })();
 
 // Sidebar portfolios are rendered on-demand when sidebar opens
@@ -2288,7 +2287,38 @@ function renderSparklineSVG(closes, width, height, positive) {
 }
 
 function _renderPortfolioChart(closes, width, height, positive) {
-  return renderSparklineSVG(closes, width, height, positive);
+  if (!closes || closes.length < 2) return '';
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < closes.length; i++) {
+    if (closes[i] < min) min = closes[i];
+    if (closes[i] > max) max = closes[i];
+  }
+  var range = max - min || 1;
+  var padY = 2; // minimal top/bottom padding for edge-to-edge feel
+  var usableH = height - padY * 2;
+  var stepX = width / (closes.length - 1);
+
+  var points = [];
+  for (var i = 0; i < closes.length; i++) {
+    var x = Math.round(i * stepX * 100) / 100;
+    var y = Math.round((padY + usableH - ((closes[i] - min) / range) * usableH) * 100) / 100;
+    points.push(x + ',' + y);
+  }
+  var polyPoints = points.join(' ');
+  var color = positive ? '#22c55e' : '#ef4444';
+  var gradId = 'sg' + Math.random().toString(36).substr(2, 6);
+  var fillPoints = polyPoints + ' ' + width + ',' + height + ' 0,' + height;
+
+  var svg = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs><linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.25"/>' +
+    '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/>' +
+    '</linearGradient></defs>' +
+    '<polygon points="' + fillPoints + '" fill="url(#' + gradId + ')"/>' +
+    '<polyline points="' + polyPoints + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+
+  return '<img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '" style="width:100%;height:100%;display:block;" alt="chart"/>';
 }
 
 function fetchAndRenderSparklines() {
@@ -2809,10 +2839,11 @@ function _liveChartTick() {
     }
   });
 
-  // Also update prices on sparkline cards
+  // Also update prices + equity on sparkline cards
   if (typeof fetchMarketDataCached === 'function') {
     fetchMarketDataCached(tickers).then(function(marketData) {
       if (!marketData) return;
+      recalcPortfolioPct(marketData);
       holdings.forEach(function(h) {
         if (!marketData[h.ticker]) return;
         var md = marketData[h.ticker];
@@ -2826,7 +2857,36 @@ function _liveChartTick() {
           changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
         }
       });
+      // Update equity display on the chart badge
+      var eqSpan = perfBadge ? perfBadge.querySelector('.chart-total-equity') : null;
+      if (eqSpan) {
+        var eq = getTotalEquity();
+        eqSpan.textContent = eq > 0 ? '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+      }
     });
+  }
+
+  // Also refresh small square chart sparklines (bust 1d caches)
+  for (var j = 0; j < tickers.length; j++) {
+    var key1d = tickers[j] + ':1d';
+    if (typeof _sparkCache !== 'undefined') delete _sparkCache[key1d];
+    try { localStorage.removeItem('pc_sp_' + key1d); } catch(e) {}
+  }
+  var CHUNK = 5;
+  for (var c = 0; c < tickers.length; c += CHUNK) {
+    (function(chunk) {
+      fetchSparklineData(chunk, '1d').then(function(sparkData) {
+        if (!sparkData) return;
+        chunk.forEach(function(t) {
+          if (!sparkData[t] || !sparkData[t].closes || sparkData[t].closes.length < 2) return;
+          var el = document.getElementById('spark-svg-' + t);
+          if (!el) return;
+          var closes = sparkData[t].closes;
+          var positive = closes[closes.length - 1] >= closes[0];
+          el.innerHTML = renderSparklineSVG(closes, 160, 60, positive);
+        });
+      });
+    })(tickers.slice(c, c + CHUNK));
   }
 }
 

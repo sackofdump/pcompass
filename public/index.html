@@ -115,16 +115,29 @@
       <div class="portfolio-strip" id="portfolioStrip"></div>
 
       <div id="holdingsBody">
-      <!-- Onboarding banner (hidden after first use) -->
-      <div class="onboarding-banner" id="onboardingBanner" style="position:relative;">
-        <div class="onboarding-text">👋 <strong>Welcome!</strong> Add your stock holdings below, or try an example portfolio to see how it works.</div>
+      <!-- Example portfolios (always visible) -->
+      <div class="example-portfolios" id="examplePortfolios">
+        <div class="example-section-label">Strategy</div>
         <div class="onboarding-examples">
-          <button class="btn-example" onclick="loadExample('tech')">🚀 Aggressive</button>
+          <button class="btn-example" onclick="loadExample('tech')">🚀 Aggressive Tech</button>
+          <button class="btn-example" onclick="loadExample('growth')">📈 Growth</button>
           <button class="btn-example" onclick="loadExample('balanced')">⚖️ Balanced</button>
           <button class="btn-example" onclick="loadExample('conservative')">🛡️ Conservative</button>
-          <button class="btn-example" onclick="loadExample('crypto')">₿ Crypto Mix</button>
+          <button class="btn-example" onclick="loadExample('dividend')">💰 Dividend</button>
+          <button class="btn-example" onclick="loadExample('etfonly')">📊 ETF Only</button>
         </div>
-        <button onclick="document.getElementById('onboardingBanner').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;line-height:1;padding:2px 5px;border-radius:3px;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">×</button>
+        <div class="example-section-label">Sector</div>
+        <div class="onboarding-examples">
+          <button class="btn-example" onclick="loadExample('energy')">⚡ Energy</button>
+          <button class="btn-example" onclick="loadExample('finance')">🏦 Finance</button>
+          <button class="btn-example" onclick="loadExample('healthcare')">💊 Healthcare</button>
+        </div>
+        <div class="example-section-label">Theme</div>
+        <div class="onboarding-examples">
+          <button class="btn-example" onclick="loadExample('ai')">🤖 AI & Chips</button>
+          <button class="btn-example" onclick="loadExample('crypto')">₿ Crypto</button>
+          <button class="btn-example" onclick="loadExample('smallcap')">🎯 Small Cap</button>
+        </div>
       </div>
 
 
