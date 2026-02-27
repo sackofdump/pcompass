@@ -1881,16 +1881,48 @@ function expandInputSections() {
   if (el) el.style.display = '';
 }
 
+var _isExamplePortfolio = false;
+
 function loadExample(key) {
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
   holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,shares:e.shares||1,pct:0,...info}; });
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
+  _isExamplePortfolio = true;
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   recalcPortfolioPct();
   renderHoldings();
   collapseInputSections();
+  if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+  _showExampleBackBtn(true);
+}
+
+function _showExampleBackBtn(show) {
+  var existing = document.getElementById('exampleBackBtn');
+  if (!show) {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return;
+  var container = document.getElementById('portfolioOverviewChart');
+  if (!container) return;
+  var btn = document.createElement('button');
+  btn.id = 'exampleBackBtn';
+  btn.className = 'example-back-btn';
+  btn.innerHTML = '← Back to Examples';
+  btn.onclick = function() {
+    _isExamplePortfolio = false;
+    newPortfolio();
+    _showExampleBackBtn(false);
+  };
+  container.insertBefore(btn, container.firstChild);
+}
+
+function backToExamples() {
+  _isExamplePortfolio = false;
+  newPortfolio();
+  _showExampleBackBtn(false);
 }
 
 // ── SHARE PORTFOLIO ───────────────────────────────────────
@@ -2970,13 +3002,7 @@ function _liveChartTick() {
     if (!result || result.closes.length < 2) return;
     chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
-    if (perfBadge) {
-      var pct = result.changePct;
-      var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
-      var sign = pct > 0 ? '+' : '';
-      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '"><span class="ticker-value">' + sign + pct.toFixed(2) + '%</span></span>' + _marketClosedHTML();
-      _applyBubbleGlow(pct);
-    }
+    // Don't overwrite perfBadge — _equityTick handles equity + % updates
   });
 
   // Also refresh small square chart sparklines (bust 1d caches)

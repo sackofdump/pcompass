@@ -1044,6 +1044,21 @@
   }
   .btn-example:hover { border-color:var(--accent); color:var(--accent); transform:translateY(-1px); box-shadow:var(--accent-glow-subtle); }
   .btn-example:active { transform:scale(0.97); box-shadow:none; }
+  .example-back-btn {
+    display: block;
+    margin: 0 24px 8px;
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 0;
+    opacity: 0.8;
+    transition: opacity 0.15s;
+  }
+  .example-back-btn:hover { opacity: 1; }
 
   /* ── SHARE BUTTON ─── */
   .share-export-row {

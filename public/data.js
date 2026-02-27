@@ -2040,20 +2040,20 @@ const CORRELATED_PAIRS = [
 
 const EXAMPLE_PORTFOLIOS = {
   // Strategy-based
-  tech:         [{ticker:'NVDA',shares:15},{ticker:'MSFT',shares:10},{ticker:'AAPL',shares:40},{ticker:'META',shares:12},{ticker:'PLTR',shares:50},{ticker:'AMD',shares:20}],
-  balanced:     [{ticker:'AAPL',shares:20},{ticker:'MSFT',shares:8},{ticker:'JPM',shares:10},{ticker:'JNJ',shares:15},{ticker:'XOM',shares:20},{ticker:'KO',shares:30},{ticker:'AMZN',shares:5},{ticker:'NEE',shares:15}],
-  conservative: [{ticker:'JNJ',shares:20},{ticker:'KO',shares:30},{ticker:'PG',shares:15},{ticker:'WMT',shares:12},{ticker:'UNH',shares:5},{ticker:'NEE',shares:15},{ticker:'LMT',shares:6}],
-  dividend:     [{ticker:'KO',shares:40},{ticker:'JNJ',shares:15},{ticker:'PG',shares:20},{ticker:'XOM',shares:25},{ticker:'T',shares:80},{ticker:'VZ',shares:50},{ticker:'SCHD',shares:30}],
-  growth:       [{ticker:'NVDA',shares:20},{ticker:'TSLA',shares:15},{ticker:'PLTR',shares:60},{ticker:'CRWD',shares:8},{ticker:'SHOP',shares:25},{ticker:'TTD',shares:30},{ticker:'DDOG',shares:15}],
+  tech:         [{ticker:'NVDA',shares:1},{ticker:'MSFT',shares:1},{ticker:'AAPL',shares:1},{ticker:'META',shares:1},{ticker:'PLTR',shares:1},{ticker:'AMD',shares:1}],
+  balanced:     [{ticker:'AAPL',shares:1},{ticker:'MSFT',shares:1},{ticker:'JPM',shares:1},{ticker:'JNJ',shares:1},{ticker:'XOM',shares:1},{ticker:'KO',shares:1},{ticker:'AMZN',shares:1},{ticker:'NEE',shares:1}],
+  conservative: [{ticker:'JNJ',shares:1},{ticker:'KO',shares:1},{ticker:'PG',shares:1},{ticker:'WMT',shares:1},{ticker:'UNH',shares:1},{ticker:'NEE',shares:1},{ticker:'LMT',shares:1}],
+  dividend:     [{ticker:'KO',shares:1},{ticker:'JNJ',shares:1},{ticker:'PG',shares:1},{ticker:'XOM',shares:1},{ticker:'T',shares:1},{ticker:'VZ',shares:1},{ticker:'SCHD',shares:1}],
+  growth:       [{ticker:'NVDA',shares:1},{ticker:'TSLA',shares:1},{ticker:'PLTR',shares:1},{ticker:'CRWD',shares:1},{ticker:'SHOP',shares:1},{ticker:'TTD',shares:1},{ticker:'DDOG',shares:1}],
   // Sector-focused
-  energy:       [{ticker:'XOM',shares:25},{ticker:'CVX',shares:15},{ticker:'COP',shares:20},{ticker:'NEE',shares:18},{ticker:'ENPH',shares:30},{ticker:'XLE',shares:20}],
-  finance:      [{ticker:'JPM',shares:12},{ticker:'GS',shares:5},{ticker:'V',shares:8},{ticker:'MA',shares:5},{ticker:'BAC',shares:60},{ticker:'XLF',shares:30}],
-  healthcare:   [{ticker:'UNH',shares:5},{ticker:'JNJ',shares:15},{ticker:'PFE',shares:80},{ticker:'XLV',shares:15},{ticker:'LLY',shares:4}],
+  energy:       [{ticker:'XOM',shares:1},{ticker:'CVX',shares:1},{ticker:'COP',shares:1},{ticker:'NEE',shares:1},{ticker:'ENPH',shares:1},{ticker:'XLE',shares:1}],
+  finance:      [{ticker:'JPM',shares:1},{ticker:'GS',shares:1},{ticker:'V',shares:1},{ticker:'MA',shares:1},{ticker:'BAC',shares:1},{ticker:'XLF',shares:1}],
+  healthcare:   [{ticker:'UNH',shares:1},{ticker:'JNJ',shares:1},{ticker:'PFE',shares:1},{ticker:'XLV',shares:1},{ticker:'LLY',shares:1}],
   // Theme-based
-  crypto:       [{ticker:'COIN',shares:20},{ticker:'MSTR',shares:10},{ticker:'HOOD',shares:100},{ticker:'NVDA',shares:10},{ticker:'MSFT',shares:5}],
-  ai:           [{ticker:'NVDA',shares:20},{ticker:'MSFT',shares:8},{ticker:'AVGO',shares:12},{ticker:'PLTR',shares:50},{ticker:'ARM',shares:15},{ticker:'TSM',shares:12}],
-  etfonly:      [{ticker:'VOO',shares:15},{ticker:'QQQ',shares:8},{ticker:'SCHD',shares:30},{ticker:'VEA',shares:20},{ticker:'BND',shares:25},{ticker:'GLD',shares:10}],
-  smallcap:     [{ticker:'RKLB',shares:80},{ticker:'SOFI',shares:120},{ticker:'DKNG',shares:50},{ticker:'CHWY',shares:40},{ticker:'AFRM',shares:30},{ticker:'DUOL',shares:8}],
+  crypto:       [{ticker:'COIN',shares:1},{ticker:'MSTR',shares:1},{ticker:'HOOD',shares:1},{ticker:'NVDA',shares:1},{ticker:'MSFT',shares:1}],
+  ai:           [{ticker:'NVDA',shares:1},{ticker:'MSFT',shares:1},{ticker:'AVGO',shares:1},{ticker:'PLTR',shares:1},{ticker:'ARM',shares:1},{ticker:'TSM',shares:1}],
+  etfonly:      [{ticker:'VOO',shares:1},{ticker:'QQQ',shares:1},{ticker:'SCHD',shares:1},{ticker:'VEA',shares:1},{ticker:'BND',shares:1},{ticker:'GLD',shares:1}],
+  smallcap:     [{ticker:'RKLB',shares:1},{ticker:'SOFI',shares:1},{ticker:'DKNG',shares:1},{ticker:'CHWY',shares:1},{ticker:'AFRM',shares:1},{ticker:'DUOL',shares:1}],
 };
 
 const APPROX_PRICES = {
