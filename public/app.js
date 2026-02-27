@@ -340,12 +340,9 @@ function renderHoldings() {
   chip.textContent = holdings.length + ' holdings';
   btn.disabled = holdings.length === 0;
 
-  // Hide examples only when user has saved portfolios
+  // Simulations always visible at top
   const exEl = document.getElementById('examplePortfolios');
-  if (exEl) {
-    var hasSaved = getSavedPortfolios().length > 0;
-    exEl.style.display = (holdings.length > 0 && hasSaved) ? 'none' : 'block';
-  }
+  if (exEl) exEl.style.display = 'block';
 
   // Show/hide what-if simulator
   const wiPanel = document.getElementById('whatifPanel');
@@ -1948,35 +1945,8 @@ function loadExample(key) {
   renderHoldings();
   collapseInputSections();
   if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
-  _showExampleBackBtn(true);
 }
 
-function _showExampleBackBtn(show) {
-  var existing = document.getElementById('exampleBackBtn');
-  if (!show) {
-    if (existing) existing.remove();
-    return;
-  }
-  if (existing) return;
-  var container = document.getElementById('portfolioOverviewChart');
-  if (!container) return;
-  var btn = document.createElement('button');
-  btn.id = 'exampleBackBtn';
-  btn.className = 'example-back-btn';
-  btn.innerHTML = '← Back to Examples';
-  btn.onclick = function() {
-    _isExamplePortfolio = false;
-    newPortfolio();
-    _showExampleBackBtn(false);
-  };
-  container.insertBefore(btn, container.firstChild);
-}
-
-function backToExamples() {
-  _isExamplePortfolio = false;
-  newPortfolio();
-  _showExampleBackBtn(false);
-}
 
 // ── SHARE PORTFOLIO ───────────────────────────────────────
 async function sharePortfolio() {
@@ -2029,10 +1999,7 @@ function showToast(msg) {
 // ── EXPORT PDF ────────────────────────────────────────────
 // ── EXAMPLE PORTFOLIOS INIT ──────────────────────────────
 (function initExamples() {
-  const exEl = document.getElementById('examplePortfolios');
-  if (!exEl) return;
-  var hasSaved = getSavedPortfolios().length > 0;
-  if (holdings.length > 0 && hasSaved) exEl.style.display = 'none';
+  // Simulations always visible
 })();
 
 // Sidebar portfolios are rendered on-demand when sidebar opens
@@ -2940,11 +2907,14 @@ function renderPortfolioOverview() {
 
   var portfolios = getSavedPortfolios();
   var pName = (_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx] && portfolios[_activePortfolioIdx].name) || 'My Portfolio';
+  var isSim = _isExamplePortfolio;
 
   container.innerHTML =
     '<div class="portfolio-overview">' +
       '<div class="portfolio-overview-header">' +
-        '<div class="portfolio-overview-name">' + escapeHTML(pName) + '</div>' +
+        '<div class="portfolio-overview-name">' + escapeHTML(pName) +
+          (isSim ? '<span class="sim-label">Simulation · 1 share each</span>' : '') +
+        '</div>' +
         '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
@@ -2961,7 +2931,7 @@ function renderPortfolioOverview() {
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
       '</div>' +
       '<div class="portfolio-overview-perf" id="portfolioOverviewPerf">' +
-        '<span class="chart-total-equity" id="equityTicker">--</span>' +
+        (isSim ? '' : '<span class="chart-total-equity" id="equityTicker">--</span>') +
         '<span class="portfolio-perf-badge" id="pctBadge">--</span>' +
       '</div>' +
     '</div>';

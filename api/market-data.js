@@ -29,8 +29,8 @@ async function fetchPolygon(ticker) {
     const snap = data?.ticker;
     if (!snap) return null;
 
-    // Use extended hours price when available
-    const price = snap.lastQuote?.P || snap.lastTrade?.p || snap.min?.c || snap.prevDay?.c;
+    // Use most recent price: day aggregate > last trade > minute bar > prev close
+    const price = snap.day?.c || snap.lastTrade?.p || snap.min?.c || snap.prevDay?.c;
     const prevClose = snap.prevDay?.c;
     if (price == null) return null;
 
@@ -75,8 +75,8 @@ async function fetchPolygonBatch(tickers) {
       const sym = snap.ticker;
       if (!sym) continue;
 
-      // Use extended hours price when available
-      const price = snap.lastQuote?.P || snap.lastTrade?.p || snap.min?.c || snap.prevDay?.c;
+      // Use most recent price: day aggregate > last trade > minute bar > prev close
+      const price = snap.day?.c || snap.lastTrade?.p || snap.min?.c || snap.prevDay?.c;
       const prevClose = snap.prevDay?.c;
       if (price == null) continue;
 

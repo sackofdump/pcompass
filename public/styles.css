@@ -1036,6 +1036,13 @@
     margin: 6px 0 4px;
   }
   .example-section-label:first-child { margin-top: 0; }
+  .sim-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-top: 2px;
+  }
   .onboarding-examples { display:flex; flex-wrap:wrap; gap:5px; margin-bottom: 6px; }
   .onboarding-examples:last-child { margin-bottom: 0; }
   .btn-example {
@@ -1045,21 +1052,7 @@
   }
   .btn-example:hover { border-color:var(--accent); color:var(--accent); transform:translateY(-1px); box-shadow:var(--accent-glow-subtle); }
   .btn-example:active { transform:scale(0.97); box-shadow:none; }
-  .example-back-btn {
-    display: block;
-    margin: 0 24px 8px;
-    background: none;
-    border: none;
-    color: var(--accent);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 4px 0;
-    opacity: 0.8;
-    transition: opacity 0.15s;
-  }
-  .example-back-btn:hover { opacity: 1; }
+
 
   /* ── SHARE BUTTON ─── */
   .share-export-row {
@@ -2345,13 +2338,13 @@
     vertical-align: middle;
   }
 
-  /* Barely-visible idle breathing — shows it's refreshing when price unchanged */
+  /* Subtle idle breathing — shows it's refreshing when price unchanged */
   .portfolio-overview.live-glow-idle {
     animation: live-glow-idle 5s ease-in-out infinite;
   }
   @keyframes live-glow-idle {
-    0%, 100% { box-shadow: 0 0 0 0 transparent; }
-    50% { box-shadow: 0 0 6px 1px rgba(148,163,184,0.05); }
+    0%, 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--border); }
+    50% { box-shadow: 0 0 10px 2px rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.18); }
   }
   /* Stronger flash on actual price change */
   .portfolio-overview.live-glow-up {
