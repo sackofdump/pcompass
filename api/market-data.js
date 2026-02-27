@@ -3,7 +3,7 @@ import { checkRateLimit } from './lib/rate-limit.js';
 
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
 const cache = new Map();
-const CACHE_TTL_MS = 15 * 1000; // 15s cache — allows near-real-time equity updates
+const CACHE_TTL_MS = 5 * 1000; // 5s cache — matches client fetch interval
 
 function getCached(key) {
   const entry = cache.get(key);
