@@ -22,25 +22,35 @@ function setCached(key, data) {
 }
 
 // ── VALID RANGES ─────────────────────────────────────────
-const VALID_RANGES = new Set(['live', '1d', '5d', '1mo', '3mo', '1y', '5y']);
+const VALID_RANGES = new Set(['live', '1d', '5d', '1mo', '3mo', 'ytd', '1y', 'all']);
 
 // ── POLYGON RANGE MAPPING ────────────────────────────────
-const POLYGON_RANGE_MAP = {
-  'live': { multiplier: 1,  timespan: 'minute', hoursBack: 1 },
-  '1d':  { multiplier: 5,  timespan: 'minute', daysBack: 1 },
-  '5d':  { multiplier: 30, timespan: 'minute', daysBack: 7 },
-  '1mo': { multiplier: 1,  timespan: 'day',    daysBack: 35 },
-  '3mo': { multiplier: 1,  timespan: 'day',    daysBack: 95 },
-  '1y':  { multiplier: 1,  timespan: 'week',   daysBack: 370 },
-  '5y':  { multiplier: 1,  timespan: 'week',   daysBack: 1850 },
-};
+function getPolygonConfig(range) {
+  const map = {
+    'live': { multiplier: 1,  timespan: 'minute', hoursBack: 1 },
+    '1d':  { multiplier: 5,  timespan: 'minute', daysBack: 1 },
+    '5d':  { multiplier: 30, timespan: 'minute', daysBack: 7 },
+    '1mo': { multiplier: 1,  timespan: 'day',    daysBack: 35 },
+    '3mo': { multiplier: 1,  timespan: 'day',    daysBack: 95 },
+    '1y':  { multiplier: 1,  timespan: 'week',   daysBack: 370 },
+    'all': { multiplier: 1,  timespan: 'month',  daysBack: 7300 },
+  };
+  if (range === 'ytd') {
+    const now = new Date();
+    const jan1 = new Date(now.getFullYear(), 0, 1);
+    const daysBack = Math.ceil((now - jan1) / (24 * 60 * 60 * 1000)) + 1;
+    return { multiplier: 1, timespan: 'day', daysBack };
+  }
+  return map[range] || null;
+}
+const POLYGON_RANGE_MAP = null; // replaced by getPolygonConfig()
 
 // ── FETCH SPARKLINE FROM POLYGON.IO (primary) ────────────
 async function fetchPolygon(ticker, range) {
   const apiKey = process.env.POLYGON_API_KEY;
   if (!apiKey) return null;
 
-  const config = POLYGON_RANGE_MAP[range];
+  const config = getPolygonConfig(range);
   if (!config) return null;
 
   try {
@@ -109,9 +119,10 @@ async function getCrumb() {
 
 // ── FETCH SPARKLINE FROM YAHOO FINANCE (fallback) ────────
 async function fetchYahoo(ticker, range, crumb, cookie) {
-  // Yahoo doesn't support 'live' — map to 1d with 1m interval, trim later
-  const yahooRange = range === 'live' ? '1d' : range;
-  const interval = (range === 'live') ? '1m' : (range === '1d') ? '5m' : (range === '1y' || range === '5y') ? '1wk' : '1d';
+  // Map internal ranges to Yahoo Finance range/interval params
+  const yahooRangeMap = { 'live': '1d', '1d': '1d', '5d': '5d', '1mo': '1mo', '3mo': '3mo', 'ytd': 'ytd', '1y': '1y', 'all': 'max' };
+  const yahooRange = yahooRangeMap[range] || range;
+  const interval = (range === 'live') ? '1m' : (range === '1d') ? '5m' : (range === '1y' || range === 'all') ? '1wk' : (range === 'ytd' && new Date().getMonth() < 2) ? '1d' : '1d';
 
   for (const useCrumb of [true, false]) {
     try {
@@ -222,7 +233,7 @@ export default async function handler(req, res) {
   if (!tickers) return res.status(400).json({ error: 'No tickers provided' });
 
   if (!VALID_RANGES.has(range)) {
-    return res.status(400).json({ error: 'Invalid range. Use: 1d, 5d, 1mo, 3mo, 1y, 5y' });
+    return res.status(400).json({ error: 'Invalid range. Use: 1d, 5d, 1mo, 3mo, ytd, 1y, all' });
   }
 
   const tickerList = [...new Set(

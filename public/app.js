@@ -2525,6 +2525,9 @@ function _ensureChartModal() {
         '<button class="chart-range-btn" data-range="5d" onclick="loadChartRange(this.parentElement.dataset.ticker,\'5d\')">1W</button>' +
         '<button class="chart-range-btn" data-range="1mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadChartRange(this.parentElement.dataset.ticker,\'3mo\')">3M</button>' +
+        '<button class="chart-range-btn" data-range="ytd" onclick="loadChartRange(this.parentElement.dataset.ticker,\'ytd\')">YTD</button>' +
+        '<button class="chart-range-btn" data-range="1y" onclick="loadChartRange(this.parentElement.dataset.ticker,\'1y\')">1Y</button>' +
+        '<button class="chart-range-btn" data-range="all" onclick="loadChartRange(this.parentElement.dataset.ticker,\'all\')">ALL</button>' +
       '</div>' +
       '<div class="chart-modal-chart" id="chartModalChart">' +
         '<div class="spark-shimmer" style="height:200px"></div>' +
@@ -2750,8 +2753,9 @@ function renderPortfolioOverview() {
         '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
         '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
+        '<button class="chart-range-btn" data-range="ytd" onclick="loadPortfolioChartRange(\'ytd\')">YTD</button>' +
         '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
-        '<button class="chart-range-btn" data-range="5y" onclick="loadPortfolioChartRange(\'5y\')">5Y</button>' +
+        '<button class="chart-range-btn" data-range="all" onclick="loadPortfolioChartRange(\'all\')">ALL</button>' +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
@@ -2803,40 +2807,44 @@ function _marketClosedHTML() {
 }
 
 var _lastEquityValue = 0;
+var _lastPctValue = null;
 
 function _totalEquityHTML() {
   var eq = getTotalEquity();
   if (eq <= 0) return '';
   _lastEquityValue = eq;
-  return '<span class="chart-total-equity"><span class="equity-roll">' +
-    '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) +
-    '</span></span>';
+  return '<span class="chart-total-equity" id="equityTicker">' +
+    '<span class="ticker-value">$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>' +
+    '</span>';
 }
 
-// Animate equity with rolling number + color flash
-function _animateEquityUpdate(newEq) {
-  var perfBadge = document.getElementById('portfolioOverviewPerf');
-  if (!perfBadge) return;
-  var eqSpan = perfBadge.querySelector('.chart-total-equity');
-  if (!eqSpan) return;
-  var rollEl = eqSpan.querySelector('.equity-roll');
-  if (!rollEl) return;
-
-  var oldEq = _lastEquityValue;
-  var formatted = '$' + newEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-
-  if (Math.abs(newEq - oldEq) < 0.005) {
-    rollEl.textContent = formatted;
+// Scroll-animate any ticker element: old value scrolls out, new scrolls in
+function _tickerAnimate(el, newText, direction) {
+  if (!el) return;
+  var inner = el.querySelector('.ticker-value');
+  if (!inner) {
+    el.textContent = newText;
     return;
   }
 
-  var direction = newEq > oldEq ? 'up' : 'down';
-  rollEl.classList.remove('equity-tick-up', 'equity-tick-down');
-  // Force reflow for re-trigger
-  void rollEl.offsetWidth;
-  rollEl.classList.add('equity-tick-' + direction);
-  rollEl.textContent = formatted;
-  _lastEquityValue = newEq;
+  // Create the outgoing and incoming elements
+  var outgoing = inner;
+  var incoming = document.createElement('span');
+  incoming.className = 'ticker-value ticker-incoming';
+  incoming.textContent = newText;
+
+  // Set direction classes
+  var dir = direction || 'up';
+  outgoing.classList.add('ticker-out-' + dir);
+  incoming.classList.add('ticker-in-' + dir);
+
+  el.appendChild(incoming);
+
+  // After animation, clean up
+  setTimeout(function() {
+    if (outgoing.parentNode === el) el.removeChild(outgoing);
+    incoming.classList.remove('ticker-incoming', 'ticker-in-' + dir);
+  }, 450);
 }
 
 // ── GLOBAL EQUITY TICKER (always-on, every 5s) ──────────
@@ -2844,12 +2852,13 @@ var _equityTickerTimer = null;
 
 function _startEquityTicker() {
   if (_equityTickerTimer) return;
+  // First tick immediately
+  setTimeout(_equityTick, 2000);
   _equityTickerTimer = setInterval(_equityTick, 5000);
 }
 
 function _equityTick() {
-  var perfBadge = document.getElementById('portfolioOverviewPerf');
-  if (!perfBadge || holdings.length === 0) return;
+  if (holdings.length === 0) return;
 
   var tickers = holdings.map(function(h) { return h.ticker; });
   if (typeof fetchMarketDataCached !== 'function') return;
@@ -2858,11 +2867,28 @@ function _equityTick() {
     if (!marketData) return;
     recalcPortfolioPct(marketData);
 
-    // Update equity with animation
     var eq = getTotalEquity();
-    if (eq > 0) _animateEquityUpdate(eq);
+    var eqFormatted = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 
-    // Update card prices + list view equity
+    // Animate equity
+    var eqEl = document.getElementById('equityTicker');
+    if (eqEl && eq > 0) {
+      var dir = eq > _lastEquityValue ? 'up' : eq < _lastEquityValue ? 'down' : 'up';
+      _tickerAnimate(eqEl, eqFormatted, dir);
+      // Flash color on change
+      if (Math.abs(eq - _lastEquityValue) > 0.01) {
+        eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
+        void eqEl.offsetWidth;
+        eqEl.classList.add(eq > _lastEquityValue ? 'eq-flash-up' : 'eq-flash-down');
+      }
+      _lastEquityValue = eq;
+    }
+
+    // Animate % change
+    var perfBadge = document.getElementById('portfolioOverviewPerf');
+    var pctBadge = perfBadge ? perfBadge.querySelector('.portfolio-perf-badge') : null;
+
+    // Update card prices
     holdings.forEach(function(h) {
       if (!marketData[h.ticker]) return;
       var md = marketData[h.ticker];
@@ -2880,33 +2906,50 @@ function _equityTick() {
     // Update total equity chip
     var chip = document.getElementById('holdingsCount');
     if (chip) {
-      var totalEq = getTotalEquity();
-      chip.textContent = totalEq > 0 ? '$' + totalEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' total' : holdings.length + ' holdings';
+      chip.textContent = eq > 0 ? eqFormatted + ' total' : holdings.length + ' holdings';
     }
 
-    // Re-render list view if active (to update equity values)
+    // Re-render list view if active
     if (typeof _holdingsView !== 'undefined' && _holdingsView === 'list') {
       var list = document.getElementById('stockList');
       if (list) renderHoldings();
     }
 
-    // Also update the % change badge from sparkline data
+    // Update chart + % change badge with animation
     var activeRange = 'live';
     var activeBtn = document.querySelector('.chart-range-btn.active');
     if (activeBtn) activeRange = activeBtn.dataset.range || 'live';
 
-    var sparkRange = activeRange === 'live' ? 'live' : activeRange;
-    fetchSparklineData(tickers, sparkRange).then(function(sparkData) {
+    // Bust sparkline caches for fresh data
+    for (var si = 0; si < tickers.length; si++) {
+      var spKey = tickers[si] + ':' + activeRange;
+      if (typeof _sparkCache !== 'undefined') delete _sparkCache[spKey];
+      try { localStorage.removeItem('pc_sp_' + spKey); } catch(e) {}
+    }
+
+    fetchSparklineData(tickers, activeRange).then(function(sparkData) {
       if (!sparkData || Object.keys(sparkData).length === 0) return;
       var result = computePortfolioLine(sparkData, holdings);
       if (!result) return;
+
+      // Update chart SVG
+      var chartArea = document.getElementById('portfolioOverviewChartArea');
+      if (chartArea && result.closes.length >= 2) {
+        chartArea.classList.remove('chart-loading');
+        chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
+      }
+
       var pct = result.changePct;
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
-      var pctBadge = perfBadge.querySelector('.portfolio-perf-badge');
+      var newPctText = sign + pct.toFixed(2) + '%';
+
       if (pctBadge) {
         pctBadge.className = 'portfolio-perf-badge ' + cls;
-        pctBadge.textContent = sign + pct.toFixed(2) + '%';
+        // Always animate the % with a scroll
+        var dir = _lastPctValue !== null && pct > _lastPctValue ? 'up' : 'down';
+        _tickerAnimate(pctBadge, newPctText, _lastPctValue === null ? 'up' : dir);
+        _lastPctValue = pct;
       }
       _applyBubbleGlow(pct);
     });
@@ -2957,7 +3000,7 @@ function _liveChartTick() {
       var pct = result.changePct;
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
-      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>' + _marketClosedHTML();
+      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '"><span class="ticker-value">' + sign + pct.toFixed(2) + '%</span></span>' + _marketClosedHTML();
       _applyBubbleGlow(pct);
     }
   });
@@ -3043,7 +3086,7 @@ function loadPortfolioChartRange(range) {
           var pct = retryResult.changePct;
           var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
           var sign = pct > 0 ? '+' : '';
-          perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>' + _marketClosedHTML();
+          perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '"><span class="ticker-value">' + sign + pct.toFixed(2) + '%</span></span>' + _marketClosedHTML();
           _applyBubbleGlow(pct);
         }
       });
@@ -3057,7 +3100,7 @@ function loadPortfolioChartRange(range) {
       var pct = result.changePct;
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
-      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>' + _marketClosedHTML();
+      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '"><span class="ticker-value">' + sign + pct.toFixed(2) + '%</span></span>' + _marketClosedHTML();
       _applyBubbleGlow(pct);
     }
   });
