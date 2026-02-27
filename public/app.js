@@ -2742,7 +2742,8 @@ function loadPortfolioChartRange(range) {
   var chartArea = document.getElementById('portfolioOverviewChartArea');
   var perfBadge = document.getElementById('portfolioOverviewPerf');
   if (!chartArea) return;
-  chartArea.innerHTML = '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>';
+  chartArea.classList.add('chart-loading');
+  chartArea.innerHTML = '<div class="chart-loading-pulse" style="height:220px;border-radius:8px;"></div>';
   if (perfBadge) perfBadge.innerHTML = '';
 
   // Update active range button
@@ -2756,6 +2757,7 @@ function loadPortfolioChartRange(range) {
   var tickers = holdings.map(function(h) { return h.ticker; });
   fetchSparklineData(tickers, range).then(function(sparkData) {
     if (!sparkData || Object.keys(sparkData).length === 0) {
+      chartArea.classList.remove('chart-loading');
       chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available — try again</div>';
       return;
     }
@@ -2768,6 +2770,7 @@ function loadPortfolioChartRange(range) {
         try { localStorage.removeItem('pc_sp_' + key); } catch(e) {}
       }
       fetchSparklineData(tickers, range).then(function(retryData) {
+        chartArea.classList.remove('chart-loading');
         if (!retryData || Object.keys(retryData).length === 0) {
           chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available for this range</div>';
           return;
@@ -2787,6 +2790,7 @@ function loadPortfolioChartRange(range) {
       });
       return;
     }
+    chartArea.classList.remove('chart-loading');
     chartArea.innerHTML = renderSparklineSVG(result.closes, 500, 220, result.positive);
 
     // Show performance badge
