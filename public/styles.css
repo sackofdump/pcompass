@@ -972,7 +972,7 @@
 
   /* ── SLIDER on holdings ─── */
   .stock-item { flex-direction: column; align-items: stretch; gap: 3px; padding: 7px 14px 5px; }
-  .stock-item-top { display:flex; align-items:center; justify-content:space-between; }
+  .stock-item-top { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; }
   .stock-slider-row { display:flex; align-items:center; gap:8px; }
   .stock-slider {
     flex:1; -webkit-appearance:none; appearance:none;
@@ -991,7 +991,7 @@
     background:var(--accent); cursor:pointer; border:none;
   }
   .slider-pct { font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); font-weight:700; min-width:36px; text-align:right; }
-  .stock-equity { font-family:'Space Mono',monospace; font-size:13px; color:var(--text); font-weight:600; white-space:nowrap; }
+  .stock-equity { font-family:'DM Sans',sans-serif; font-size:14px; color:var(--text); font-weight:600; white-space:nowrap; text-align:right; letter-spacing:-0.2px; }
   .stock-details-row { display:flex; align-items:center; justify-content:space-between; padding: 0 2px; }
   .stock-shares { font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); }
   .stock-price-sm { font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); }
@@ -2264,6 +2264,31 @@
     color: var(--text);
     margin-right: 8px;
     letter-spacing: -0.3px;
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: middle;
+  }
+  .equity-roll {
+    display: inline-block;
+    transition: color 0.4s ease;
+  }
+  .equity-roll.equity-tick-up {
+    animation: equity-scroll-up 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    color: #22c55e;
+  }
+  .equity-roll.equity-tick-down {
+    animation: equity-scroll-down 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    color: #ef4444;
+  }
+  @keyframes equity-scroll-up {
+    0% { transform: translateY(100%); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes equity-scroll-down {
+    0% { transform: translateY(-100%); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
   }
   .chart-market-closed {
     display: inline-block;

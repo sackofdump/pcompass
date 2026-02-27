@@ -100,7 +100,7 @@
     <div class="panel">
       <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleHoldingsBody()">
         <div style="display:flex;align-items:center;gap:6px;">
-          <h2 class="section-title" style="margin:0;">Your Holdings</h2>
+          <h2 class="section-title" style="margin:0;">Your Portfolios</h2>
           <span id="holdingsChevron" style="color:var(--muted);font-size:12px;transition:transform 0.2s;">&#9662;</span>
         </div>
         <div style="display:flex;gap:6px;align-items:center;" onclick="event.stopPropagation();">
@@ -188,7 +188,7 @@
       </div>
 
       <div class="holdings-view-toggle" id="holdingsViewToggle" style="display:none">
-        <span class="holdings-label" onclick="toggleHoldingsGrid()" style="cursor:pointer;">Your Holdings <span id="holdingsGridChevron" style="font-size:10px;color:var(--muted);transition:transform 0.2s;display:inline-block;">&#9662;</span></span>
+        <span class="holdings-label" onclick="toggleHoldingsGrid()" style="cursor:pointer;">Your Portfolios <span id="holdingsGridChevron" style="font-size:10px;color:var(--muted);transition:transform 0.2s;display:inline-block;">&#9662;</span></span>
         <button class="view-btn" onclick="setHoldingsView('list')" data-view="list">List</button>
         <button class="view-btn active" onclick="setHoldingsView('chart')" data-view="chart">Charts</button>
         <span class="holdings-market-status" id="holdingsMarketStatus"></span>

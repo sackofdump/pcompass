@@ -113,6 +113,10 @@ let _holdingsView = 'chart';
 // Cached market prices for equity calculations
 var _holdingsPriceCache = {};
 
+function _getPrice(ticker) {
+  return _holdingsPriceCache[ticker] || (typeof APPROX_PRICES !== 'undefined' ? APPROX_PRICES[ticker] : 0) || 0;
+}
+
 function totalAllocation() {
   return Math.round(holdings.reduce((s, h) => s + (h.pct || 0), 0) * 10) / 10;
 }
@@ -128,7 +132,7 @@ function recalcPortfolioPct(marketData) {
   var equities = [];
   for (var i = 0; i < holdings.length; i++) {
     var h = holdings[i];
-    var price = _holdingsPriceCache[h.ticker] || 0;
+    var price = _getPrice(h.ticker);
     var eq = (h.shares || 0) * price;
     equities.push(eq);
     totalEquity += eq;
@@ -148,7 +152,7 @@ function recalcPortfolioPct(marketData) {
 function getTotalEquity() {
   var total = 0;
   for (var i = 0; i < holdings.length; i++) {
-    var price = _holdingsPriceCache[holdings[i].ticker] || 0;
+    var price = _getPrice(holdings[i].ticker);
     total += (holdings[i].shares || 0) * price;
   }
   return total;
@@ -281,14 +285,14 @@ function renderHoldings() {
     list.className = 'stock-list';
     // Sort by equity (highest first)
     var sorted = holdings.slice().sort(function(a, b) {
-      var eqA = (a.shares || 0) * (_holdingsPriceCache[a.ticker] || 0);
-      var eqB = (b.shares || 0) * (_holdingsPriceCache[b.ticker] || 0);
+      var eqA = (a.shares || 0) * _getPrice(a.ticker);
+      var eqB = (b.shares || 0) * _getPrice(b.ticker);
       return eqB - eqA;
     });
     list.innerHTML = sorted.map(function(h) {
       var dbEntry = STOCK_DB[h.ticker] || {};
       var companyName = dbEntry.name || '';
-      var price = _holdingsPriceCache[h.ticker] || 0;
+      var price = _getPrice(h.ticker);
       var equity = (h.shares || 0) * price;
       var eqStr = price > 0 ? '$' + equity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
       var priceStr = price > 0 ? '$' + price.toFixed(2) : '--';
@@ -1883,7 +1887,7 @@ async function sharePortfolio() {
   const encoded = holdings.map(h => h.ticker + '-' + (h.shares || 1)).join('_');
   const url = window.location.origin + window.location.pathname + '?p=' + encoded;
   var totalEq = getTotalEquity();
-  const summary = holdings.slice().sort(function(a,b) { return ((b.shares||0)*(_holdingsPriceCache[b.ticker]||0)) - ((a.shares||0)*(_holdingsPriceCache[a.ticker]||0)); }).map(h => h.ticker + ' ' + (h.shares||1) + ' shares').join(', ');
+  const summary = holdings.slice().sort(function(a,b) { return ((b.shares||0)*_getPrice(b.ticker)) - ((a.shares||0)*_getPrice(a.ticker)); }).map(h => h.ticker + ' ' + (h.shares||1) + ' shares').join(', ');
   const text = 'My portfolio: ' + summary;
 
   if (navigator.share) {
@@ -2768,6 +2772,9 @@ function renderPortfolioOverview() {
 
   // Default to 1D view
   loadPortfolioChartRange('1d');
+
+  // Start always-on equity ticker (5s refresh)
+  _startEquityTicker();
 }
 
 // ── LIVE CHART MODE ──────────────────────────────────────────
@@ -2782,20 +2789,128 @@ function _marketClosedHTML() {
   return '';
 }
 
+var _lastEquityValue = 0;
+
 function _totalEquityHTML() {
   var eq = getTotalEquity();
   if (eq <= 0) return '';
-  return '<span class="chart-total-equity">$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
+  _lastEquityValue = eq;
+  return '<span class="chart-total-equity"><span class="equity-roll">' +
+    '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) +
+    '</span></span>';
+}
+
+// Animate equity with rolling number + color flash
+function _animateEquityUpdate(newEq) {
+  var perfBadge = document.getElementById('portfolioOverviewPerf');
+  if (!perfBadge) return;
+  var eqSpan = perfBadge.querySelector('.chart-total-equity');
+  if (!eqSpan) return;
+  var rollEl = eqSpan.querySelector('.equity-roll');
+  if (!rollEl) return;
+
+  var oldEq = _lastEquityValue;
+  var formatted = '$' + newEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  if (Math.abs(newEq - oldEq) < 0.005) {
+    rollEl.textContent = formatted;
+    return;
+  }
+
+  var direction = newEq > oldEq ? 'up' : 'down';
+  rollEl.classList.remove('equity-tick-up', 'equity-tick-down');
+  // Force reflow for re-trigger
+  void rollEl.offsetWidth;
+  rollEl.classList.add('equity-tick-' + direction);
+  rollEl.textContent = formatted;
+  _lastEquityValue = newEq;
+}
+
+// ── GLOBAL EQUITY TICKER (always-on, every 5s) ──────────
+var _equityTickerTimer = null;
+
+function _startEquityTicker() {
+  if (_equityTickerTimer) return;
+  _equityTickerTimer = setInterval(_equityTick, 5000);
+}
+
+function _equityTick() {
+  var perfBadge = document.getElementById('portfolioOverviewPerf');
+  if (!perfBadge || holdings.length === 0) return;
+
+  var tickers = holdings.map(function(h) { return h.ticker; });
+
+  // Bust market data cache for fresh prices
+  var cacheKey = 'pc_market_' + tickers.slice().sort().join(',');
+  try { localStorage.removeItem(cacheKey); } catch(e) {}
+
+  if (typeof fetchMarketDataCached !== 'function') return;
+
+  fetchMarketDataCached(tickers).then(function(marketData) {
+    if (!marketData) return;
+    recalcPortfolioPct(marketData);
+
+    // Update equity with animation
+    var eq = getTotalEquity();
+    if (eq > 0) _animateEquityUpdate(eq);
+
+    // Update card prices + list view equity
+    holdings.forEach(function(h) {
+      if (!marketData[h.ticker]) return;
+      var md = marketData[h.ticker];
+      var priceEl = document.getElementById('spark-price-' + h.ticker);
+      var changeEl = document.getElementById('spark-change-' + h.ticker);
+      if (priceEl) priceEl.textContent = '$' + md.price.toFixed(2);
+      if (changeEl) {
+        var pct = md.changePct;
+        var isUp = pct >= 0;
+        changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '% 1D';
+        changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
+      }
+    });
+
+    // Update total equity chip
+    var chip = document.getElementById('holdingsCount');
+    if (chip) {
+      var totalEq = getTotalEquity();
+      chip.textContent = totalEq > 0 ? '$' + totalEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' total' : holdings.length + ' holdings';
+    }
+
+    // Re-render list view if active (to update equity values)
+    if (typeof _holdingsView !== 'undefined' && _holdingsView === 'list') {
+      var list = document.getElementById('stockList');
+      if (list) renderHoldings();
+    }
+
+    // Also update the % change badge from sparkline data
+    var activeRange = 'live';
+    var activeBtn = document.querySelector('.chart-range-btn.active');
+    if (activeBtn) activeRange = activeBtn.dataset.range || 'live';
+
+    var sparkRange = activeRange === 'live' ? 'live' : activeRange;
+    fetchSparklineData(tickers, sparkRange).then(function(sparkData) {
+      if (!sparkData || Object.keys(sparkData).length === 0) return;
+      var result = computePortfolioLine(sparkData, holdings);
+      if (!result) return;
+      var pct = result.changePct;
+      var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
+      var sign = pct > 0 ? '+' : '';
+      var pctBadge = perfBadge.querySelector('.portfolio-perf-badge');
+      if (pctBadge) {
+        pctBadge.className = 'portfolio-perf-badge ' + cls;
+        pctBadge.textContent = sign + pct.toFixed(2) + '%';
+      }
+      _applyBubbleGlow(pct);
+    });
+  });
 }
 
 function _applyBubbleGlow(changePct) {
   var bubble = document.querySelector('.portfolio-overview');
   if (!bubble) return;
   bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
-  if (typeof getMarketStatus === 'function' && getMarketStatus().isOpen) {
-    var cls = changePct > 0.01 ? 'up' : changePct < -0.01 ? 'down' : 'flat';
-    bubble.classList.add('live-glow-' + cls);
-  }
+  var cls = changePct > 0.01 ? 'up' : changePct < -0.01 ? 'down' : 'flat';
+  bubble.classList.add('live-glow-' + cls);
 }
 
 function _stopChartLive() {
@@ -2838,33 +2953,6 @@ function _liveChartTick() {
       _applyBubbleGlow(pct);
     }
   });
-
-  // Also update prices + equity on sparkline cards
-  if (typeof fetchMarketDataCached === 'function') {
-    fetchMarketDataCached(tickers).then(function(marketData) {
-      if (!marketData) return;
-      recalcPortfolioPct(marketData);
-      holdings.forEach(function(h) {
-        if (!marketData[h.ticker]) return;
-        var md = marketData[h.ticker];
-        var priceEl = document.getElementById('spark-price-' + h.ticker);
-        var changeEl = document.getElementById('spark-change-' + h.ticker);
-        if (priceEl) priceEl.textContent = '$' + md.price.toFixed(2);
-        if (changeEl) {
-          var pct = md.changePct;
-          var isUp = pct >= 0;
-          changeEl.textContent = (isUp ? '+' : '') + pct.toFixed(1) + '% 1D';
-          changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
-        }
-      });
-      // Update equity display on the chart badge
-      var eqSpan = perfBadge ? perfBadge.querySelector('.chart-total-equity') : null;
-      if (eqSpan) {
-        var eq = getTotalEquity();
-        eqSpan.textContent = eq > 0 ? '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
-      }
-    });
-  }
 
   // Also refresh small square chart sparklines (bust 1d caches)
   for (var j = 0; j < tickers.length; j++) {
@@ -2969,6 +3057,7 @@ function loadPortfolioChartRange(range) {
 
 function hidePortfolioOverview() {
   if (typeof _stopChartLive === 'function') _stopChartLive();
+  if (_equityTickerTimer) { clearInterval(_equityTickerTimer); _equityTickerTimer = null; }
   var bubble = document.querySelector('.portfolio-overview');
   if (bubble) bubble.classList.remove('live-glow-up', 'live-glow-down', 'live-glow-flat');
   var container = document.getElementById('portfolioOverviewChart');
