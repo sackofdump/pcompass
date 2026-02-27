@@ -2761,6 +2761,7 @@ function _ensureChartModal() {
         '<div class="spark-shimmer" style="height:200px"></div>' +
       '</div>' +
       '<div class="chart-modal-stats" id="chartModalStats"></div>' +
+      '<div class="chart-modal-rating" id="chartModalRating"></div>' +
       '<div class="chart-modal-news" id="chartModalNews"></div>' +
     '</div>';
   document.body.appendChild(overlay);
@@ -2783,6 +2784,7 @@ function showExpandedChart(ticker) {
   document.getElementById('chartModalRanges').dataset.ticker = ticker;
   document.getElementById('chartModalChart').innerHTML = '<div class="spark-shimmer" style="height:200px"></div>';
   document.getElementById('chartModalStats').innerHTML = '';
+  document.getElementById('chartModalRating').innerHTML = '';
 
   // Reset range buttons — 1D active by default (scoped to modal only)
   document.getElementById('chartModalRanges').querySelectorAll('.chart-range-btn').forEach(function(b) {
@@ -2814,7 +2816,8 @@ function showExpandedChart(ticker) {
   // Load chart data
   loadChartRange(ticker, '1d');
 
-  // Load news for this ticker
+  // Load analyst rating and news for this ticker
+  loadTickerRating(ticker);
   loadTickerNews(ticker);
 }
 
@@ -2881,6 +2884,65 @@ function _timeAgo(dateStr) {
   if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
   if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
   return Math.floor(diff / 604800) + 'w ago';
+}
+
+function loadTickerRating(ticker) {
+  var ratingEl = document.getElementById('chartModalRating');
+  if (!ratingEl) return;
+  ratingEl.innerHTML = '';
+
+  fetch('/api/stock-rating?ticker=' + encodeURIComponent(ticker))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !data.rating) {
+        ratingEl.innerHTML = '';
+        return;
+      }
+
+      // Format the rating label
+      var ratingMap = {
+        'strong_buy': 'Strong Buy', 'buy': 'Buy', 'hold': 'Hold',
+        'underperform': 'Underperform', 'sell': 'Sell'
+      };
+      var label = ratingMap[data.rating] || data.rating.charAt(0).toUpperCase() + data.rating.slice(1);
+
+      // Color based on rating
+      var colorMap = {
+        'strong_buy': '#22c55e', 'buy': '#4ade80', 'hold': '#fbbf24',
+        'underperform': '#f87171', 'sell': '#ef4444'
+      };
+      var color = colorMap[data.rating] || 'var(--muted)';
+
+      var html = '<div class="rating-section">';
+      html += '<div class="rating-header">Analyst Rating</div>';
+      html += '<div class="rating-row">';
+      html += '<span class="rating-badge" style="color:' + color + ';border-color:' + color + '">' + escapeHTML(label) + '</span>';
+      if (data.analysts > 0) {
+        html += '<span class="rating-analysts">' + data.analysts + ' analyst' + (data.analysts !== 1 ? 's' : '') + '</span>';
+      }
+      html += '</div>';
+
+      // Price target
+      if (data.targetMean && data.currentPrice) {
+        var upside = ((data.targetMean - data.currentPrice) / data.currentPrice * 100).toFixed(1);
+        var upsideColor = Number(upside) >= 0 ? '#22c55e' : '#ef4444';
+        var sign = Number(upside) >= 0 ? '+' : '';
+        html += '<div class="rating-targets">';
+        html += '<span class="rating-target-item">Target: $' + data.targetMean.toFixed(2) + ' <span style="color:' + upsideColor + '">(' + sign + upside + '%)</span></span>';
+        if (data.targetLow && data.targetHigh) {
+          html += '<span class="rating-target-range">Range: $' + data.targetLow.toFixed(2) + ' – $' + data.targetHigh.toFixed(2) + '</span>';
+        }
+        html += '</div>';
+      }
+
+      html += '<div class="rating-source">via ' + escapeHTML(data.source) + '</div>';
+      html += '</div>';
+
+      ratingEl.innerHTML = html;
+    })
+    .catch(function() {
+      ratingEl.innerHTML = '';
+    });
 }
 
 function loadTickerNews(ticker) {
@@ -3109,6 +3171,7 @@ function renderPortfolioOverview() {
       '<div class="portfolio-overview-perf" id="portfolioOverviewPerf">' +
         (isSim ? '' : '<span class="chart-total-equity" id="equityTicker">--</span>') +
         '<span class="portfolio-perf-badge" id="pctBadge">--</span>' +
+        '<span class="portfolio-dollar-change" id="dollarBadge"></span>' +
       '</div>' +
     '</div>';
 
@@ -3161,7 +3224,7 @@ function _marketClosedHTML() {
 var _lastEquityValue = 0;
 var _lastPctValue = null;
 
-// Update % badge — just sets text and class on #pctBadge
+// Update % badge and dollar change — sets text and class on #pctBadge and #dollarBadge
 function _updatePctBadge(perfBadge, pct) {
   var el = document.getElementById('pctBadge');
   if (!el) return;
@@ -3170,6 +3233,23 @@ function _updatePctBadge(perfBadge, pct) {
   el.textContent = sign + pct.toFixed(2) + '%';
   el.className = 'portfolio-perf-badge ' + cls;
   _lastPctValue = pct;
+
+  // Update dollar change badge
+  var dollarEl = document.getElementById('dollarBadge');
+  if (dollarEl) {
+    var eq = typeof getTotalEquity === 'function' ? getTotalEquity() : 0;
+    if (eq > 0 && pct !== 0) {
+      var dollarChange = eq * (pct / (100 + pct)); // reverse: current = start * (1 + pct/100)
+      var dSign = dollarChange >= 0 ? '+' : '';
+      var formatted = Math.abs(dollarChange) >= 1000
+        ? dSign + '$' + dollarChange.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})
+        : dSign + '$' + dollarChange.toFixed(2);
+      dollarEl.textContent = formatted;
+      dollarEl.className = 'portfolio-dollar-change ' + cls;
+    } else {
+      dollarEl.textContent = '';
+    }
+  }
 }
 
 // ── GLOBAL EQUITY TICKER (always-on, every 5s) ──────────
@@ -3229,17 +3309,20 @@ function _equityTick() {
     if (eqEl && eq > 0) {
       var eqText = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
       var changed = eqEl.textContent !== eqText;
-      eqEl.textContent = eqText;
 
-      if (changed && _lastEquityValue > 0 && !marketClosed) {
-        var dir = eq > _lastEquityValue ? 'up' : 'down';
-        eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
-        void eqEl.offsetWidth;
-        eqEl.classList.add('eq-flash-' + dir);
-        setTimeout(function() { eqEl.classList.remove('eq-flash-up', 'eq-flash-down'); }, 1200);
-        _applyBubbleGlow(dir);
+      if (changed) {
+        eqEl.textContent = eqText;
+
+        if (_lastEquityValue > 0 && !marketClosed) {
+          var dir = eq > _lastEquityValue ? 'up' : 'down';
+          eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
+          void eqEl.offsetWidth;
+          eqEl.classList.add('eq-flash-' + dir);
+          setTimeout(function() { eqEl.classList.remove('eq-flash-up', 'eq-flash-down'); }, 1200);
+          _applyBubbleGlow(dir);
+        }
+        _lastEquityValue = eq;
       }
-      _lastEquityValue = eq;
     }
 
     // ── % BADGE — only update when chart shows 1D or live ──
@@ -3249,9 +3332,28 @@ function _equityTick() {
       if (pctEl && totalWeight > 0) {
         var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
         var sign = portfolioPct > 0 ? '+' : '';
-        pctEl.textContent = sign + portfolioPct.toFixed(2) + '%';
-        pctEl.className = 'portfolio-perf-badge ' + cls;
-        _lastPctValue = portfolioPct;
+        var pctText = sign + portfolioPct.toFixed(2) + '%';
+        var pctClass = 'portfolio-perf-badge ' + cls;
+        if (pctEl.textContent !== pctText || pctEl.className !== pctClass) {
+          pctEl.textContent = pctText;
+          pctEl.className = pctClass;
+          _lastPctValue = portfolioPct;
+        }
+
+        // Update dollar change for 1D
+        var dollarEl = document.getElementById('dollarBadge');
+        if (dollarEl && eq > 0 && portfolioPct !== 0) {
+          var dollarChange = eq * (portfolioPct / (100 + portfolioPct));
+          var dSign = dollarChange >= 0 ? '+' : '';
+          var dFormatted = Math.abs(dollarChange) >= 1000
+            ? dSign + '$' + dollarChange.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})
+            : dSign + '$' + dollarChange.toFixed(2);
+          var dClass = 'portfolio-dollar-change ' + cls;
+          if (dollarEl.textContent !== dFormatted) {
+            dollarEl.textContent = dFormatted;
+            dollarEl.className = dClass;
+          }
+        }
       }
     }
 
@@ -3277,21 +3379,26 @@ function _equityTick() {
       if (!closedEl && closedHTML) perfBadge.insertAdjacentHTML('beforeend', closedHTML);
     }
 
-    // ── Update card prices ──
+    // ── Update card prices (skip if unchanged to prevent visual jitter) ──
     holdings.forEach(function(h) {
       var md = raw[h.ticker];
       if (!md) return;
       var priceEl = document.getElementById('spark-price-' + h.ticker);
       var changeEl = document.getElementById('spark-change-' + h.ticker);
-      if (priceEl) priceEl.textContent = '$' + Number(md.price).toFixed(2);
+      if (priceEl) {
+        var priceText = '$' + Number(md.price).toFixed(2);
+        if (priceEl.textContent !== priceText) priceEl.textContent = priceText;
+      }
       if (changeEl) {
         var p = Number(md.changePct) || 0;
-        changeEl.textContent = (p >= 0 ? '+' : '') + p.toFixed(1) + '% 1D';
-        changeEl.className = 'spark-change ' + (p >= 0 ? 'up' : 'down');
+        var changeText = (p >= 0 ? '+' : '') + p.toFixed(1) + '% 1D';
+        var changeClass = 'spark-change ' + (p >= 0 ? 'up' : 'down');
+        if (changeEl.textContent !== changeText) changeEl.textContent = changeText;
+        if (changeEl.className !== changeClass) changeEl.className = changeClass;
       }
     });
 
-    // ── Update list view equity ──
+    // ── Update list view equity (skip if unchanged) ──
     if (typeof _holdingsView !== 'undefined' && _holdingsView === 'list') {
       document.querySelectorAll('.stock-equity').forEach(function(el) {
         var ticker = el.closest('.stock-item')?.querySelector('.stock-ticker')?.textContent;
@@ -3300,7 +3407,8 @@ function _equityTick() {
         if (!h) return;
         var price = _getPrice(h.ticker);
         var equity = (h.shares || 0) * price;
-        el.textContent = price > 0 ? '$' + equity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
+        var eqText = price > 0 ? '$' + equity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
+        if (el.textContent !== eqText) el.textContent = eqText;
       });
     }
   }).catch(function(e) { console.warn('[equity-tick] fetch failed:', e); });

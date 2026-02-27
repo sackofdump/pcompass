@@ -369,18 +369,44 @@ function openNewsPanel() {
         el.innerHTML = '<div class="news-empty">No recent news</div>';
         return;
       }
-      var html = '';
-      articles.forEach(function(a) {
+      // Show first 3, then "Show more" reveals 3 more at a time
+      var PAGE_SIZE = 3;
+      var shown = PAGE_SIZE;
+
+      function renderNewsItem(a) {
         var ago = typeof _timeAgo === 'function' ? _timeAgo(a.date) : '';
-        html += '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
+        return '<a class="news-item" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">'
           + '<div class="news-item-header">'
           + '<span class="news-item-ticker">' + escapeHTML(a.ticker) + '</span>'
           + '<span class="news-item-meta">' + escapeHTML(a.source) + (ago ? ' \u00b7 ' + ago : '') + '</span>'
           + '</div>'
           + '<div class="news-item-title">' + escapeHTML(a.title) + '</div>'
           + '</a>';
-      });
-      el.innerHTML = html;
+      }
+
+      function renderNews() {
+        var html = '';
+        var visible = articles.slice(0, shown);
+        visible.forEach(function(a) { html += renderNewsItem(a); });
+        if (shown < articles.length) {
+          var remaining = articles.length - shown;
+          html += '<button class="news-show-more" id="newsShowMoreBtn" onclick="window._newsShowMore()">Show more (' + remaining + ')</button>';
+        }
+        el.innerHTML = html;
+      }
+
+      window._newsShowMore = function() {
+        shown = Math.min(shown + PAGE_SIZE, articles.length);
+        renderNews();
+        // Scroll to the new items
+        var items = el.querySelectorAll('.news-item');
+        if (items.length > 0) {
+          var target = items[Math.max(0, items.length - PAGE_SIZE)];
+          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      };
+
+      renderNews();
     })
     .catch(function() {
       var el = document.getElementById('newsPanelList');
@@ -1810,5 +1836,93 @@ window.refreshPortfolioStrip = async function() {
     renderPortfolioStrip(null);
     fetchPortfolioPerformance().then(function(pm) { renderPortfolioStrip(pm); }).catch(function() {});
   };
+
+  // ── PULL-TO-REFRESH ────────────────────────────────────────
+  (function initPullToRefresh() {
+    var THRESHOLD = 80; // px to pull before triggering
+    var MAX_PULL = 120;
+    var startY = 0;
+    var pulling = false;
+    var refreshing = false;
+    var indicator = null;
+
+    function getIndicator() {
+      if (indicator) return indicator;
+      indicator = document.createElement('div');
+      indicator.className = 'pull-refresh-indicator';
+      indicator.innerHTML = '<div class="pull-refresh-spinner"></div><span class="pull-refresh-text">Pull to refresh</span>';
+      document.body.appendChild(indicator);
+      return indicator;
+    }
+
+    function isAtTop() {
+      return window.scrollY <= 0;
+    }
+
+    document.addEventListener('touchstart', function(e) {
+      if (refreshing) return;
+      if (!isAtTop()) return;
+      // Don't hijack scrollable panels
+      var target = e.target;
+      while (target && target !== document.body) {
+        if (target.classList && (target.classList.contains('nav-panel-body') || target.classList.contains('chart-modal-card'))) return;
+        target = target.parentElement;
+      }
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+      if (!pulling || refreshing) return;
+      if (!isAtTop()) { pulling = false; return; }
+      var dy = e.touches[0].clientY - startY;
+      if (dy < 0) { pulling = false; return; }
+      var progress = Math.min(dy / MAX_PULL, 1);
+      var el = getIndicator();
+      el.style.transform = 'translateY(' + Math.min(dy * 0.5, MAX_PULL * 0.5) + 'px)';
+      el.style.opacity = Math.min(progress * 1.5, 1);
+      el.classList.add('visible');
+      if (dy >= THRESHOLD) {
+        el.querySelector('.pull-refresh-text').textContent = 'Release to refresh';
+        el.classList.add('ready');
+      } else {
+        el.querySelector('.pull-refresh-text').textContent = 'Pull to refresh';
+        el.classList.remove('ready');
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', function() {
+      if (!pulling) return;
+      pulling = false;
+      var el = getIndicator();
+      var wasReady = el.classList.contains('ready');
+
+      if (wasReady && !refreshing) {
+        refreshing = true;
+        el.querySelector('.pull-refresh-text').textContent = 'Refreshing...';
+        el.classList.add('refreshing');
+        el.style.transform = 'translateY(40px)';
+
+        // Trigger the existing refresh
+        var done = function() {
+          refreshing = false;
+          el.classList.remove('visible', 'ready', 'refreshing');
+          el.style.transform = 'translateY(0)';
+          el.style.opacity = '0';
+        };
+
+        if (typeof window.refreshPortfolioStrip === 'function') {
+          window.refreshPortfolioStrip().then(done).catch(done);
+        } else {
+          // Fallback: just reload market data
+          window.location.reload();
+        }
+      } else {
+        el.classList.remove('visible', 'ready');
+        el.style.transform = 'translateY(0)';
+        el.style.opacity = '0';
+      }
+    }, { passive: true });
+  })();
 
 })();

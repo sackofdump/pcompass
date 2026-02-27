@@ -16,6 +16,7 @@
     "api/refresh-stock-data.js": { "maxDuration": 60 },
     "api/stock-data.js": { "maxDuration": 10 },
     "api/stock-news.js": { "maxDuration": 15 },
+    "api/stock-rating.js": { "maxDuration": 10 },
     "api/sparkline.js": { "maxDuration": 25 },
     "api/top-movers.js": { "maxDuration": 30 }
   },
@@ -78,6 +79,15 @@
         {
           "key": "Cache-Control",
           "value": "s-maxage=1800, stale-while-revalidate=600"
+        }
+      ]
+    },
+    {
+      "source": "/api/stock-rating",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "s-maxage=3600, stale-while-revalidate=600"
         }
       ]
     },
