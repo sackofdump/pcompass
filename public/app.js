@@ -864,6 +864,10 @@ function analyze() {
       '<div class="etf-list strategy-collapsed">' + primaryHTML + extraHTML + '</div></div>';
   }
 
+  // Store extra items globally for lazy rendering (avoids massive innerHTML)
+  window._recExtraItems = [];
+  window._recExtraMarketData = null;
+
   function buildUnifiedRecommendations(marketData) {
     var picks = getUnifiedPicks(marketData);
     var taggedEtfs = allTopETFs.map(function(e) {
@@ -880,19 +884,20 @@ function analyze() {
       return true;
     });
     var primaryItems = allItems.slice(0, 8);
-    var extraItems = allItems.slice(8);
-    var html = primaryItems.map(function(item) { return buildItemHTML(item, 'rec', marketData); }).join('');
+    window._recExtraItems = allItems.slice(8);
+    window._recExtraMarketData = marketData;
+    _recShown = 0;
     _lastBuildItemHTML = buildItemHTML;
     _lastMarketData = marketData;
-    // Pre-render extra items hidden — no API call needed, all from local DB
-    var extraHTML = extraItems.map(function(item) {
-      return '<div class="show-more-hidden">' + buildItemHTML(item, 'rec', marketData) + '</div>';
-    }).join('');
-    var extraCount = extraItems.length;
-    html += '<div class="show-more-items" id="show-more-rec">' + extraHTML + '</div>' +
-      (extraCount > 0 ? '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMoreRec()" data-shown="0">' +
+    var html = primaryItems.map(function(item) { return buildItemHTML(item, 'rec', marketData); }).join('');
+    var extraCount = window._recExtraItems.length;
+    // Render-on-demand container + button (no pre-rendered hidden items)
+    html += '<div id="show-more-rec" style="display:flex;flex-direction:column;gap:8px"></div>';
+    if (extraCount > 0) {
+      html += '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMoreRec()">' +
         '✦ Show more recommendations (' + extraCount + ' more)' +
-      '</button>' : '');
+      '</button>';
+    }
     return html;
   }
 
@@ -2209,18 +2214,21 @@ async function toggleShowMore(type) {
 }
 
 // ── SHOW MORE for unified recommendations (no API needed) ──
+// Renders next batch of 10 from stored _recExtraItems array
+var _recShown = 0;
 function toggleShowMoreRec() {
   var panel = document.getElementById('show-more-rec');
   var btn = document.getElementById('show-more-btn-rec');
-  if (!panel || !btn) return;
-  panel.classList.add('open');
-  // Always query fresh — only gets items still hidden
-  var hiddenItems = panel.querySelectorAll('.show-more-hidden');
-  var toReveal = Math.min(10, hiddenItems.length);
-  for (var i = 0; i < toReveal; i++) {
-    hiddenItems[i].classList.remove('show-more-hidden');
+  if (!panel || !btn || !_lastBuildItemHTML) return;
+  var items = window._recExtraItems || [];
+  var end = Math.min(_recShown + 10, items.length);
+  var batchHTML = '';
+  for (var i = _recShown; i < end; i++) {
+    batchHTML += _lastBuildItemHTML(items[i], 'rec', window._recExtraMarketData || null);
   }
-  var remaining = hiddenItems.length - toReveal;
+  panel.insertAdjacentHTML('beforeend', batchHTML);
+  _recShown = end;
+  var remaining = items.length - _recShown;
   if (remaining > 0) {
     btn.innerHTML = '✦ Show more recommendations (' + remaining + ' more)';
   } else {
