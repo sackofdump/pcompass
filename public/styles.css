@@ -1078,6 +1078,7 @@
   }
   .btn-example:hover { border-color:var(--accent); color:var(--accent); transform:translateY(-1px); box-shadow:var(--accent-glow-subtle); }
   .btn-example:active { transform:scale(0.97); box-shadow:none; }
+  .btn-example.active { border-color:var(--conservative); color:var(--conservative); background:rgba(6,214,160,0.08); }
 
 
   /* ── SHARE BUTTON ─── */

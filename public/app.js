@@ -410,11 +410,19 @@ function clearAllHoldings() {
 }
 
 function newPortfolio() {
+  // Warn if there are unsaved holdings
+  if (holdings.length > 0) {
+    var isSaved = _activePortfolioIdx >= 0 && _activePortfolioSnapshot === JSON.stringify(holdings);
+    if (!isSaved) {
+      if (!confirm('Your current portfolio hasn\'t been saved yet. Starting a new one will clear it.\n\nContinue?')) return;
+    }
+  }
   // Deactivate current portfolio and start fresh
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
   _isExamplePortfolio = false;
   _activeSimName = '';
+  document.querySelectorAll('.btn-example').forEach(function(b) { b.classList.remove('active'); });
   holdings.length = 0;
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   document.getElementById('resultsPanel').innerHTML = '<div class="empty-state"><div class="empty-compass"><div class="empty-compass-ring"></div><div class="empty-compass-needle"></div><div class="empty-compass-center"></div></div><div class="empty-state-title">Ready to analyze</div><div class="empty-state-hint">Add your US stock holdings on the left, then click<br><strong>Analyze</strong></div></div>';
@@ -595,8 +603,10 @@ function getAllTopETFs(profile, n, missingSectorNames) {
 }
 
 function matchLabel(score) {
-  if (score >= 85) return '<span class="match-score match-high">✦ Best match to balance your portfolio</span>';
-  return '<span class="match-score match-med">◈ Good match to balance your portfolio</span>';
+  if (score >= 85) return '<span class="match-score match-high">✦ Best Match</span>';
+  if (score >= 70) return '<span class="match-score match-high">◈ Great Match</span>';
+  if (score >= 55) return '<span class="match-score match-med">● Good Match</span>';
+  return '';
 }
 
 function analyze() {
@@ -820,7 +830,7 @@ function analyze() {
         '<div class="pick-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
         '<div class="pick-meta"><div class="pick-sector-tag">' + escapeHTML(item.sector) + '</div>' +
         ((STOCK_DB[item.ticker]||{}).cap ? '<div class="pick-cap">' + escapeHTML({mega:'Mega Cap',large:'Large Cap',mid:'Mid Cap',small:'Small Cap'}[(STOCK_DB[item.ticker]||{}).cap] || '') + '</div>' : '') +
-        '<div class="pick-risk" style="color:' + (RISK_COLORS[item.risk]||'#888') + '">' + escapeHTML(item.risk) + ' Risk</div></div></div>' +
+        '<div class="pick-risk" style="color:' + (RISK_COLORS[item.risk]||'#888') + '">' + escapeHTML(item.risk) + ' Risk</div>' + matchLabel(item.score) + '</div></div>' +
         '<div class="pick-hint">✦ Why this for my portfolio?</div>' +
         '<div class="pick-drawer" id="drawer-' + id + '"><div class="pick-drawer-inner">' +
         '<div class="pick-drawer-label">◈ Why this pick?</div>' +
@@ -1475,12 +1485,14 @@ function importAll() {
   let skipped = [];
   previewHoldings.forEach(h => {
     if (!h.ticker) return;
+    // Skip entries with 0 or missing shares (e.g. pending orders)
+    if (!h.shares || h.shares <= 0) return;
     // Resolve ticker alias (e.g. RVI → RVTY)
     var aliasEntry = STOCK_DB[h.ticker];
     if (aliasEntry && aliasEntry.alias) h.ticker = aliasEntry.alias;
     if (holdings.find(e => e.ticker === h.ticker)) { skipped.push(h.ticker); return; }
     const info = STOCK_DB[h.ticker] || {name:h.name||h.ticker, sector:'Other', beta:1.0, cap:'unknown'};
-    holdings.push({ticker:h.ticker, shares:h.shares||1, pct:0, ...info});
+    holdings.push({ticker:h.ticker, shares:h.shares, pct:0, ...info});
   });
   previewHoldings = [];
   document.getElementById('importPreview').classList.remove('visible');
@@ -1923,6 +1935,8 @@ function loadPortfolio(idx, silent) {
   if (!portfolios[idx]) return;
   _isExamplePortfolio = false;
   _activeSimName = '';
+  // Clear example button highlight
+  document.querySelectorAll('.btn-example').forEach(function(b) { b.classList.remove('active'); });
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
   // Ensure shares field exists (backward compat with old pct-only portfolios)
   // Only estimate if shares is missing/zero — trust fractional shares like 0.0003
@@ -2043,6 +2057,11 @@ function loadExample(key) {
   _activePortfolioSnapshot = null;
   _isExamplePortfolio = true;
   _activeSimName = (_simNames[key] || key) + ' Simulation';
+  // Highlight selected example button green
+  document.querySelectorAll('.btn-example').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.btn-example').forEach(function(b) {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("'" + key + "'") >= 0) b.classList.add('active');
+  });
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   recalcPortfolioPct();
   renderHoldings();
@@ -2195,16 +2214,13 @@ function toggleShowMoreRec() {
   var btn = document.getElementById('show-more-btn-rec');
   if (!panel || !btn) return;
   panel.classList.add('open');
-  var allWrappers = panel.querySelectorAll('.show-more-hidden');
-  var shown = parseInt(btn.dataset.shown || '0');
-  var nextShown = Math.min(shown + 10, allWrappers.length);
-  for (var i = shown; i < nextShown; i++) {
-    allWrappers[i].classList.remove('show-more-hidden');
+  // Always query fresh — only gets items still hidden
+  var hiddenItems = panel.querySelectorAll('.show-more-hidden');
+  var toReveal = Math.min(10, hiddenItems.length);
+  for (var i = 0; i < toReveal; i++) {
+    hiddenItems[i].classList.remove('show-more-hidden');
   }
-  btn.dataset.shown = String(nextShown);
-  var remaining = allWrappers.length - nextShown;
-  // Recount actually hidden
-  remaining = panel.querySelectorAll('.show-more-hidden').length;
+  var remaining = hiddenItems.length - toReveal;
   if (remaining > 0) {
     btn.innerHTML = '✦ Show more recommendations (' + remaining + ' more)';
   } else {
