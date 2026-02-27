@@ -348,6 +348,7 @@
   .etf-meta .pick-sector-tag { background:rgba(77,159,255,0.15); color:#4d9fff; border:1px solid rgba(77,159,255,0.3); }
   .pick-meta .pick-sector-tag { background:rgba(255,140,66,0.1); color:var(--aggressive); border:1px solid rgba(255,140,66,0.25); }
   .pick-risk { font-family:'Space Mono',monospace; font-size:12px; font-weight:700; }
+  .pick-cap { font-family:'DM Sans',sans-serif; font-size:11px; color:var(--muted); }
   
   /* Why hint */
   .etf-hint, .pick-hint {
@@ -1967,6 +1968,50 @@
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
     padding: 12px 24px;
+    position: relative;
+  }
+  .sparkline-grid.grid-collapsed {
+    max-height: 360px;
+    overflow: hidden;
+  }
+  .grid-fade-overlay {
+    position: absolute;
+    bottom: 40px;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+    pointer-events: none;
+    z-index: 2;
+    grid-column: 1 / -1;
+  }
+  .grid-expand-btn {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    transition: color 0.2s;
+    z-index: 3;
+    position: relative;
+  }
+  .grid-expand-btn:hover { color: var(--text); }
+  .grid-expand-arrow {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid currentColor;
+    transition: transform 0.2s;
+  }
+  .grid-expand-arrow.up {
+    transform: rotate(180deg);
   }
   .sparkline-card {
     background: var(--glass-bg);

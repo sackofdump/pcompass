@@ -107,7 +107,13 @@ let previewHoldings = [];
 let _activePortfolioIdx = -1;
 let _activePortfolioSnapshot = null;
 let _holdingsView = 'chart';
+var _gridExpanded = false;
 
+function toggleGridExpand() {
+  _gridExpanded = !_gridExpanded;
+  renderHoldings();
+  if (_holdingsView === 'chart' && holdings.length >= 3) fetchAndRenderSparklines();
+}
 
 // ── HOLDINGS LOGIC ───────────────────────────────────────
 // Cached market prices for equity calculations
@@ -259,7 +265,7 @@ function renderHoldings() {
   }
 
   if (_holdingsView === 'chart' && holdings.length >= 3) {
-    list.className = 'sparkline-grid';
+    list.className = 'sparkline-grid' + (holdings.length > 8 && !_gridExpanded ? ' grid-collapsed' : '');
     list.innerHTML = holdings.map(h => {
       const dbEntry = STOCK_DB[h.ticker] || {};
       const companyName = dbEntry.name || h.ticker;
@@ -281,6 +287,14 @@ function renderHoldings() {
         <div class="spark-sector-dot" style="background:${sectorColor}"></div>
       </div>`;
     }).join('');
+    // Add expand/collapse button if many holdings
+    if (holdings.length > 8) {
+      if (_gridExpanded) {
+        list.innerHTML += '<div class="grid-expand-btn" onclick="toggleGridExpand()"><span class="grid-expand-arrow up"></span>Show Less</div>';
+      } else {
+        list.innerHTML += '<div class="grid-fade-overlay"></div><div class="grid-expand-btn" onclick="toggleGridExpand()"><span class="grid-expand-arrow"></span>' + (holdings.length - 8) + ' more stocks</div>';
+      }
+    }
   } else {
     list.className = 'stock-list';
     // Sort by equity (highest first)
@@ -712,6 +726,7 @@ function analyze() {
         '<span class="pick-ticker">' + eTicker + '</span><span class="item-type-tag tag-stock">STOCK</span></div>' +
         '<div class="pick-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
         '<div class="pick-meta"><div class="pick-sector-tag">' + escapeHTML(item.sector) + '</div>' +
+        ((STOCK_DB[item.ticker]||{}).cap ? '<div class="pick-cap">' + escapeHTML({mega:'Mega Cap',large:'Large Cap',mid:'Mid Cap',small:'Small Cap'}[(STOCK_DB[item.ticker]||{}).cap] || '') + '</div>' : '') +
         '<div class="pick-risk" style="color:' + (RISK_COLORS[item.risk]||'#888') + '">' + escapeHTML(item.risk) + ' Risk</div></div></div>' +
         '<div class="pick-hint">✦ Why this for my portfolio?</div>' +
         '<div class="pick-drawer" id="drawer-' + id + '"><div class="pick-drawer-inner">' +
@@ -2988,8 +3003,9 @@ function _updatePctBadge(perfBadge, pct) {
   } else {
     var span = document.createElement('span');
     span.className = 'portfolio-perf-badge ' + cls;
-    span.innerHTML = '<span class="ticker-value">' + newText + '</span>';
+    span.innerHTML = '<span class="ticker-value">--</span>';
     perfBadge.appendChild(span);
+    _tickerAnimate(span, newText);
   }
   // Ensure market closed text
   var closedEl = perfBadge.querySelector('.chart-market-closed');
@@ -3041,15 +3057,14 @@ function _equityTick() {
     var eq = getTotalEquity();
     var eqFormatted = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 
-    // If equity element doesn't exist yet, create it (without overwriting existing children)
+    // If equity element doesn't exist yet, create it with placeholder so first animate triggers
     var eqEl = document.getElementById('equityTicker');
     if (!eqEl && eq > 0) {
       var eqSpan = document.createElement('span');
       eqSpan.className = 'chart-total-equity';
       eqSpan.id = 'equityTicker';
-      eqSpan.innerHTML = '<span class="ticker-value">$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
+      eqSpan.innerHTML = '<span class="ticker-value">--</span>';
       perfBadge.insertBefore(eqSpan, perfBadge.firstChild);
-      _lastEquityValue = eq;
       eqEl = eqSpan;
     }
 
