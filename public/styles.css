@@ -328,9 +328,9 @@
     background:var(--surface2); border:1px solid var(--border); border-radius:10px;
     overflow:hidden; transition:border-color var(--transition-fast),box-shadow var(--transition-fast),transform var(--transition-fast); cursor:pointer;
   }
-  .etf-item:hover { border-color:var(--accent); box-shadow:var(--accent-glow); transform:translateY(-1px); }
+  .etf-item:hover { border-color:var(--sector-color, var(--accent)); box-shadow:0 0 12px color-mix(in srgb, var(--sector-color, var(--accent)) 30%, transparent); transform:translateY(-1px); }
   .etf-item:active { transform:scale(0.99); }
-  .etf-item.open { border-color:var(--accent); }
+  .etf-item.open { border-color:var(--sector-color, var(--accent)); }
   .etf-item-header { padding:11px 14px; display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; }
   .ticker-name-group { display:flex; align-items:center; gap:10px; }
   .ticker-with-tag { display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:60px; }
@@ -991,6 +991,10 @@
     background:var(--accent); cursor:pointer; border:none;
   }
   .slider-pct { font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); font-weight:700; min-width:36px; text-align:right; }
+  .stock-equity { font-family:'Space Mono',monospace; font-size:13px; color:var(--text); font-weight:600; white-space:nowrap; }
+  .stock-details-row { display:flex; align-items:center; justify-content:space-between; padding: 0 2px; }
+  .stock-shares { font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); }
+  .stock-price-sm { font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); }
 
   /* ── WHAT-IF SIMULATOR ─── */
   .whatif-panel {
@@ -1467,8 +1471,12 @@
   }
 
   /* 9. ETF vs Stock visual distinction */
-  .etf-type-etf { border-left: 3px solid rgba(77,159,255,0.4); }
-  .etf-type-stock { border-left: 3px solid rgba(255,140,66,0.3); }
+  .etf-type-etf { border-left: 3px solid var(--sector-color, rgba(77,159,255,0.4)); }
+  .etf-type-stock { border-left: 3px solid var(--sector-color, rgba(255,140,66,0.3)); }
+  .etf-holdings { padding: 4px 14px 8px; display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+  .etf-holdings-label { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:0.5px; margin-right:4px; }
+  .etf-holding-chip { display:inline-flex; align-items:center; gap:3px; font-size:11px; color:var(--text); background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:4px; padding:2px 6px; font-family:'Space Mono',monospace; }
+  .etf-holding-pct { font-size:9px; color:var(--muted); }
 
   /* 10. Gradient text on result section titles */
   .results-panel .section-title {
@@ -2238,6 +2246,13 @@
   @keyframes live-range-pulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,229,160,0.5); }
     50% { opacity: 0.6; box-shadow: 0 0 6px 2px rgba(0,229,160,0.3); }
+  }
+  .chart-total-equity {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-right: 10px;
   }
   .chart-market-closed {
     display: inline-block;

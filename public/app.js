@@ -110,14 +110,54 @@ let _holdingsView = 'chart';
 
 
 // ── HOLDINGS LOGIC ───────────────────────────────────────
+// Cached market prices for equity calculations
+var _holdingsPriceCache = {};
+
 function totalAllocation() {
-  return Math.round(holdings.reduce((s, h) => s + h.pct, 0) * 10) / 10;
+  return Math.round(holdings.reduce((s, h) => s + (h.pct || 0), 0) * 10) / 10;
+}
+
+// Recalculate pct for each holding based on equity (shares × price)
+function recalcPortfolioPct(marketData) {
+  if (marketData) {
+    for (var t in marketData) {
+      if (marketData[t] && marketData[t].price) _holdingsPriceCache[t] = marketData[t].price;
+    }
+  }
+  var totalEquity = 0;
+  var equities = [];
+  for (var i = 0; i < holdings.length; i++) {
+    var h = holdings[i];
+    var price = _holdingsPriceCache[h.ticker] || 0;
+    var eq = (h.shares || 0) * price;
+    equities.push(eq);
+    totalEquity += eq;
+  }
+  if (totalEquity > 0) {
+    for (var i = 0; i < holdings.length; i++) {
+      holdings[i].pct = Math.round((equities[i] / totalEquity) * 1000) / 10;
+    }
+  } else {
+    // No price data yet — equal weight
+    var eqPct = holdings.length > 0 ? Math.round((100 / holdings.length) * 10) / 10 : 0;
+    holdings.forEach(function(h) { h.pct = eqPct; });
+  }
+}
+
+// Get total portfolio equity
+function getTotalEquity() {
+  var total = 0;
+  for (var i = 0; i < holdings.length; i++) {
+    var price = _holdingsPriceCache[holdings[i].ticker] || 0;
+    total += (holdings[i].shares || 0) * price;
+  }
+  return total;
 }
 
 function addStock() {
   let ticker = document.getElementById('tickerInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const pctInput = document.getElementById('pctInput').value;
-  let pct = parseFloat(pctInput);
+  const sharesInput = document.getElementById('pctInput').value;
+  let shares = parseFloat(sharesInput);
   const err = document.getElementById('errorMsg');
   err.textContent = '';
   if (!ticker) { err.textContent = 'Enter a ticker symbol.'; return; }
@@ -125,65 +165,52 @@ function addStock() {
   const dbEntry = STOCK_DB[ticker];
   if (dbEntry && dbEntry.alias) ticker = dbEntry.alias;
   if (holdings.find(h => h.ticker === ticker)) { err.textContent = ticker + ' already added.'; return; }
-  // If no % entered, auto-calculate equal weight across all holdings
-  if (!pctInput || isNaN(pct) || pct <= 0) {
-    var remaining = 100 - totalAllocation();
-    if (remaining <= 0) {
-      // Re-balance all holdings equally
-      pct = Math.round((100 / (holdings.length + 1)) * 10) / 10;
-      holdings.forEach(function(h) { h.pct = pct; });
-    } else {
-      pct = Math.round(remaining * 10) / 10;
-    }
-  }
-  if (totalAllocation() + pct > 100.05) {
-    // Shrink to fit
-    pct = Math.round((100 - totalAllocation()) * 10) / 10;
-    if (pct <= 0) {
-      // Re-balance all holdings equally
-      pct = Math.round((100 / (holdings.length + 1)) * 10) / 10;
-      holdings.forEach(function(h) { h.pct = pct; });
-    }
-  }
+  // Default to 1 share if not specified
+  if (!sharesInput || isNaN(shares) || shares <= 0) shares = 1;
   const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0, cap:'unknown'};
-  holdings.push({ticker, pct, ...info});
+  holdings.push({ticker, shares, pct: 0, ...info});
   document.getElementById('tickerInput').value = '';
   document.getElementById('pctInput').value = '';
   renderHoldings();
+  // Recalculate equity-based percentages
+  recalcPortfolioPct();
 }
 
 function removeStock(ticker) {
   holdings = holdings.filter(h => h.ticker !== ticker);
   renderHoldings();
+  if (_holdingsView === 'chart' && holdings.length >= 3) {
+    fetchAndRenderSparklines();
+  }
+  if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
 }
 
-function editCardAlloc(ticker, el) {
+function editCardShares(ticker, el) {
   var h = holdings.find(function(x) { return x.ticker === ticker; });
   if (!h) return;
-  var orig = h.pct;
+  var orig = h.shares || 1;
   var input = document.createElement('input');
   input.type = 'number';
   input.className = 'spark-card-alloc-input';
   input.value = orig;
-  input.min = '0.1';
-  input.max = '100';
-  input.step = '0.1';
+  input.min = '0.01';
+  input.max = '999999';
+  input.step = '0.01';
   el.replaceWith(input);
   input.focus();
   input.select();
   function commit() {
     var val = parseFloat(input.value);
-    if (!val || val <= 0 || val > 100) val = orig;
-    var otherTotal = totalAllocation() - h.pct;
-    if (otherTotal + val > 100.05) val = Math.round((100 - otherTotal) * 10) / 10;
-    h.pct = Math.round(val * 10) / 10;
+    if (!val || val <= 0) val = orig;
+    h.shares = Math.round(val * 100) / 100;
+    recalcPortfolioPct();
     renderHoldings();
     if (_holdingsView === 'chart' && holdings.length >= 3) fetchAndRenderSparklines();
   }
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { h.pct = orig; input.blur(); }
+    if (e.key === 'Escape') { h.shares = orig; input.blur(); }
   });
 }
 
@@ -237,7 +264,7 @@ function renderHoldings() {
         <button class="spark-card-remove" onclick="event.stopPropagation();removeStock('${escapeHTML(h.ticker)}')" title="Remove">\u00d7</button>
         <div class="spark-card-header">
           <span class="spark-card-ticker">${escapeHTML(h.ticker)}</span>
-          <span class="spark-card-alloc" onclick="event.stopPropagation();editCardAlloc('${escapeHTML(h.ticker)}',this)">${h.pct}%</span>
+          <span class="spark-card-alloc" onclick="event.stopPropagation();editCardShares('${escapeHTML(h.ticker)}',this)">${h.shares || 1} sh</span>
         </div>
         <div class="spark-name">${escapeHTML(companyName)}</div>
         <div class="spark-chart" id="spark-svg-${escapeHTML(h.ticker)}">
@@ -252,28 +279,38 @@ function renderHoldings() {
     }).join('');
   } else {
     list.className = 'stock-list';
-    list.innerHTML = holdings.map((h, i) => {
-      const dbEntry = STOCK_DB[h.ticker] || {};
-      const companyName = dbEntry.name || '';
-      return `
-      <div class="stock-item">
-        <div class="stock-item-top">
-          <div class="stock-info">
-            <span class="stock-ticker">${escapeHTML(h.ticker)}</span>${companyName ? `<span class="stock-company">${escapeHTML(companyName)}</span>` : ''}
-            <span class="stock-sector">${escapeHTML(h.sector)}</span>
-          </div>
-          <button class="btn-remove" onclick="removeStock('${escapeHTML(h.ticker)}')">×</button>
-        </div>
-        <div class="stock-slider-row">
-          <input type="range" class="stock-slider" id="slider-${i}" min="0.1" max="${Math.min(100, h.pct + (100 - total))}" step="0.1"
-            value="${h.pct}" oninput="updateSlider(${i}, this.value)" />
-          <span class="slider-pct" id="slider-pct-${i}">${h.pct}%</span>
-        </div>
-      </div>`;
+    // Sort by equity (highest first)
+    var sorted = holdings.slice().sort(function(a, b) {
+      var eqA = (a.shares || 0) * (_holdingsPriceCache[a.ticker] || 0);
+      var eqB = (b.shares || 0) * (_holdingsPriceCache[b.ticker] || 0);
+      return eqB - eqA;
+    });
+    list.innerHTML = sorted.map(function(h) {
+      var dbEntry = STOCK_DB[h.ticker] || {};
+      var companyName = dbEntry.name || '';
+      var price = _holdingsPriceCache[h.ticker] || 0;
+      var equity = (h.shares || 0) * price;
+      var eqStr = price > 0 ? '$' + equity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
+      var priceStr = price > 0 ? '$' + price.toFixed(2) : '--';
+      return '<div class="stock-item">' +
+        '<div class="stock-item-top">' +
+          '<div class="stock-info">' +
+            '<span class="stock-ticker">' + escapeHTML(h.ticker) + '</span>' +
+            (companyName ? '<span class="stock-company">' + escapeHTML(companyName) + '</span>' : '') +
+          '</div>' +
+          '<div class="stock-equity">' + eqStr + '</div>' +
+          '<button class="btn-remove" onclick="removeStock(\'' + escapeHTML(h.ticker) + '\')">×</button>' +
+        '</div>' +
+        '<div class="stock-details-row">' +
+          '<span class="stock-shares">' + (h.shares || 0) + ' shares</span>' +
+          '<span class="stock-price-sm">' + priceStr + '/share</span>' +
+        '</div>' +
+      '</div>';
     }).join('');
   }
 
-  chip.textContent = total + '% allocated';
+  var totalEq = getTotalEquity();
+  chip.textContent = totalEq > 0 ? '$' + totalEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' total' : holdings.length + ' holdings';
   btn.disabled = holdings.length === 0;
 
   // Hide onboarding when user has holdings OR has saved portfolios
@@ -647,18 +684,28 @@ function analyze() {
     const eName = escapeHTML(item.name);
     const eDesc = escapeHTML(item.desc);
     const id = 'item-' + eTicker + '-' + type;
+    const sectorColor = item.isStock ? (SECTOR_COLORS[item.sector] || '#64748b') : (SECTOR_COLORS[item.sectors?.[0]] || '#4d9fff');
     if (!item.isStock) {
-      return '<div class="etf-item etf-type-etf" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',false)">' +
+      var holdingsData = (typeof ETF_TOP_HOLDINGS !== 'undefined' && ETF_TOP_HOLDINGS[item.ticker]) || [];
+      var holdingsHTML = '';
+      if (holdingsData.length > 0) {
+        holdingsHTML = '<div class="etf-holdings"><span class="etf-holdings-label">Top Holdings</span>' +
+          holdingsData.slice(0, 6).map(function(h) {
+            return '<span class="etf-holding-chip">' + escapeHTML(h[0]) + '<span class="etf-holding-pct">' + h[2] + '%</span></span>';
+          }).join('') + '</div>';
+      }
+      return '<div class="etf-item etf-type-etf" style="--sector-color:' + sectorColor + '" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',false)">' +
         '<div class="etf-item-header"><div class="ticker-name-group"><div class="ticker-with-tag">' +
         '<span class="etf-ticker">' + eTicker + '</span><span class="item-type-tag tag-etf">ETF</span></div>' +
         '<div class="etf-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
         '<div class="etf-meta"><div class="pick-sector-tag">' + escapeHTML(item.sectors[0] === 'all' ? 'Broad Market' : item.sectors[0]) + '</div>' + matchLabel(item.score) + '</div></div>' +
+        holdingsHTML +
         '<div class="pick-hint">✦ Why this for my portfolio?</div>' +
         '<div class="etf-drawer" id="drawer-' + id + '"><div class="etf-drawer-inner">' +
         '<div class="etf-drawer-label">◈ Why this pick?</div>' +
         '<div class="etf-drawer-text" id="drawer-text-' + id + '"></div></div></div></div>';
     } else {
-      return '<div class="etf-item etf-type-stock" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',true)">' +
+      return '<div class="etf-item etf-type-stock" style="--sector-color:' + sectorColor + '" id="' + id + '" onclick="toggleDrawer(\'' + eTicker + '\',\'' + type + '\',\'' + safeStr(item.name) + '\',\'' + safeStr(item.desc) + '\',true)">' +
         '<div class="etf-item-header"><div class="ticker-name-group"><div class="ticker-with-tag">' +
         '<span class="pick-ticker">' + eTicker + '</span><span class="item-type-tag tag-stock">STOCK</span></div>' +
         '<div class="pick-details"><h4>' + eName + ' ' + marketBadgeHTML(item.ticker, marketData) + '</h4><p>' + eDesc + '</p></div></div>' +
@@ -1101,7 +1148,7 @@ async function toggleDrawer(ticker, strategy, name, desc, isStock) {
   itemEl.classList.add('open');
   const cacheKey = id;
   if (drawerCache[cacheKey]) { textEl.textContent = drawerCache[cacheKey]; return; }
-  const holdingSummary = holdings.map(h => h.ticker + ' (' + h.pct + '% — ' + h.sector + ')').join(', ');
+  const holdingSummary = holdings.map(h => h.ticker + ' (' + (h.shares||0) + ' shares, ' + h.pct + '% — ' + h.sector + ')').join(', ');
   const profile = getPortfolioProfile();
   const sectorSummary = Object.entries(profile.sectors).sort((a,b) => b[1]-a[1]).map(([s,p]) => s + ': ' + p + '%').join(', ');
   textEl.innerHTML = '<div class="etf-drawer-loading"><div class="mini-spinner"></div> Analyzing your portfolio...</div>';
@@ -1219,10 +1266,10 @@ async function handleScreenshot(event) {
 
   previewHoldings = holdingsWithValues.map(h => ({
     ticker: h.ticker,
+    shares: h.shares || 0,
     pct: totalValue > 0 ? Math.round((h.dollarValue / totalValue) * 100 * 10) / 10 : Math.round(100 / allHoldings.length * 10) / 10,
-    name: h.name || h.ticker,
-    shares: h.shares || 0
-  })).sort((a, b) => b.pct - a.pct);
+    name: h.name || h.ticker
+  })).sort((a, b) => (b.shares * (b.dollarValue || 1)) - (a.shares * (a.dollarValue || 1)));
 
   renderPreview();
   if (errors.length > 0 && allHoldings.length > 0) {
@@ -1281,17 +1328,15 @@ function renderPreview() {
   const container = document.getElementById('previewItems');
   const note      = document.getElementById('importNote');
   if (previewHoldings.length === 0) { preview.classList.remove('visible'); return; }
-  const totalPct = previewHoldings.reduce((s,h) => s + h.pct, 0);
   container.innerHTML = previewHoldings.map((h,i) =>
-    '<div class="preview-item" style="grid-template-columns:52px 1fr auto 70px 20px;">' +
+    '<div class="preview-item" style="grid-template-columns:52px 1fr auto 20px;">' +
     '<span class="preview-ticker">' + escapeHTML(h.ticker) + '</span>' +
     '<span class="preview-name">' + escapeHTML(h.name) + '</span>' +
-    '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);white-space:nowrap;">' + (h.shares ? h.shares.toLocaleString(undefined,{maximumFractionDigits:2}) + ' sh' : '') + '</span>' +
-    '<div class="preview-pct-wrapper"><input class="preview-pct-input" type="number" value="' + h.pct + '" min="0.1" max="100" step="0.1" onchange="updatePreviewPct(' + i + ',this.value)" /><span class="preview-pct-symbol">%</span></div>' +
+    '<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:var(--muted);white-space:nowrap;">' + (h.shares ? h.shares.toLocaleString(undefined,{maximumFractionDigits:6}) + ' shares' : '') + '</span>' +
     '<button class="btn-preview-remove" onclick="removePreviewItem(' + i + ')">×</button>' +
     '</div>'
   ).join('');
-  note.textContent = previewHoldings.length + ' holdings detected · Total: ' + totalPct.toFixed(1) + '% · Adjust if needed';
+  note.textContent = previewHoldings.length + ' holdings detected';
   preview.classList.add('visible');
 }
 
@@ -1317,18 +1362,13 @@ function importAll() {
     // Resolve ticker alias (e.g. RVI → RVTY)
     var aliasEntry = STOCK_DB[h.ticker];
     if (aliasEntry && aliasEntry.alias) h.ticker = aliasEntry.alias;
-    if (h.pct <= 0) { h.pct = 0.1; } // give tiny positions a minimum
     if (holdings.find(e => e.ticker === h.ticker)) { skipped.push(h.ticker); return; }
     const info = STOCK_DB[h.ticker] || {name:h.name||h.ticker, sector:'Other', beta:1.0, cap:'unknown'};
-    holdings.push({ticker:h.ticker, pct:h.pct, ...info});
+    holdings.push({ticker:h.ticker, shares:h.shares||1, pct:0, ...info});
   });
-  // Normalize to 100% if rounding caused drift
-  const total = holdings.reduce((s, h) => s + h.pct, 0);
-  if (total > 0 && Math.abs(total - 100) > 0.5) {
-    holdings.forEach(h => { h.pct = Math.round((h.pct / total) * 100 * 10) / 10; });
-  }
   previewHoldings = [];
   document.getElementById('importPreview').classList.remove('visible');
+  recalcPortfolioPct();
   renderHoldings();
   // Collapse the upload section after import
   var trigger = document.querySelector('.upload-compact-trigger');
@@ -1747,6 +1787,8 @@ function loadPortfolio(idx, silent) {
   const portfolios = getSavedPortfolios();
   if (!portfolios[idx]) return;
   holdings = JSON.parse(JSON.stringify(portfolios[idx].holdings));
+  // Ensure shares field exists (backward compat with old pct-only portfolios)
+  holdings.forEach(function(h) { if (!h.shares && h.pct) h.shares = 1; });
   _activePortfolioIdx = idx;
   _activePortfolioSnapshot = JSON.stringify(holdings);
   localStorage.setItem('pc_last_portfolio', String(idx));
@@ -1757,6 +1799,7 @@ function loadPortfolio(idx, silent) {
       b.classList.toggle('active', b.dataset.view === 'chart');
     });
   }
+  recalcPortfolioPct();
   renderHoldings();
   if (_holdingsView === 'chart' && holdings.length >= 3) {
     fetchAndRenderSparklines();
@@ -1826,10 +1869,11 @@ function expandInputSections() {
 function loadExample(key) {
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
-  holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
+  holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,shares:e.shares||1,pct:0,...info}; });
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
+  recalcPortfolioPct();
   renderHoldings();
   collapseInputSections();
 }
@@ -1837,9 +1881,10 @@ function loadExample(key) {
 // ── SHARE PORTFOLIO ───────────────────────────────────────
 async function sharePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
-  const encoded = holdings.map(h => h.ticker + '-' + h.pct).join('_');
+  const encoded = holdings.map(h => h.ticker + '-' + (h.shares || 1)).join('_');
   const url = window.location.origin + window.location.pathname + '?p=' + encoded;
-  const summary = holdings.slice().sort((a, b) => b.pct - a.pct).map(h => h.ticker + ' ' + h.pct + '%').join(', ');
+  var totalEq = getTotalEquity();
+  const summary = holdings.slice().sort(function(a,b) { return ((b.shares||0)*(_holdingsPriceCache[b.ticker]||0)) - ((a.shares||0)*(_holdingsPriceCache[a.ticker]||0)); }).map(h => h.ticker + ' ' + (h.shares||1) + ' shares').join(', ');
   const text = 'My portfolio: ' + summary;
 
   if (navigator.share) {
@@ -1872,9 +1917,10 @@ function showToast(msg) {
   const p = new URLSearchParams(window.location.search).get('p');
   if (!p) return;
   try {
-    const parsed = p.split('_').map(s => { const [t,pct] = s.split('-'); return {ticker:(t||'').toUpperCase().replace(/[^A-Z0-9.]/g,''), pct:parseFloat(pct)}; }).filter(h=>h.ticker&&h.pct>0).slice(0, 50);
+    const parsed = p.split('_').map(s => { const [t,val] = s.split('-'); return {ticker:(t||'').toUpperCase().replace(/[^A-Z0-9.]/g,''), shares:parseFloat(val)||1}; }).filter(h=>h.ticker).slice(0, 50);
     if (!parsed.length) return;
-    holdings = parsed.map(e => { const info = STOCK_DB[e.ticker]||{name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,pct:e.pct,...info}; });
+    holdings = parsed.map(e => { const info = STOCK_DB[e.ticker]||{name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,shares:e.shares,pct:0,...info}; });
+    recalcPortfolioPct();
     renderHoldings();
     setTimeout(analyze, 400);
   } catch(e) {}
@@ -2254,6 +2300,7 @@ function fetchAndRenderSparklines() {
   if (typeof fetchMarketDataCached === 'function') {
     fetchMarketDataCached(tickers).then(function(marketData) {
       if (!marketData) return;
+      recalcPortfolioPct(marketData);
       holdings.forEach(function(h) {
         if (!marketData[h.ticker]) return;
         var md = marketData[h.ticker];
@@ -2312,6 +2359,8 @@ function _startLiveRefresh() {
     if (typeof fetchMarketDataCached === 'function') {
       fetchMarketDataCached(tickers).then(function(marketData) {
         if (!marketData) return;
+        // Update price cache for equity calculations
+        recalcPortfolioPct(marketData);
         holdings.forEach(function(h) {
           if (!marketData[h.ticker]) return;
           var md = marketData[h.ticker];
@@ -2663,9 +2712,7 @@ function renderPortfolioOverview() {
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
       '</div>' +
-      '<div class="portfolio-overview-perf" id="portfolioOverviewPerf">' +
-        (getMarketStatus().isOpen ? '' : '<span class="chart-market-closed">Market Closed</span>') +
-      '</div>' +
+      '<div class="portfolio-overview-perf" id="portfolioOverviewPerf"></div>' +
     '</div>';
 
   container.style.display = 'block';
@@ -2700,6 +2747,19 @@ function renderPortfolioOverview() {
 var _chartLiveTimer = null;
 var _chartLiveActive = false;
 var _CHART_LIVE_INTERVAL = 5 * 1000; // 5 seconds
+
+function _marketClosedHTML() {
+  if (typeof getMarketStatus === 'function' && !getMarketStatus().isOpen) {
+    return '<span class="chart-market-closed">Market Closed</span>';
+  }
+  return '';
+}
+
+function _totalEquityHTML() {
+  var eq = getTotalEquity();
+  if (eq <= 0) return '';
+  return '<span class="chart-total-equity">$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
+}
 
 function _applyBubbleGlow(changePct) {
   var bubble = document.querySelector('.portfolio-overview');
@@ -2747,7 +2807,7 @@ function _liveChartTick() {
       var pct = result.changePct;
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
-      perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>' + _marketClosedHTML();
       _applyBubbleGlow(pct);
     }
   });
@@ -2830,7 +2890,7 @@ function loadPortfolioChartRange(range) {
           var pct = retryResult.changePct;
           var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
           var sign = pct > 0 ? '+' : '';
-          perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+          perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>' + _marketClosedHTML();
           _applyBubbleGlow(pct);
         }
       });
@@ -2844,7 +2904,7 @@ function loadPortfolioChartRange(range) {
       var pct = result.changePct;
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
       var sign = pct > 0 ? '+' : '';
-      perfBadge.innerHTML = '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>';
+      perfBadge.innerHTML = _totalEquityHTML() + '<span class="portfolio-perf-badge ' + cls + '">' + sign + pct.toFixed(2) + '%</span>' + _marketClosedHTML();
       _applyBubbleGlow(pct);
     }
   });

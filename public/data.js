@@ -1910,6 +1910,32 @@ const STOCK_DB = {
   STGW:{name:'Stagwell Inc',sector:'Media',beta:1.2,cap:'small'},
 };
 
+// Top holdings for recommended ETFs (ticker → [name, ~weight%])
+const ETF_TOP_HOLDINGS = {
+  ARKK: [['TSLA','Tesla',10],['ROKU','Roku',8],['COIN','Coinbase',7],['SQ','Block',6],['PLTR','Palantir',5],['RBLX','Roblox',5],['PATH','UiPath',4],['SHOP','Shopify',4]],
+  SMH:  [['NVDA','NVIDIA',20],['TSM','TSMC',12],['AVGO','Broadcom',8],['AMD','AMD',5],['QCOM','Qualcomm',5],['TXN','Texas Inst.',4],['INTC','Intel',4],['MU','Micron',3]],
+  KWEB: [['PDD','PDD Holdings',10],['BABA','Alibaba',9],['JD','JD.com',8],['BIDU','Baidu',6],['NTES','NetEase',5],['TCOM','Trip.com',5],['BILI','Bilibili',4]],
+  VGT:  [['AAPL','Apple',21],['MSFT','Microsoft',18],['NVDA','NVIDIA',10],['AVGO','Broadcom',4],['CRM','Salesforce',3],['ADBE','Adobe',2]],
+  VOO:  [['AAPL','Apple',7],['MSFT','Microsoft',7],['NVDA','NVIDIA',6],['AMZN','Amazon',4],['META','Meta',3],['GOOGL','Alphabet',2],['BRK.B','Berkshire',2],['LLY','Eli Lilly',2]],
+  VTI:  [['AAPL','Apple',6],['MSFT','Microsoft',6],['NVDA','NVIDIA',5],['AMZN','Amazon',3],['META','Meta',2],['GOOGL','Alphabet',2],['BRK.B','Berkshire',2]],
+  SCHD: [['ABBV','AbbVie',4],['MRK','Merck',4],['HD','Home Depot',4],['AMGN','Amgen',4],['TXN','Texas Inst.',4],['CSCO','Cisco',4],['PFE','Pfizer',3]],
+  XLV:  [['LLY','Eli Lilly',12],['UNH','UnitedHealth',10],['JNJ','J&J',7],['ABBV','AbbVie',6],['MRK','Merck',5],['TMO','Thermo Fisher',4],['ABT','Abbott',4]],
+  BND:  [['US Treasury','Various Maturities',67],['Corp Bonds','Investment Grade',18],['MBS','Mortgage-Backed',12]],
+  XLF:  [['BRK.B','Berkshire',14],['JPM','JPMorgan',10],['V','Visa',8],['MA','Mastercard',7],['BAC','BofA',4],['WFC','Wells Fargo',3]],
+  QQQ:  [['AAPL','Apple',9],['MSFT','Microsoft',8],['NVDA','NVIDIA',7],['AMZN','Amazon',5],['META','Meta',5],['AVGO','Broadcom',4],['GOOGL','Alphabet',3],['COST','Costco',3]],
+  SOXX: [['NVDA','NVIDIA',10],['AVGO','Broadcom',9],['AMD','AMD',7],['QCOM','Qualcomm',6],['TXN','Texas Inst.',5],['INTC','Intel',4],['MU','Micron',4]],
+  IWM:  [['SMCI','Super Micro',1],['DECK','Deckers',0.5],['ENPH','Enphase',0.4],['LULU','Lululemon',0.4]],
+  CIBR: [['CRWD','CrowdStrike',7],['PANW','Palo Alto',7],['FTNT','Fortinet',5],['ZS','Zscaler',5],['CSCO','Cisco',4],['OKTA','Okta',3]],
+  IGV:  [['CRM','Salesforce',9],['ADBE','Adobe',7],['INTU','Intuit',6],['NOW','ServiceNow',5],['SNPS','Synopsys',4],['PANW','Palo Alto',4]],
+  RSP:  [['Equal weight','All 500 S&P companies at 0.2% each',100]],
+  VNQ:  [['PLD','Prologis',8],['AMT','American Tower',7],['EQIX','Equinix',5],['SPG','Simon Property',4],['PSA','Public Storage',3]],
+  GLD:  [['Physical Gold','London vaults',100]],
+  AGG:  [['US Treasury','Various Maturities',42],['Corp Bonds','Investment Grade',25],['MBS','Mortgage-Backed',27]],
+  IAK:  [['PGR','Progressive',14],['CB','Chubb',10],['AIG','AIG',6],['MET','MetLife',5],['ALL','Allstate',5]],
+  ICLN: [['ENPH','Enphase',8],['SEDG','SolarEdge',5],['PLUG','Plug Power',4],['VWS','Vestas Wind',4]],
+  XBI:  [['MRNA','Moderna',4],['SGEN','Seagen',3],['EXAS','Exact Sciences',3],['ALNY','Alnylam',3]],
+};
+
 const ETF_DB = {
   aggressive:[
     {ticker:'ARKK',name:'ARK Innovation',desc:'Disruptive tech, AI, genomics',exp:'0.75%',sectors:['AI & Robotics','Biotech','Fintech','Software / SaaS']},
@@ -2013,10 +2039,10 @@ const CORRELATED_PAIRS = [
 ];
 
 const EXAMPLE_PORTFOLIOS = {
-  tech:         [{ticker:'NVDA',pct:25},{ticker:'MSFT',pct:20},{ticker:'AAPL',pct:20},{ticker:'META',pct:15},{ticker:'PLTR',pct:10},{ticker:'AMD',pct:10}],
-  balanced:     [{ticker:'AAPL',pct:18},{ticker:'MSFT',pct:15},{ticker:'JPM',pct:12},{ticker:'JNJ',pct:10},{ticker:'XOM',pct:10},{ticker:'KO',pct:8},{ticker:'AMZN',pct:15},{ticker:'NEE',pct:12}],
-  conservative: [{ticker:'JNJ',pct:20},{ticker:'KO',pct:15},{ticker:'PG',pct:15},{ticker:'WMT',pct:15},{ticker:'UNH',pct:15},{ticker:'NEE',pct:10},{ticker:'LMT',pct:10}],
-  crypto:       [{ticker:'COIN',pct:25},{ticker:'MSTR',pct:20},{ticker:'HOOD',pct:15},{ticker:'NVDA',pct:20},{ticker:'MSFT',pct:20}]
+  tech:         [{ticker:'NVDA',shares:15},{ticker:'MSFT',shares:10},{ticker:'AAPL',shares:40},{ticker:'META',shares:12},{ticker:'PLTR',shares:50},{ticker:'AMD',shares:20}],
+  balanced:     [{ticker:'AAPL',shares:20},{ticker:'MSFT',shares:8},{ticker:'JPM',shares:10},{ticker:'JNJ',shares:15},{ticker:'XOM',shares:20},{ticker:'KO',shares:30},{ticker:'AMZN',shares:5},{ticker:'NEE',shares:15}],
+  conservative: [{ticker:'JNJ',shares:20},{ticker:'KO',shares:30},{ticker:'PG',shares:15},{ticker:'WMT',shares:12},{ticker:'UNH',shares:5},{ticker:'NEE',shares:15},{ticker:'LMT',shares:6}],
+  crypto:       [{ticker:'COIN',shares:20},{ticker:'MSTR',shares:10},{ticker:'HOOD',shares:100},{ticker:'NVDA',shares:10},{ticker:'MSFT',shares:5}]
 };
 
 const APPROX_PRICES = {
