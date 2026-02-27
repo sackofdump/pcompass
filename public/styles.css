@@ -2377,7 +2377,7 @@
   }
   @keyframes live-glow-idle {
     0%, 100% { border-color: var(--border); box-shadow: none; }
-    50% { border-color: rgba(148,163,184,0.35); box-shadow: 0 0 12px 2px rgba(148,163,184,0.12); }
+    50% { border-color: rgba(148,163,184,0.5); box-shadow: 0 0 18px 3px rgba(148,163,184,0.2); }
   }
   /* Stronger flash on actual price change */
   .portfolio-overview.live-glow-up {

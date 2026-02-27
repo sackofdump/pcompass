@@ -2003,13 +2003,126 @@ const SECTOR_TARGETS = {
   'Other':             {agg: 0,mod: 0,con: 0},
 };
 
-const STOCK_PICKS = [
-  {ticker:'NVDA',name:'NVIDIA',         sector:'Semiconductors',  risk:'High',   desc:'AI chip dominance, data center growth',   avoidIfHeld:['NVDA','SMH','SOXX']},
-  {ticker:'MSFT',name:'Microsoft',      sector:'Big Tech',         risk:'Medium', desc:'Cloud, AI, enterprise software leader',   avoidIfHeld:['MSFT','QQQ','XLK']},
-  {ticker:'PLTR',name:'Palantir',       sector:'AI & Robotics',    risk:'High',   desc:'AI/data analytics, govt & enterprise',    avoidIfHeld:['PLTR','ARKK']},
-  {ticker:'ORCL',name:'Oracle',         sector:'Software / SaaS',  risk:'Medium', desc:'Cloud database & AI infrastructure',      avoidIfHeld:['ORCL','IGV']},
-  {ticker:'AMD', name:'AMD',            sector:'Semiconductors',   risk:'High',   desc:'CPU/GPU challenger to Intel & NVIDIA',    avoidIfHeld:['AMD','NVDA','SOXX']},
-];
+// ── Curated stock descriptions (used when available) ──
+const _STOCK_DESCS = {
+  NVDA:'AI chip dominance, data center growth',MSFT:'Cloud, AI, enterprise software leader',AAPL:'Consumer tech ecosystem, services growth',
+  GOOGL:'Search, cloud, AI, YouTube advertising',META:'Social media, VR/AR, digital advertising',AMZN:'E-commerce & AWS cloud dominance',
+  TSLA:'EV leader, energy storage, autonomous driving',AMD:'CPU/GPU challenger, data center growth',AVGO:'Networking & infrastructure semiconductors',
+  PLTR:'AI/data analytics, govt & enterprise',CRM:'Enterprise CRM & AI-powered sales cloud',ORCL:'Cloud database & AI infrastructure',
+  NFLX:'Global streaming entertainment leader',DIS:'Media, parks, streaming entertainment',COST:'Membership warehouse retail giant',
+  JPM:'Largest US bank, diversified finance',V:'Global digital payments network',MA:'Credit card & payments processing',
+  JNJ:'Healthcare & pharma diversified giant',UNH:'Health insurance & data analytics leader',LLY:'Pharma leader in obesity & diabetes drugs',
+  PG:'Consumer staples, household brands',KO:'Global beverage brand portfolio',PEP:'Beverages & snacks, defensive staple',
+  XOM:'Largest US oil & gas integrated major',CVX:'Oil & gas major, energy transition',COP:'Pure-play exploration & production',
+  NEE:'Renewable energy & regulated utility leader',GS:'Investment banking & trading leader',BRK:'Berkshire Hathaway, diversified conglomerate',
+  WMT:'World\'s largest retailer',HD:'Home improvement retail leader',LOW:'Home improvement, housing market play',
+  CRWD:'Cloud cybersecurity endpoint protection',PANW:'Network & cloud security platform',NET:'CDN, edge computing, security',
+  SNOW:'Cloud data warehousing & analytics',DDOG:'Cloud monitoring & observability',MDB:'NoSQL database cloud platform',
+  SQ:'Fintech payments & banking ecosystem',PYPL:'Digital payments & checkout platform',SOFI:'Digital banking & lending fintech',
+  SHOP:'E-commerce platform for merchants',MELI:'Latin America e-commerce & payments',SE:'Southeast Asia gaming & e-commerce',
+  COIN:'Crypto exchange, digital asset platform',MSTR:'Bitcoin holding company & software',ARM:'Mobile chip architecture licensing',
+  TSM:'World\'s largest semiconductor foundry',ASML:'Extreme UV lithography monopoly',QCOM:'Mobile & IoT chip leader',
+  ABNB:'Global vacation rental marketplace',UBER:'Ride-sharing & delivery platform',BKNG:'Online travel booking leader',
+  LMT:'Defense & aerospace contractor',RTX:'Defense systems & aerospace engines',BA:'Commercial aerospace & defense',
+  CAT:'Construction & mining equipment leader',DE:'Agricultural equipment & precision tech',GE:'Aviation engines & energy technology',
+  ISRG:'Robotic surgery systems pioneer',DHR:'Life sciences & diagnostics instruments',TMO:'Lab equipment & life sciences',
+  NOW:'IT service management cloud platform',ADBE:'Creative & document cloud software',INTU:'Tax, accounting & finance software',
+  T:'Telecom & media, high dividend yield',VZ:'Telecom, 5G network investment',TMUS:'Fastest-growing US wireless carrier',
+  NEM:'Gold mining, precious metals exposure',GLD:'Physical gold ETF, inflation hedge',SLV:'Silver ETF, precious metals exposure',
+  RKLB:'Small-cap space launch & satellites',DKNG:'Sports betting & iGaming platform',HOOD:'Commission-free brokerage fintech',
+  RIVN:'EV trucks & adventure vehicles',NIO:'Chinese EV maker, battery swap tech',ENPH:'Solar microinverter technology',
+  FSLR:'US solar panel manufacturer',PLUG:'Green hydrogen fuel cells',RUN:'Residential solar installation',
+  PFE:'Pharma, vaccines, broad pipeline',ABBV:'Immunology & oncology pharma leader',MRK:'Pharma, Keytruda cancer treatment',
+  REGN:'Biotech, Eylea & cancer treatments',GILD:'Antiviral & oncology biotech',MRNA:'mRNA vaccine & therapy pioneer',
+  O:'Monthly dividend REIT, retail properties',AMT:'Cell tower REIT, 5G infrastructure',PLD:'Industrial & logistics REIT',
+  SCHD:'High-quality dividend ETF',VYM:'High dividend yield broad ETF',JEPI:'JP Morgan equity premium income',
+  SPY:'S&P 500 index tracking ETF',QQQ:'Nasdaq 100 tech-heavy index ETF',VOO:'Vanguard S&P 500 low-cost ETF',
+  IWM:'Russell 2000 small-cap index',DIA:'Dow Jones 30 blue-chip index',VTI:'Total US stock market index',
+  BND:'Total US bond market index',TLT:'Long-term US Treasury bonds',AGG:'Aggregate US bond market',
+  IBIT:'iShares spot Bitcoin ETF',SMH:'Semiconductor industry ETF',ARKK:'Disruptive innovation & tech ETF',
+  XLE:'Energy sector SPDR ETF',XLV:'Healthcare sector SPDR ETF',XLF:'Financial sector SPDR ETF',
+  XLP:'Consumer staples SPDR ETF',XLU:'Utilities sector SPDR ETF',VEA:'International developed markets ETF',
+  CMG:'Fast-casual restaurant chain leader',SBUX:'Global coffee chain & brand',MCD:'Fast food, global franchise model',
+  NKE:'Athletic footwear & apparel leader',LULU:'Premium athleisure brand',TJX:'Off-price retail, treasure hunt model',
+  AFRM:'Buy-now-pay-later lending fintech',UPST:'AI-powered lending platform',NU:'Latin America digital bank',
+  CRSP:'CRISPR gene editing pioneer',VRTX:'Cystic fibrosis treatment leader',ILMN:'DNA sequencing technology leader',
+  ZS:'Zero trust cloud security platform',FTNT:'Cybersecurity firewalls & network security',OKTA:'Identity & access management cloud',
+  DXCM:'Continuous glucose monitoring devices',PODD:'Insulin pump & diabetes management',SYK:'Orthopedic & surgical devices',
+  ETN:'Power management & electrical systems',VRT:'Data center cooling & power infrastructure',PWR:'Electrical & renewable infrastructure',
+  CEG:'Nuclear & clean energy generation',VST:'Utility power generation & retail',GEV:'Renewable energy equipment & services',
+  DASH:'Food delivery & local commerce platform',CPNG:'Korean e-commerce & delivery',W:'Online furniture & home goods',
+  SPOT:'Music & podcast streaming platform',ROKU:'Streaming TV platform & devices',RBLX:'Online gaming & metaverse platform',
+  APP:'Mobile app monetization platform',TTD:'Programmatic digital advertising',PINS:'Visual discovery & shopping platform',
+  WYNN:'Casino & resort entertainment',LVS:'Casino resorts, Macau & Singapore',MGM:'Casino, sports betting, entertainment',
+  UAL:'Major US airline carrier',DAL:'Major US airline, premium travel',LUV:'Low-cost US airline carrier',
+  STLA:'Stellantis, global automaker',F:'Ford, EV transition & trucks',GM:'General Motors, EV & autonomous',
+  WM:'Waste management & recycling leader',RSG:'Republic Services, waste collection',URI:'Equipment rental market leader',
+  FDX:'Global package delivery & logistics',UPS:'Global shipping & supply chain',NSC:'Eastern US railroad freight',
+  PGR:'Auto insurance, data-driven pricing',TRV:'Property & casualty insurance',ALL:'Auto & home insurance leader',
+  AFL:'Supplemental insurance, cancer & accident',MET:'Life insurance & employee benefits',AIG:'Global insurance & financial services',
+};
+
+// ── Sector-to-ETF correlation map (for avoidIfHeld) ──
+const _SECTOR_ETFS = {
+  'Semiconductors':['SMH','SOXX'],'Big Tech':['QQQ','XLK'],'AI & Robotics':['ARKK','BOTZ'],
+  'Software / SaaS':['IGV','WCLD'],'Fintech':['ARKF','FINX'],'Crypto / Bitcoin':['IBIT','BITO'],
+  'Banking':['XLF','KRE'],'Healthcare':['XLV'],'Biotech':['XBI','IBB'],'E-Commerce':['IBUY'],
+  'Oil & Gas':['XLE'],'Clean Energy':['ICLN','TAN'],'Defense':['ITA'],'Real Estate':['VNQ','XLRE'],
+  'Utilities':['XLU'],'Consumer Staples':['XLP'],'EVs & Autos':['DRIV'],'Entertainment':['XLC'],
+  'Gold & Metals':['GDX','GLD'],'Cybersecurity':['CIBR','BUG'],'Retail':['XLY'],
+  'Industrials':['XLI'],'Materials':['XLB'],'Pharma':['XLV'],'Dividends':['SCHD','VYM'],
+  'Bonds':['BND','AGG'],'Broad Market':['SPY','VOO','VTI'],'Small-Caps':['IWM'],
+};
+
+// ── Risk classification by beta ──
+function _betaToRisk(beta) {
+  if (beta >= 1.6) return 'Very High';
+  if (beta >= 1.2) return 'High';
+  if (beta >= 0.7) return 'Medium';
+  return 'Low';
+}
+
+// ── Generate STOCK_PICKS dynamically from STOCK_DB ──
+const STOCK_PICKS = (function() {
+  var picks = [];
+  var seen = {};
+  // Skip ETF-like tickers (they're in ETF_DB), leveraged/inverse, and very small names
+  var skipPrefixes = ['TQQQ','SQQQ','SPXU','SPXL','UPRO','SOXL','SOXS','LABU','LABD','NUGT','DUST','FAS','FAZ','DOG','SH','PSQ','RWM','UVXY','FNGU','FNGD'];
+  var skipSet = {};
+  skipPrefixes.forEach(function(t) { skipSet[t] = true; });
+
+  for (var ticker in STOCK_DB) {
+    if (seen[ticker]) continue;
+    seen[ticker] = true;
+    var entry = STOCK_DB[ticker];
+    if (!entry || !entry.sector || !entry.name) continue;
+    if (entry.alias) continue; // skip alias entries
+    if (skipSet[ticker]) continue; // skip leveraged/inverse
+
+    // Skip broad index ETFs and bond ETFs — they're in ETF_DB
+    var s = entry.sector;
+    if (s === 'Broad Market' || s === 'Bonds' || s === 'Dividends' || s === 'Small-Caps' || s === 'International') continue;
+
+    var risk = _betaToRisk(entry.beta || 1.0);
+    var desc = _STOCK_DESCS[ticker] || (entry.name + ' — ' + s);
+    var avoidIfHeld = [ticker];
+    // Add correlated sector ETFs
+    if (_SECTOR_ETFS[s]) {
+      _SECTOR_ETFS[s].forEach(function(etf) { avoidIfHeld.push(etf); });
+    }
+
+    picks.push({
+      ticker: ticker,
+      name: entry.name,
+      sector: s,
+      risk: risk,
+      desc: desc,
+      cap: entry.cap || 'unknown',
+      avoidIfHeld: avoidIfHeld
+    });
+  }
+  return picks;
+})();
 
 const RISK_COLORS = {'Very High':'#ff2d55','High':'#ff6b35','Medium':'#ffd166','Low':'#06d6a0'};
 

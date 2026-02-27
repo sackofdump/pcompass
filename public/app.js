@@ -737,6 +737,12 @@ function analyze() {
         if (stratTarget > 0 && currentAlloc < stratTarget) {
           score += Math.round((stratTarget - currentAlloc) * 0.8);
         }
+        // Market cap quality bonus — prefer large/mega caps
+        var cap = p.cap || (STOCK_DB[p.ticker] || {}).cap || 'unknown';
+        if (cap === 'mega') score += 12;
+        else if (cap === 'large') score += 8;
+        else if (cap === 'mid') score += 3;
+        else if (cap === 'small') score -= 2;
         // Risk alignment bonus
         if (_profileRiskKey === 'aggressive' && (p.risk === 'High' || p.risk === 'Very High')) score += 5;
         else if (_profileRiskKey === 'moderate' && p.risk === 'Medium') score += 5;
@@ -762,7 +768,7 @@ function analyze() {
       })
       .filter(function(p) { return p.score >= 40; })
       .sort(function(a,b) { return b.score - a.score; })
-      .slice(0, 12);
+      .slice(0, 100);
   }
 
   // ── Market data badge HTML helper ────────────────────────
@@ -865,13 +871,19 @@ function analyze() {
       return true;
     });
     var primaryItems = allItems.slice(0, 8);
+    var extraItems = allItems.slice(8);
     var html = primaryItems.map(function(item) { return buildItemHTML(item, 'rec', marketData); }).join('');
     _lastBuildItemHTML = buildItemHTML;
     _lastMarketData = marketData;
-    html += '<div class="show-more-items" id="show-more-rec"></div>' +
-      '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMore(\'rec\')" data-shown="0">' +
-        '✦ See more stocks' +
-      '</button>';
+    // Pre-render extra items hidden — no API call needed, all from local DB
+    var extraHTML = extraItems.map(function(item) {
+      return '<div class="show-more-hidden">' + buildItemHTML(item, 'rec', marketData) + '</div>';
+    }).join('');
+    var extraCount = extraItems.length;
+    html += '<div class="show-more-items" id="show-more-rec">' + extraHTML + '</div>' +
+      (extraCount > 0 ? '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMoreRec()" data-shown="0">' +
+        '✦ Show more recommendations (' + extraCount + ' more)' +
+      '</button>' : '');
     return html;
   }
 
@@ -2020,7 +2032,14 @@ var _simNames = {
 function loadExample(key) {
   const example = EXAMPLE_PORTFOLIOS[key];
   if (!example) return;
-  holdings = example.map(e => { const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'}; return {ticker:e.ticker,shares:e.shares||1,pct:0,...info}; });
+  // $100 per stock — compute fractional shares from approx prices
+  holdings = example.map(e => {
+    const info = STOCK_DB[e.ticker] || {name:e.ticker,sector:'Other',beta:1.0,cap:'unknown'};
+    var price = (typeof APPROX_PRICES !== 'undefined' && APPROX_PRICES[e.ticker]) || _getPrice(e.ticker) || 100;
+    var shares = Math.round((100 / price) * 10000) / 10000; // $100 worth, 4 decimal places
+    if (shares < 0.0001) shares = 0.0001;
+    return {ticker:e.ticker, shares:shares, pct:0, ...info};
+  });
   _activePortfolioIdx = -1;
   _activePortfolioSnapshot = null;
   _isExamplePortfolio = true;
@@ -2030,6 +2049,8 @@ function loadExample(key) {
   renderHoldings();
   collapseInputSections();
   if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+  // Deselect any highlighted portfolio in strip
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
 }
 
 function toggleSimulations() {
@@ -2164,6 +2185,29 @@ async function toggleShowMore(type) {
   const remaining = allItems.length - nextShown;
   if (remaining > 0) {
     btn.innerHTML = '✦ See more stocks (' + remaining + ' more)';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+// ── SHOW MORE for unified recommendations (no API needed) ──
+function toggleShowMoreRec() {
+  var panel = document.getElementById('show-more-rec');
+  var btn = document.getElementById('show-more-btn-rec');
+  if (!panel || !btn) return;
+  panel.classList.add('open');
+  var allWrappers = panel.querySelectorAll('.show-more-hidden');
+  var shown = parseInt(btn.dataset.shown || '0');
+  var nextShown = Math.min(shown + 10, allWrappers.length);
+  for (var i = shown; i < nextShown; i++) {
+    allWrappers[i].classList.remove('show-more-hidden');
+  }
+  btn.dataset.shown = String(nextShown);
+  var remaining = allWrappers.length - nextShown;
+  // Recount actually hidden
+  remaining = panel.querySelectorAll('.show-more-hidden').length;
+  if (remaining > 0) {
+    btn.innerHTML = '✦ Show more recommendations (' + remaining + ' more)';
   } else {
     btn.style.display = 'none';
   }
@@ -3022,7 +3066,7 @@ function renderPortfolioOverview() {
     '<div class="portfolio-overview">' +
       '<div class="portfolio-overview-header">' +
         '<div class="portfolio-overview-name">' + escapeHTML(pName) +
-          (isSim ? '<span class="sim-label">Simulation · 1 share each</span>' : '') +
+          (isSim ? '<span class="sim-label">Simulation · $100 per stock</span>' : '') +
         '</div>' +
         '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
       '</div>' +
@@ -3149,7 +3193,14 @@ function _equityTick() {
     var portfolioPct = totalWeight > 0 ? weightedPct / totalWeight : 0;
     var dir = portfolioPct >= 0 ? 'up' : 'down';
 
-    // ── EQUITY — set text, only flash/pulse when value changes ──
+    // ── Detect market state early (needed for flash gating) ──
+    var anyMarketState = null;
+    for (var t in raw) {
+      if (raw[t] && raw[t].marketState) { anyMarketState = raw[t].marketState; break; }
+    }
+    var marketClosed = !anyMarketState || anyMarketState === 'CLOSED';
+
+    // ── EQUITY — set text, only flash/pulse when value changes AND market is open ──
     var eq = getTotalEquity();
     var eqEl = document.getElementById('equityTicker');
     if (eqEl && eq > 0) {
@@ -3157,7 +3208,7 @@ function _equityTick() {
       var changed = eqEl.textContent !== eqText;
       eqEl.textContent = eqText;
 
-      if (changed && _lastEquityValue > 0) {
+      if (changed && _lastEquityValue > 0 && !marketClosed) {
         var dir = eq > _lastEquityValue ? 'up' : 'down';
         eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
         void eqEl.offsetWidth;
@@ -3182,11 +3233,6 @@ function _equityTick() {
     }
 
     // ── MARKET STATE → idle glow only when closed ──
-    var anyMarketState = null;
-    for (var t in raw) {
-      if (raw[t] && raw[t].marketState) { anyMarketState = raw[t].marketState; break; }
-    }
-    var marketClosed = !anyMarketState || anyMarketState === 'CLOSED';
     var bubble = document.querySelector('.portfolio-overview');
     if (bubble) {
       if (marketClosed) {
