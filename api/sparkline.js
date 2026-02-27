@@ -194,7 +194,7 @@ export default async function handler(req, res) {
   }
 
   const ip = req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || 'unknown';
-  if (!await checkRateLimit(ip, 'sparkline', 60)) {
+  if (!await checkRateLimit(ip, 'sparkline', 600)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
