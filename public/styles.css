@@ -2265,54 +2265,23 @@
     margin-right: 8px;
     letter-spacing: -0.3px;
     display: inline-block;
-    overflow: hidden;
     vertical-align: middle;
-    position: relative;
-    height: 1.3em;
-    line-height: 1.3em;
+    transition: color 1.2s ease;
   }
-  .chart-total-equity.eq-flash-up { animation: eq-color-up 0.8s ease; }
-  .chart-total-equity.eq-flash-down { animation: eq-color-down 0.8s ease; }
-  @keyframes eq-color-up {
-    0%, 100% { color: var(--text); }
-    30% { color: #22c55e; }
-  }
-  @keyframes eq-color-down {
-    0%, 100% { color: var(--text); }
-    30% { color: #ef4444; }
-  }
-  /* Ticker scroll animation (used for equity + % badge) */
+  .chart-total-equity.eq-flash-up { color: #22c55e; }
+  .chart-total-equity.eq-flash-down { color: #ef4444; }
+
+  /* Subtle tick: fade + tiny nudge */
   .ticker-value {
     display: inline-block;
-    position: relative;
+    transition: opacity 0.3s ease, transform 0.3s ease;
   }
-  .ticker-value.ticker-out-up {
-    animation: ticker-exit-up 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+  .ticker-value.ticker-pop {
+    animation: ticker-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .ticker-value.ticker-out-down {
-    animation: ticker-exit-down 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
-  }
-  .ticker-value.ticker-in-up {
-    animation: ticker-enter-up 0.4s cubic-bezier(0, 0, 0.2, 1) forwards;
-  }
-  .ticker-value.ticker-in-down {
-    animation: ticker-enter-down 0.4s cubic-bezier(0, 0, 0.2, 1) forwards;
-  }
-  @keyframes ticker-exit-up {
-    0% { transform: translateY(0); opacity: 1; }
-    100% { transform: translateY(-110%); opacity: 0; }
-  }
-  @keyframes ticker-exit-down {
-    0% { transform: translateY(0); opacity: 1; }
-    100% { transform: translateY(110%); opacity: 0; }
-  }
-  @keyframes ticker-enter-up {
-    0% { transform: translateY(110%); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-  }
-  @keyframes ticker-enter-down {
-    0% { transform: translateY(-110%); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
+  @keyframes ticker-pop {
+    0% { opacity: 0.3; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
   }
   .chart-market-closed {
     display: inline-block;
@@ -2436,10 +2405,6 @@
     padding: 2px 0;
     letter-spacing: -0.2px;
     display: inline-block;
-    overflow: hidden;
-    position: relative;
-    height: 1.3em;
-    line-height: 1.3em;
     vertical-align: middle;
   }
   .portfolio-perf-badge.up { color: #22c55e; }

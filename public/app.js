@@ -313,8 +313,7 @@ function renderHoldings() {
     }).join('');
   }
 
-  var totalEq = getTotalEquity();
-  chip.textContent = totalEq > 0 ? '$' + totalEq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' total' : holdings.length + ' holdings';
+  chip.textContent = holdings.length + ' holdings';
   btn.disabled = holdings.length === 0;
 
   // Hide examples when a portfolio is loaded, show when empty
@@ -2818,33 +2817,18 @@ function _totalEquityHTML() {
     '</span>';
 }
 
-// Scroll-animate any ticker element: old value scrolls out, new scrolls in
-function _tickerAnimate(el, newText, direction) {
+// Subtle pop animation on a ticker element
+function _tickerAnimate(el, newText) {
   if (!el) return;
   var inner = el.querySelector('.ticker-value');
   if (!inner) {
     el.textContent = newText;
     return;
   }
-
-  // Create the outgoing and incoming elements
-  var outgoing = inner;
-  var incoming = document.createElement('span');
-  incoming.className = 'ticker-value ticker-incoming';
-  incoming.textContent = newText;
-
-  // Set direction classes
-  var dir = direction || 'up';
-  outgoing.classList.add('ticker-out-' + dir);
-  incoming.classList.add('ticker-in-' + dir);
-
-  el.appendChild(incoming);
-
-  // After animation, clean up
-  setTimeout(function() {
-    if (outgoing.parentNode === el) el.removeChild(outgoing);
-    incoming.classList.remove('ticker-incoming', 'ticker-in-' + dir);
-  }, 450);
+  inner.textContent = newText;
+  inner.classList.remove('ticker-pop');
+  void inner.offsetWidth;
+  inner.classList.add('ticker-pop');
 }
 
 // ── GLOBAL EQUITY TICKER (always-on, every 5s) ──────────
@@ -2870,15 +2854,13 @@ function _equityTick() {
     var eq = getTotalEquity();
     var eqFormatted = '$' + eq.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 
-    // Animate equity
+    // Animate equity with subtle pop + color hint on change
     var eqEl = document.getElementById('equityTicker');
     if (eqEl && eq > 0) {
-      var dir = eq > _lastEquityValue ? 'up' : eq < _lastEquityValue ? 'down' : 'up';
-      _tickerAnimate(eqEl, eqFormatted, dir);
-      // Flash color on change
+      _tickerAnimate(eqEl, eqFormatted);
+      // Soft color flash on actual price change
+      eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
       if (Math.abs(eq - _lastEquityValue) > 0.01) {
-        eqEl.classList.remove('eq-flash-up', 'eq-flash-down');
-        void eqEl.offsetWidth;
         eqEl.classList.add(eq > _lastEquityValue ? 'eq-flash-up' : 'eq-flash-down');
       }
       _lastEquityValue = eq;
@@ -2902,12 +2884,6 @@ function _equityTick() {
         changeEl.className = 'spark-change ' + (isUp ? 'up' : 'down');
       }
     });
-
-    // Update total equity chip
-    var chip = document.getElementById('holdingsCount');
-    if (chip) {
-      chip.textContent = eq > 0 ? eqFormatted + ' total' : holdings.length + ' holdings';
-    }
 
     // Re-render list view if active
     if (typeof _holdingsView !== 'undefined' && _holdingsView === 'list') {
@@ -2946,9 +2922,7 @@ function _equityTick() {
 
       if (pctBadge) {
         pctBadge.className = 'portfolio-perf-badge ' + cls;
-        // Always animate the % with a scroll
-        var dir = _lastPctValue !== null && pct > _lastPctValue ? 'up' : 'down';
-        _tickerAnimate(pctBadge, newPctText, _lastPctValue === null ? 'up' : dir);
+        _tickerAnimate(pctBadge, newPctText);
         _lastPctValue = pct;
       }
       _applyBubbleGlow(pct);
