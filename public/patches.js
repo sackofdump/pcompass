@@ -1247,14 +1247,8 @@ function highlightWhatIf() {
       if (updated > 0) console.log('[stock-data] Updated ' + updated + ' betas from server');
     }
 
-    // Merge picks into STOCK_PICKS (replace contents in-place)
-    if (data.picks && Array.isArray(data.picks) && data.picks.length > 0 && typeof STOCK_PICKS !== 'undefined') {
-      STOCK_PICKS.length = 0;
-      for (const pick of data.picks) {
-        STOCK_PICKS.push(pick);
-      }
-      console.log('[stock-data] Loaded ' + data.picks.length + ' fresh picks');
-    }
+    // STOCK_PICKS is now generated dynamically from STOCK_DB in data.js (1500+ picks).
+    // Server betas are merged into STOCK_DB above, which the picks already reference.
   } catch (e) {
     // Silent fallback — static data.js values remain
     console.warn('[stock-data] Failed to load fresh data, using static defaults');

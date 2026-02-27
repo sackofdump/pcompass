@@ -869,9 +869,7 @@ function analyze() {
   window._recExtraMarketData = null;
 
   function buildUnifiedRecommendations(marketData) {
-    var picks = [];
-    try { picks = getUnifiedPicks(marketData); } catch(e) { console.error('[REC] getUnifiedPicks error:', e); }
-    console.log('[REC] STOCK_PICKS:', typeof STOCK_PICKS !== 'undefined' ? STOCK_PICKS.length : 'UNDEF', 'picks:', picks.length, 'etfs:', allTopETFs.length);
+    var picks = getUnifiedPicks(marketData);
     var taggedEtfs = allTopETFs.map(function(e) {
       var md = marketData && marketData[e.ticker];
       var liveScore = e.score + (md ? Math.round((md.momentum - 50) * 0.3) : 0);
@@ -885,7 +883,6 @@ function analyze() {
       seen[item.ticker] = true;
       return true;
     });
-    console.log('[REC] allItems after dedup:', allItems.length);
     var primaryItems = allItems.slice(0, 8);
     window._recExtraItems = allItems.slice(8);
     window._recExtraMarketData = marketData;
@@ -894,8 +891,7 @@ function analyze() {
     _lastMarketData = marketData;
     var html = primaryItems.map(function(item) { return buildItemHTML(item, 'rec', marketData); }).join('');
     var extraCount = window._recExtraItems.length;
-    console.log('[REC] primary:', primaryItems.length, 'extra:', extraCount);
-    // Render-on-demand container + button (no pre-rendered hidden items)
+    // Render-on-demand container + button
     html += '<div id="show-more-rec" style="display:flex;flex-direction:column;gap:8px"></div>';
     if (extraCount > 0) {
       html += '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMoreRec()">' +
