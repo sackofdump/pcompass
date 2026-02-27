@@ -2226,6 +2226,30 @@
     transition: border-color 0.2s, color 0.2s, background 0.2s;
     letter-spacing: 0.5px;
   }
+  .chart-type-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 2px;
+    flex-shrink: 0;
+  }
+  .chart-type-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    padding: 0;
+  }
+  .chart-type-btn:hover { border-color: var(--accent); color: var(--text); }
+  .chart-type-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.08); }
+
   .chart-live-btn:hover { border-color: #ef4444; color: var(--text); }
   .chart-live-btn.active {
     border-color: #ef4444;

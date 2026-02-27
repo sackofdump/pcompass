@@ -2186,6 +2186,62 @@ function renderSparklineSVG(closes, width, height, positive) {
   return '<img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '" style="width:100%;height:100%;display:block;" alt="chart"/>';
 }
 
+function renderBarChartSVG(closes, width, height) {
+  if (!closes || closes.length < 2) return '';
+  var first = closes[0];
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < closes.length; i++) {
+    if (closes[i] < min) min = closes[i];
+    if (closes[i] > max) max = closes[i];
+  }
+  var range = max - min || 1;
+  var padY = height * 0.06;
+  var padX = 2;
+  var usableH = height - padY * 2;
+  var gap = Math.max(1, Math.round(width * 0.003));
+  var barW = Math.max(1, (width - padX * 2 - gap * (closes.length - 1)) / closes.length);
+
+  var gradUp = 'bgu' + Math.random().toString(36).substr(2, 6);
+  var gradDn = 'bgd' + Math.random().toString(36).substr(2, 6);
+
+  var bars = '';
+  for (var i = 0; i < closes.length; i++) {
+    var x = padX + i * (barW + gap);
+    var barH = Math.max(1, ((closes[i] - min) / range) * usableH);
+    var y = padY + usableH - barH;
+    var up = closes[i] >= first;
+    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + barH.toFixed(1) + '" rx="0.5" fill="url(#' + (up ? gradUp : gradDn) + ')" opacity="0.85"/>';
+  }
+
+  var svg = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs>' +
+    '<linearGradient id="' + gradUp + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.9"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.3"/></linearGradient>' +
+    '<linearGradient id="' + gradDn + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ef4444" stop-opacity="0.9"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0.3"/></linearGradient>' +
+    '</defs>' +
+    bars +
+    '</svg>';
+
+  return '<img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '" style="width:100%;height:100%;display:block;" alt="bar chart"/>';
+}
+
+var _portfolioChartType = 'line'; // 'line' or 'bar'
+
+function setPortfolioChartType(type) {
+  _portfolioChartType = type;
+  document.querySelectorAll('.chart-type-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.type === type);
+  });
+  // Re-render current range
+  var activeBtn = document.querySelector('#portfolioOverviewChart .chart-range-btn.active');
+  var range = activeBtn ? activeBtn.dataset.range : '1d';
+  loadPortfolioChartRange(range);
+}
+
+function _renderPortfolioChart(closes, width, height, positive) {
+  if (_portfolioChartType === 'bar') return renderBarChartSVG(closes, width, height);
+  return renderSparklineSVG(closes, width, height, positive);
+}
+
 function fetchAndRenderSparklines() {
   var tickers = holdings.map(function(h) { return h.ticker; });
   if (tickers.length === 0) return;
@@ -2597,6 +2653,13 @@ function renderPortfolioOverview() {
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
         '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
         '<button class="chart-range-btn" data-range="5y" onclick="loadPortfolioChartRange(\'5y\')">5Y</button>' +
+        '<span class="chart-type-divider"></span>' +
+        '<button class="chart-type-btn' + (_portfolioChartType === 'line' ? ' active' : '') + '" data-type="line" onclick="setPortfolioChartType(\'line\')" title="Line chart">' +
+          '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,10 4,6 7,8 10,3 13,5"/></svg>' +
+        '</button>' +
+        '<button class="chart-type-btn' + (_portfolioChartType === 'bar' ? ' active' : '') + '" data-type="bar" onclick="setPortfolioChartType(\'bar\')" title="Bar chart">' +
+          '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="7" width="2.5" height="6" rx="0.5"/><rect x="5" y="4" width="2.5" height="9" rx="0.5"/><rect x="9" y="2" width="2.5" height="11" rx="0.5"/></svg>' +
+        '</button>' +
         '<button class="chart-live-btn" id="chartLiveBtn" onclick="toggleChartLive()"><span class="live-dot"></span>LIVE</button>' +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
@@ -2706,7 +2769,7 @@ function _liveChartTick() {
     if (!sparkData || Object.keys(sparkData).length === 0) return;
     var result = computePortfolioLine(sparkData, holdings);
     if (!result || result.closes.length < 2) return;
-    chartArea.innerHTML = renderSparklineSVG(result.closes, 500, 220, result.positive);
+    chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
     if (perfBadge) {
       var pct = result.changePct;
       var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
@@ -2780,7 +2843,7 @@ function loadPortfolioChartRange(range) {
           chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">Insufficient data for this range</div>';
           return;
         }
-        chartArea.innerHTML = renderSparklineSVG(retryResult.closes, 500, 220, retryResult.positive);
+        chartArea.innerHTML = _renderPortfolioChart(retryResult.closes, 500, 220, retryResult.positive);
         if (perfBadge) {
           var pct = retryResult.changePct;
           var cls = pct > 0.01 ? 'up' : pct < -0.01 ? 'down' : 'flat';
@@ -2791,7 +2854,7 @@ function loadPortfolioChartRange(range) {
       return;
     }
     chartArea.classList.remove('chart-loading');
-    chartArea.innerHTML = renderSparklineSVG(result.closes, 500, 220, result.positive);
+    chartArea.innerHTML = _renderPortfolioChart(result.closes, 500, 220, result.positive);
 
     // Show performance badge
     if (perfBadge) {
