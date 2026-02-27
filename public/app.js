@@ -3168,14 +3168,17 @@ function _equityTick() {
       _lastEquityValue = eq;
     }
 
-    // ── % BADGE — set text, stable color based on +/- ──
-    var pctEl = document.getElementById('pctBadge');
-    if (pctEl && totalWeight > 0) {
-      var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
-      var sign = portfolioPct > 0 ? '+' : '';
-      pctEl.textContent = sign + portfolioPct.toFixed(2) + '%';
-      pctEl.className = 'portfolio-perf-badge ' + cls;
-      _lastPctValue = portfolioPct;
+    // ── % BADGE — only update when chart shows 1D or live ──
+    // Other ranges (5d, 1mo, 3mo, etc.) have their own % from the sparkline data
+    if (_chartActiveRange === '1d' || _chartActiveRange === 'live') {
+      var pctEl = document.getElementById('pctBadge');
+      if (pctEl && totalWeight > 0) {
+        var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
+        var sign = portfolioPct > 0 ? '+' : '';
+        pctEl.textContent = sign + portfolioPct.toFixed(2) + '%';
+        pctEl.className = 'portfolio-perf-badge ' + cls;
+        _lastPctValue = portfolioPct;
+      }
     }
 
     // ── MARKET STATE → idle glow only when closed ──
