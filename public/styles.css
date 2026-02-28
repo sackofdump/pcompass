@@ -2639,13 +2639,33 @@
     vertical-align: middle;
   }
 
+  /* Pulsing "Market Closed" overlay on the chart */
+  .chart-closed-overlay {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: rgba(148,163,184,0.5);
+    pointer-events: none;
+    animation: closed-text-pulse 4s ease-in-out infinite;
+    z-index: 2;
+  }
+  @keyframes closed-text-pulse {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.7; }
+  }
+
   /* Idle breathing — visible border pulse showing it's refreshing */
   .portfolio-overview.live-glow-idle {
-    animation: live-glow-idle 5s ease-in-out infinite;
+    animation: live-glow-idle 4s ease-in-out infinite;
   }
   @keyframes live-glow-idle {
-    0%, 100% { border-color: var(--border); box-shadow: none; }
-    50% { border-color: rgba(148,163,184,0.5); box-shadow: 0 0 18px 3px rgba(148,163,184,0.2); }
+    0%, 100% { border-color: var(--border); box-shadow: 0 0 0 0 transparent; }
+    50% { border-color: rgba(148,163,184,0.6); box-shadow: 0 0 24px 4px rgba(148,163,184,0.25); }
   }
   /* Stronger flash on actual price change */
   .portfolio-overview.live-glow-up {

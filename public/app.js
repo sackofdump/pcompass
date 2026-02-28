@@ -3721,6 +3721,19 @@ function _equityTick() {
       if (!closedEl && closedHTML) perfBadge.insertAdjacentHTML('beforeend', closedHTML);
     }
 
+    // ── Pulsing "Market Closed" overlay on chart ──
+    var chartOverlay = document.getElementById('portfolioOverviewChartArea');
+    if (chartOverlay) {
+      var existingOverlay = chartOverlay.querySelector('.chart-closed-overlay');
+      if (marketClosed && !existingOverlay) {
+        var label = anyMarketState === 'CLOSED' ? 'Market Closed' : 'Weekend';
+        chartOverlay.style.position = 'relative';
+        chartOverlay.insertAdjacentHTML('beforeend', '<div class="chart-closed-overlay">' + label + '</div>');
+      } else if (!marketClosed && existingOverlay) {
+        existingOverlay.remove();
+      }
+    }
+
     // ── Update card prices (skip if unchanged to prevent visual jitter) ──
     holdings.forEach(function(h) {
       var md = raw[h.ticker];
