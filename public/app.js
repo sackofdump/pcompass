@@ -186,6 +186,10 @@ function addStock() {
   renderHoldings();
   // Recalculate equity-based percentages
   recalcPortfolioPct();
+  // Auto-create a draft portfolio if user is building from scratch
+  if (_activePortfolioIdx < 0 && !_isExamplePortfolio && holdings.length >= 1) {
+    _autoSaveDraft();
+  }
   // Show portfolio overview chart when 3+ holdings
   if (holdings.length >= 3 && typeof renderPortfolioOverview === 'function') {
     renderPortfolioOverview();
@@ -197,9 +201,48 @@ function addStock() {
         _holdingsPriceCache[ticker] = md[ticker].price;
         recalcPortfolioPct();
         renderHoldings();
+        // Update draft portfolio with prices
+        if (_activePortfolioIdx >= 0) _autoSaveDraft();
       }
     });
   }
+}
+
+// Auto-save draft portfolio (creates or updates a draft at top of list)
+function _autoSaveDraft() {
+  var portfolios = getSavedPortfolios();
+  // If we already have an active portfolio, just update it
+  if (_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx]) {
+    portfolios[_activePortfolioIdx].holdings = JSON.parse(JSON.stringify(holdings));
+    savePortfoliosLS(portfolios);
+    renderSidebarPortfolios();
+    if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
+    return;
+  }
+  // Check if there's already a draft portfolio (name starts with "Draft")
+  var draftIdx = -1;
+  for (var i = 0; i < portfolios.length; i++) {
+    if (portfolios[i].name && portfolios[i].name.indexOf('Draft') === 0) {
+      draftIdx = i;
+      break;
+    }
+  }
+  if (draftIdx >= 0) {
+    // Update existing draft
+    portfolios[draftIdx].holdings = JSON.parse(JSON.stringify(holdings));
+    savePortfoliosLS(portfolios);
+    _activePortfolioIdx = draftIdx;
+  } else {
+    // Create new draft at top
+    if (portfolios.length >= MAX_SLOTS) return; // don't exceed max
+    portfolios.unshift({ name: 'Draft Portfolio', holdings: JSON.parse(JSON.stringify(holdings)) });
+    savePortfoliosLS(portfolios);
+    _activePortfolioIdx = 0;
+  }
+  _activePortfolioSnapshot = JSON.stringify(holdings);
+  localStorage.setItem('pc_last_portfolio', String(_activePortfolioIdx));
+  renderSidebarPortfolios();
+  if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
 }
 
 function removeStock(ticker) {
@@ -209,6 +252,8 @@ function removeStock(ticker) {
     fetchAndRenderSparklines();
   }
   if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+  // Sync draft portfolio
+  if (_activePortfolioIdx >= 0 && holdings.length > 0) _autoSaveDraft();
 }
 
 function editCardShares(ticker, el) {
@@ -1218,20 +1263,26 @@ function analyze() {
     if (missingSectorsSugg.length > 0) {
       const items = missingSectorsSugg.map(([name, t]) => {
         const target = Math.max(t.agg, t.mod, t.con);
-        // Find matching ETF for this sector
+        // Find matching ETF for this sector — prefer sector-specific over broad market
         var etfMatch = '';
         if (typeof ETF_DB !== 'undefined') {
           var ownedTickers = holdings.map(function(h) { return h.ticker; });
-          ['moderate','conservative','aggressive'].some(function(cat) {
-            return (ETF_DB[cat] || []).some(function(e) {
-              if (ownedTickers.indexOf(e.ticker) >= 0) return false;
-              if (e.sectors.indexOf(name) >= 0 || (e.sectors.indexOf('all') >= 0 && name !== 'Other')) {
-                etfMatch = '<span class="rebalance-etf">Consider <strong>' + escapeHTML(e.ticker) + '</strong> — ' + escapeHTML(e.name) + '</span>';
-                return true;
+          var sectorMatch = null;
+          var broadMatch = null;
+          ['moderate','conservative','aggressive'].forEach(function(cat) {
+            (ETF_DB[cat] || []).forEach(function(e) {
+              if (ownedTickers.indexOf(e.ticker) >= 0) return;
+              if (e.sectors.indexOf(name) >= 0) {
+                if (!sectorMatch) sectorMatch = e;
+              } else if (!broadMatch && e.sectors.indexOf('all') >= 0 && name !== 'Other') {
+                broadMatch = e;
               }
-              return false;
             });
           });
+          var picked = sectorMatch || broadMatch;
+          if (picked) {
+            etfMatch = '<span class="rebalance-etf">Consider <strong>' + escapeHTML(picked.ticker) + '</strong> — ' + escapeHTML(picked.name) + '</span>';
+          }
         }
         return '<div class="rebalance-item">' +
           '<span style="color:var(--accent)">&#9656;</span> ' +
@@ -2129,17 +2180,25 @@ async function savePortfolio() {
   if (holdings.length === 0) { showToast('Add holdings first!'); return; }
   const portfolios = getSavedPortfolios();
 
-  // If editing an existing portfolio, overwrite it (with confirmation)
+  // If editing an existing portfolio, overwrite it
   if (_activePortfolioIdx >= 0 && portfolios[_activePortfolioIdx]) {
     var pName = portfolios[_activePortfolioIdx].name;
-    if (!confirm('Overwrite "' + pName + '" with current holdings?')) return;
+    var isDraft = pName && pName.indexOf('Draft') === 0;
+    // Auto-rename draft to a real name on explicit save
+    if (isDraft) {
+      var newName = 'Portfolio ' + (portfolios.length);
+      portfolios[_activePortfolioIdx].name = newName;
+      pName = newName;
+    } else {
+      if (!confirm('Overwrite "' + pName + '" with current holdings?')) return;
+    }
     portfolios[_activePortfolioIdx].holdings = JSON.parse(JSON.stringify(holdings));
     savePortfoliosLS(portfolios);
     _activePortfolioSnapshot = JSON.stringify(holdings);
     renderSidebarPortfolios();
     if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
     if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
-    showToast('✓ "' + pName + '" updated!');
+    showToast('✓ "' + pName + '" saved!');
     return;
   }
 
@@ -3804,23 +3863,43 @@ function loadPortfolioChartRange(range) {
   }
 
   var tickers = holdings.map(function(h) { return h.ticker; });
-  fetchSparklineData(tickers, range).then(function(sparkData) {
-    if (!sparkData || Object.keys(sparkData).length === 0) {
-      chartArea.classList.remove('chart-loading');
-      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available — try again</div>';
-      return;
+
+  // Fetch sparkline data in chunks to avoid API timeout on large portfolios
+  var CHUNK = 8;
+  var chunks = [];
+  for (var ci = 0; ci < tickers.length; ci += CHUNK) {
+    chunks.push(tickers.slice(ci, ci + CHUNK));
+  }
+
+  Promise.all(chunks.map(function(chunk) {
+    return fetchSparklineData(chunk, range);
+  })).then(function(results) {
+    // Merge all chunk results into one sparkData object
+    var sparkData = {};
+    for (var ri = 0; ri < results.length; ri++) {
+      if (results[ri]) {
+        for (var t in results[ri]) sparkData[t] = results[ri][t];
+      }
     }
-    var result = computePortfolioLine(sparkData, holdings);
-    if (!result || result.closes.length < 2) {
-      // Retry once after clearing cache for this range
+
+    if (Object.keys(sparkData).length === 0) {
+      // Retry once after clearing cache
       for (var i = 0; i < tickers.length; i++) {
         var key = tickers[i] + ':' + range;
         if (typeof _sparkCache !== 'undefined') delete _sparkCache[key];
         try { localStorage.removeItem('pc_sp_' + key); } catch(e) {}
       }
-      fetchSparklineData(tickers, range).then(function(retryData) {
+      Promise.all(chunks.map(function(chunk) {
+        return fetchSparklineData(chunk, range);
+      })).then(function(retryResults) {
         chartArea.classList.remove('chart-loading');
-        if (!retryData || Object.keys(retryData).length === 0) {
+        var retryData = {};
+        for (var ri = 0; ri < retryResults.length; ri++) {
+          if (retryResults[ri]) {
+            for (var t in retryResults[ri]) retryData[t] = retryResults[ri][t];
+          }
+        }
+        if (Object.keys(retryData).length === 0) {
           chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">No data available for this range</div>';
           return;
         }
@@ -3831,11 +3910,15 @@ function loadPortfolioChartRange(range) {
         }
         chartArea.innerHTML = _renderPortfolioChart(retryResult.closes, 500, 220, retryResult.positive);
         _chartCloses = retryResult.closes; _chartFirstClose = retryResult.closes[0]; _chartTimestamps = retryResult.timestamps || null; _setupChartCrosshair();
-        if (perfBadge) {
-          var pct = retryResult.changePct;
-          _updatePctBadge(perfBadge, pct);
-        }
+        if (perfBadge) _updatePctBadge(perfBadge, retryResult.changePct);
       });
+      return;
+    }
+
+    var result = computePortfolioLine(sparkData, holdings);
+    if (!result || result.closes.length < 2) {
+      chartArea.classList.remove('chart-loading');
+      chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:220px;color:var(--muted);font-size:12px;">Insufficient data for this range</div>';
       return;
     }
     chartArea.classList.remove('chart-loading');
@@ -3843,10 +3926,7 @@ function loadPortfolioChartRange(range) {
     _chartCloses = result.closes; _chartFirstClose = result.closes[0]; _chartTimestamps = result.timestamps || null; _setupChartCrosshair();
 
     // Show performance badge (% only — equity is owned by _equityTick)
-    if (perfBadge) {
-      var pct = result.changePct;
-      _updatePctBadge(perfBadge, pct);
-    }
+    if (perfBadge) _updatePctBadge(perfBadge, result.changePct);
   });
 }
 
