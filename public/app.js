@@ -186,6 +186,20 @@ function addStock() {
   renderHoldings();
   // Recalculate equity-based percentages
   recalcPortfolioPct();
+  // Show portfolio overview chart when 3+ holdings
+  if (holdings.length >= 3 && typeof renderPortfolioOverview === 'function') {
+    renderPortfolioOverview();
+  }
+  // Fetch prices for the newly added stock
+  if (typeof fetchMarketDataCached === 'function') {
+    fetchMarketDataCached([ticker]).then(function(md) {
+      if (md && md[ticker]) {
+        _holdingsPriceCache[ticker] = md[ticker].price;
+        recalcPortfolioPct();
+        renderHoldings();
+      }
+    });
+  }
 }
 
 function removeStock(ticker) {
@@ -365,6 +379,26 @@ function renderHoldings() {
   // Show/hide new portfolio button (visible when a portfolio is loaded)
   const newBtn = document.getElementById('btnNewPortfolio');
   if (newBtn) newBtn.style.display = (_activePortfolioIdx >= 0 || holdings.length > 0) ? 'inline-block' : 'none';
+
+  // Auto-fetch prices for tickers missing from cache (once per render cycle)
+  if (holdings.length > 0 && typeof fetchMarketDataCached === 'function' && !renderHoldings._fetching) {
+    var needPrices = holdings.filter(function(h) { return !_holdingsPriceCache[h.ticker]; }).map(function(h) { return h.ticker; });
+    if (needPrices.length > 0) {
+      renderHoldings._fetching = true;
+      fetchMarketDataCached(needPrices).then(function(md) {
+        renderHoldings._fetching = false;
+        if (!md) return;
+        var updated = false;
+        for (var t in md) {
+          if (md[t] && md[t].price && !_holdingsPriceCache[t]) {
+            _holdingsPriceCache[t] = md[t].price;
+            updated = true;
+          }
+        }
+        if (updated) { recalcPortfolioPct(); renderHoldings(); }
+      }).catch(function() { renderHoldings._fetching = false; });
+    }
+  }
 }
 
 function toggleHoldingsBody() {
@@ -1055,9 +1089,18 @@ function analyze() {
             '<span class="rec-sector-chevron">&#9662;</span>' +
           '</div>' +
           '<div class="rec-tree-sector-body"><div class="rec-tree-items">';
-        items.forEach(function(item) {
-          html += buildItemHTML(item, 'rec', marketData);
+        var SECTOR_LIMIT = 5;
+        items.forEach(function(item, itemIdx) {
+          if (itemIdx >= SECTOR_LIMIT) {
+            html += '<div class="rec-sector-hidden" style="display:none">' + buildItemHTML(item, 'rec', marketData) + '</div>';
+          } else {
+            html += buildItemHTML(item, 'rec', marketData);
+          }
         });
+        if (items.length > SECTOR_LIMIT) {
+          html += '<button class="btn-sector-show-more" onclick="toggleSectorMore(this,event)">' +
+            '+ Show ' + (items.length - SECTOR_LIMIT) + ' more</button>';
+        }
         html += '</div></div></div>';
       });
 
@@ -1175,10 +1218,27 @@ function analyze() {
     if (missingSectorsSugg.length > 0) {
       const items = missingSectorsSugg.map(([name, t]) => {
         const target = Math.max(t.agg, t.mod, t.con);
+        // Find matching ETF for this sector
+        var etfMatch = '';
+        if (typeof ETF_DB !== 'undefined') {
+          var ownedTickers = holdings.map(function(h) { return h.ticker; });
+          ['moderate','conservative','aggressive'].some(function(cat) {
+            return (ETF_DB[cat] || []).some(function(e) {
+              if (ownedTickers.indexOf(e.ticker) >= 0) return false;
+              if (e.sectors.indexOf(name) >= 0 || (e.sectors.indexOf('all') >= 0 && name !== 'Other')) {
+                etfMatch = '<span class="rebalance-etf">Consider <strong>' + escapeHTML(e.ticker) + '</strong> — ' + escapeHTML(e.name) + '</span>';
+                return true;
+              }
+              return false;
+            });
+          });
+        }
         return '<div class="rebalance-item">' +
           '<span style="color:var(--accent)">&#9656;</span> ' +
           '<span><span class="sector-link">' + name + '</span> ' +
-          '<span class="rebalance-note">— not in your portfolio, moderate target ~' + t.mod + '%</span></span>' +
+          '<span class="rebalance-note">— not in your portfolio, moderate target ~' + t.mod + '%</span>' +
+          etfMatch +
+          '</span>' +
           '</div>';
       }).join('');
       rebalanceHTML =
@@ -1228,7 +1288,9 @@ function analyze() {
       buildMarketMovers(marketData) +
       '<div class="rebalance-panel recommended-panel">' +
         '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
-          '<h2 class="section-title">Recommended for You</h2>' + statusHTML +
+          '<h2 class="section-title">Recommended Stocks &amp; ETFs</h2>' +
+          '<span class="rec-status-center">' + statusHTML + '</span>' +
+          '<span class="panel-expand-hint">tap to collapse</span>' +
           '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
         '</div>' +
         '<div class="panel-body recommended-body">' +
@@ -1774,30 +1836,33 @@ function runWhatIf() {
   const result   = document.getElementById('whatifResult');
   if (!wiTicker || !wiPct || !result) return;
   const ticker = wiTicker.value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const pct    = parseFloat(wiPct.value) || 0;
-  if (!ticker || pct <= 0) { result.innerHTML = 'Enter a ticker to preview its impact on your portfolio.'; return; }
-  const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0};
-  const currentTotal = totalAllocation();
-  const remaining = Math.round((100 - currentTotal) * 10) / 10;
+  const shares = parseFloat(wiPct.value) || 0;
+  if (!ticker || shares <= 0) { result.innerHTML = 'Enter a ticker and number of shares to preview impact.'; return; }
+  const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0, cap:'unknown'};
   if (holdings.find(h => h.ticker === ticker)) {
     result.innerHTML = '<strong style="color:var(--aggressive)">' + escapeHTML(ticker) + '</strong> is already in your portfolio.'; return;
   }
-  if (currentTotal + pct > 100.05) {
-    result.innerHTML = 'Only <strong class="wi-new">' + remaining + '%</strong> remaining — reduce or remove a holding first.'; return;
-  }
-  const simHoldings = [...holdings, {ticker, pct, ...info}];
-  const simTotal = simHoldings.reduce((s,h) => s+h.pct, 0);
+  // Simulate adding shares
+  var price = _getPrice(ticker);
+  var simHoldings = holdings.map(function(h) { return {ticker:h.ticker, shares:h.shares||1, pct:h.pct, beta:h.beta||1, sector:h.sector}; });
+  simHoldings.push({ticker:ticker, shares:shares, pct:0, beta:info.beta||1, sector:info.sector});
+  // Recalc pct with prices
+  var simTotal = 0;
+  simHoldings.forEach(function(h) { var p = _getPrice(h.ticker) || 1; h.value = h.shares * p; simTotal += h.value; });
+  if (simTotal > 0) simHoldings.forEach(function(h) { h.pct = (h.value / simTotal) * 100; });
+  var newPct = simTotal > 0 ? ((shares * (price || 1)) / simTotal * 100).toFixed(1) : '?';
   let simBeta = 0; const simSectors = {};
   simHoldings.forEach(h => { simBeta += (h.beta||1)*h.pct; simSectors[h.sector]=(simSectors[h.sector]||0)+h.pct; });
-  simBeta = Math.round((simBeta/simTotal)*100)/100;
+  var simTotalPct = simHoldings.reduce(function(s,h){return s+h.pct;},0);
+  simBeta = Math.round((simBeta/simTotalPct)*100)/100;
   const currentBeta = getPortfolioProfile().beta;
   const betaDelta = Math.round((simBeta - currentBeta)*100)/100;
-  const betaDir = betaDelta > 0 ? '▲' : betaDelta < 0 ? '▼' : '—';
+  const betaDir = betaDelta > 0 ? '&#9650;' : betaDelta < 0 ? '&#9660;' : '&#8212;';
+  var priceStr = price > 0 ? ' ($' + price.toFixed(2) + ')' : '';
   result.innerHTML =
-    'Adding <strong>' + escapeHTML(ticker) + '</strong> (' + escapeHTML(info.name) + ') at <strong class="wi-new">' + pct + '%</strong>:<br>' +
-    '&middot; <strong>' + escapeHTML(info.sector) + '</strong> exposure &rarr; <strong class="wi-new">' + Math.round((simSectors[info.sector]||0)/simTotal*100) + '%</strong> of portfolio<br>' +
-    '&middot; Beta shift <strong class="wi-new">' + betaDir + ' ' + Math.abs(betaDelta) + '</strong> &rarr; new beta: <strong class="wi-new">' + simBeta + '</strong><br>' +
-    '&middot; <strong class="wi-new">' + Math.round((100-simTotal)*10)/10 + '%</strong> remaining unallocated' +
+    'Adding <strong>' + escapeHTML(ticker) + '</strong> (' + escapeHTML(info.name) + ') — <strong class="wi-new">' + shares + ' shares' + priceStr + '</strong> &rarr; ~<strong class="wi-new">' + newPct + '%</strong> of portfolio:<br>' +
+    '&middot; <strong>' + escapeHTML(info.sector) + '</strong> exposure &rarr; <strong class="wi-new">' + Math.round((simSectors[info.sector]||0)) + '%</strong><br>' +
+    '&middot; Beta shift <strong class="wi-new">' + betaDir + ' ' + Math.abs(betaDelta) + '</strong> &rarr; new beta: <strong class="wi-new">' + simBeta + '</strong>' +
     '<br><button class="btn-whatif-add" onclick="addFromWhatIf()">+ Add ' + escapeHTML(ticker) + ' to Portfolio</button>';
 }
 
@@ -1806,12 +1871,12 @@ function addFromWhatIf() {
   const wiPct = document.getElementById('whatifPct');
   if (!wiTicker || !wiPct) return;
   const ticker = wiTicker.value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const pct = parseFloat(wiPct.value) || 0;
-  if (!ticker || pct <= 0) return;
+  const shares = parseFloat(wiPct.value) || 0;
+  if (!ticker || shares <= 0) return;
   if (holdings.find(h => h.ticker === ticker)) return;
-  if (totalAllocation() + pct > 100.05) return;
-  const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0};
-  holdings.push({ticker, pct: Math.round(pct*10)/10, sector: info.sector, beta: info.beta});
+  const info = STOCK_DB[ticker] || {name:ticker, sector:'Other', beta:1.0, cap:'unknown'};
+  holdings.push({ticker, shares: shares, pct: 0, ...info});
+  recalcPortfolioPct();
   renderHoldings();
   wiTicker.value = '';
   wiPct.value = '';
@@ -2143,6 +2208,9 @@ function loadPortfolio(idx, silent) {
     fetchAndRenderSparklines();
   }
   if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+  // Collapse results panel when switching portfolios (reset analysis)
+  var resultsPanel = document.getElementById('resultsPanel');
+  if (resultsPanel) resultsPanel.innerHTML = '';
   closeSidebar();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (!silent) showToast('✓ Loaded: ' + escapeHTML(portfolios[idx].name));
@@ -2402,6 +2470,25 @@ function toggleShowMoreRec() {
   } else {
     btn.style.display = 'none';
   }
+}
+
+// ── PDF EXPORT ───────────────────────────────────────────
+function exportPDF() {
+  var results = document.getElementById('resultsPanel');
+  if (!results || results.innerHTML.trim() === '' || results.querySelector('.empty-state')) {
+    showToast('Analyze your portfolio first before exporting.');
+    return;
+  }
+  window.print();
+}
+
+// ── SECTOR SHOW MORE ─────────────────────────────────────
+function toggleSectorMore(btn, e) {
+  if (e) e.stopPropagation();
+  var container = btn.parentElement;
+  var hidden = container.querySelectorAll('.rec-sector-hidden');
+  hidden.forEach(function(el) { el.style.display = ''; });
+  btn.style.display = 'none';
 }
 
 // ── RECOMMENDATION TREE TOGGLES ──────────────────────────
@@ -3188,7 +3275,11 @@ function computePortfolioLine(sparkData, holdingsArr) {
   // Normalize each to base-1 and compute weighted sum
   var totalWeight = 0;
   for (var k = 0; k < valid.length; k++) totalWeight += valid[k].pct;
-  if (totalWeight === 0) return null;
+  // If pct values are all 0 (prices not yet fetched), use equal weighting
+  if (totalWeight === 0) {
+    for (var ew = 0; ew < valid.length; ew++) valid[ew].pct = 100 / valid.length;
+    totalWeight = 100;
+  }
 
   var portfolioLine = [];
   for (var t = 0; t < minLen; t++) {
@@ -3779,3 +3870,51 @@ function hidePortfolioOverview() {
     if (stockForm) stockForm.style.display = '';
   }
 }
+
+// ── HOMEPAGE TRENDING WIDGET ─────────────────────────────
+// Loads market movers on page load to show on the empty homepage
+(function loadHomepageTrending() {
+  var el = document.getElementById('homepageTrending');
+  if (!el || typeof fetchMarketDataCached !== 'function') return;
+  var popularTickers = ['NVDA','AAPL','MSFT','TSLA','AMZN','META','GOOGL','AMD','PLTR','COIN',
+    'JPM','NFLX','AVGO','CRM','BA','DIS','INTC','SOFI','NIO','HOOD',
+    'XOM','JNJ','KO','WMT','UNH','V','PG','LLY','TSM','QCOM'];
+  fetchMarketDataCached(popularTickers).then(function(md) {
+    if (!md || Object.keys(md).length < 5) return;
+    // Don't render if user already has holdings displayed
+    if (holdings.length > 0) return;
+    var items = [];
+    for (var t in md) {
+      var d = md[t];
+      if (!d || d.price == null || d.changePct == null) continue;
+      var info = STOCK_DB[t];
+      if (!info) continue;
+      items.push({ticker:t, name:info.name, price:d.price, changePct:d.changePct, sector:info.sector});
+    }
+    if (items.length < 3) return;
+    // Sort by absolute change (most movement)
+    items.sort(function(a,b) { return Math.abs(b.changePct) - Math.abs(a.changePct); });
+    var top = items.slice(0, 8);
+    var { isOpen } = getMarketStatus();
+    var label = isOpen ? 'Live' : 'At Close';
+    var html = '<div class="trending-widget">' +
+      '<div class="trending-header"><span class="trending-title">Trending Today</span><span class="trending-live">' + label + '</span></div>' +
+      '<div class="trending-grid">';
+    top.forEach(function(s) {
+      var dir = s.changePct > 0.05 ? 'up' : s.changePct < -0.05 ? 'down' : 'flat';
+      var arrow = dir === 'up' ? '&#9650;' : dir === 'down' ? '&#9660;' : '&#8212;';
+      var sign = s.changePct > 0 ? '+' : '';
+      var sectorColor = SECTOR_COLORS[s.sector] || '#64748b';
+      html += '<div class="trending-card" style="--tc:' + sectorColor + '">' +
+        '<div class="trending-card-top">' +
+          '<span class="trending-ticker">' + escapeHTML(s.ticker) + '</span>' +
+          '<span class="trending-change ' + dir + '">' + arrow + ' ' + sign + s.changePct.toFixed(2) + '%</span>' +
+        '</div>' +
+        '<div class="trending-card-name">' + escapeHTML(s.name) + '</div>' +
+        '<div class="trending-card-price"><span class="currency">$</span>' + s.price.toFixed(2) + '</div>' +
+      '</div>';
+    });
+    html += '</div></div>';
+    el.innerHTML = html;
+  });
+})();
