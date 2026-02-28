@@ -3498,14 +3498,22 @@ function renderPortfolioOverview() {
         '<button class="portfolio-overview-edit" onclick="hidePortfolioOverview()">Edit</button>' +
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
-        '<button class="chart-range-btn chart-range-live" data-range="live" onclick="loadPortfolioChartRange(\'live\')"><span class="live-dot"></span>Live</button>' +
-        '<button class="chart-range-btn" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
-        '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
-        '<button class="chart-range-btn active" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
-        '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
-        '<button class="chart-range-btn" data-range="ytd" onclick="loadPortfolioChartRange(\'ytd\')">YTD</button>' +
-        '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
-        '<button class="chart-range-btn" data-range="all" onclick="loadPortfolioChartRange(\'all\')">ALL</button>' +
+        (function() {
+          var sel = (_chartActiveRange && _chartActiveRange !== '1d') ? _chartActiveRange : '1mo';
+          var ranges = [
+            {key:'live',label:'<span class="live-dot"></span>Live',cls:' chart-range-live'},
+            {key:'1d',label:'1D',cls:''},
+            {key:'5d',label:'1W',cls:''},
+            {key:'1mo',label:'1M',cls:''},
+            {key:'3mo',label:'3M',cls:''},
+            {key:'ytd',label:'YTD',cls:''},
+            {key:'1y',label:'1Y',cls:''},
+            {key:'all',label:'ALL',cls:''}
+          ];
+          return ranges.map(function(r) {
+            return '<button class="chart-range-btn' + r.cls + (r.key === sel ? ' active' : '') + '" data-range="' + r.key + '" onclick="loadPortfolioChartRange(\'' + r.key + '\')">' + r.label + '</button>';
+          }).join('');
+        })() +
       '</div>' +
       '<div class="portfolio-overview-chart" id="portfolioOverviewChartArea">' +
         '<div class="spark-shimmer" style="height:220px;border-radius:8px;"></div>' +
@@ -3542,8 +3550,9 @@ function renderPortfolioOverview() {
     fetchAndRenderSparklines();
   }
 
-  // Default to 1M view
-  loadPortfolioChartRange('1mo');
+  // Use last selected range (or default to 1M)
+  var rangeToLoad = (_chartActiveRange && _chartActiveRange !== '1d') ? _chartActiveRange : '1mo';
+  loadPortfolioChartRange(rangeToLoad);
 
   // Start always-on equity ticker (5s refresh)
   _startEquityTicker();
