@@ -868,6 +868,106 @@ function analyze() {
   window._recExtraItems = [];
   window._recExtraMarketData = null;
 
+  // ── MARKET MOVERS — live momentum leaders ──────────────
+  function buildMarketMovers(marketData) {
+    if (!marketData || Object.keys(marketData).length === 0) return '';
+
+    // Gather all tickers with valid market data that user does NOT own
+    var ownedSet = {};
+    holdings.forEach(function(h) { ownedSet[h.ticker] = true; });
+
+    var candidates = [];
+    for (var ticker in marketData) {
+      var md = marketData[ticker];
+      if (!md || md.price == null || md.changePct == null) continue;
+      var info = STOCK_DB[ticker];
+      if (!info || !info.sector) continue;
+      candidates.push({
+        ticker: ticker,
+        name: info.name,
+        sector: info.sector,
+        price: md.price,
+        changePct: md.changePct,
+        momentum: md.momentum || 50,
+        cap: info.cap || 'unknown',
+        owned: !!ownedSet[ticker]
+      });
+    }
+
+    if (candidates.length < 3) return '';
+
+    // Top gainers (highest positive change, not owned)
+    var gainers = candidates
+      .filter(function(c) { return c.changePct > 0 && !c.owned; })
+      .sort(function(a, b) { return b.changePct - a.changePct; })
+      .slice(0, 5);
+
+    // Top losers — buying opportunities (biggest drops, mega/large caps only)
+    var dips = candidates
+      .filter(function(c) { return c.changePct < -0.5 && !c.owned && (c.cap === 'mega' || c.cap === 'large'); })
+      .sort(function(a, b) { return a.changePct - b.changePct; })
+      .slice(0, 5);
+
+    // Highest momentum overall (not owned)
+    var momentum = candidates
+      .filter(function(c) { return !c.owned && c.momentum >= 55; })
+      .sort(function(a, b) { return b.momentum - a.momentum; })
+      .slice(0, 5);
+
+    if (gainers.length === 0 && dips.length === 0 && momentum.length === 0) return '';
+
+    function moverCard(item, reason) {
+      var sectorColor = SECTOR_COLORS[item.sector] || '#64748b';
+      var sectorIcon = (typeof SECTOR_ICONS !== 'undefined' && SECTOR_ICONS[item.sector]) || '';
+      var dir = item.changePct > 0.05 ? 'up' : item.changePct < -0.05 ? 'down' : 'flat';
+      var arrow = dir === 'up' ? '&#9650;' : dir === 'down' ? '&#9660;' : '&#8212;';
+      var sign = item.changePct > 0 ? '+' : '';
+      return '<div class="mover-card" style="--mover-color:' + sectorColor + '">' +
+        '<div class="mover-ticker">' + escapeHTML(item.ticker) + '</div>' +
+        '<div class="mover-name">' + escapeHTML(item.name) + '</div>' +
+        '<div class="mover-price"><span class="currency">$</span>' + item.price.toFixed(2) + '</div>' +
+        '<div class="mover-change ' + dir + '">' + arrow + ' ' + sign + item.changePct.toFixed(2) + '%</div>' +
+        '<div class="mover-sector">' + sectorIcon + ' ' + escapeHTML(item.sector) + '</div>' +
+      '</div>';
+    }
+
+    var { isOpen } = getMarketStatus();
+    var timeLabel = isOpen ? 'Live' : 'At Close';
+
+    var html = '<div class="rebalance-panel movers-panel">' +
+      '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
+        '<h2 class="section-title">Market Movers</h2>' +
+        '<span class="movers-time-label">' + timeLabel + '</span>' +
+        '<span class="panel-chevron panel-chevron-open">&#9662;</span>' +
+      '</div>' +
+      '<div class="panel-body movers-body">' +
+        '<div class="rec-subtitle">Today\'s standout moves — potential entry points based on live price action.</div>';
+
+    if (gainers.length > 0) {
+      html += '<div class="movers-section">' +
+        '<div class="movers-section-label"><span class="movers-dot up"></span>Top Gainers</div>' +
+        '<div class="movers-row">' + gainers.map(function(g) { return moverCard(g, 'gainer'); }).join('') + '</div>' +
+      '</div>';
+    }
+
+    if (dips.length > 0) {
+      html += '<div class="movers-section">' +
+        '<div class="movers-section-label"><span class="movers-dot down"></span>Buy the Dip — Large Caps</div>' +
+        '<div class="movers-row">' + dips.map(function(d) { return moverCard(d, 'dip'); }).join('') + '</div>' +
+      '</div>';
+    }
+
+    if (momentum.length > 0) {
+      html += '<div class="movers-section">' +
+        '<div class="movers-section-label"><span class="movers-dot momentum"></span>Strong Momentum</div>' +
+        '<div class="movers-row">' + momentum.map(function(m) { return moverCard(m, 'momentum'); }).join('') + '</div>' +
+      '</div>';
+    }
+
+    html += '</div></div>';
+    return html;
+  }
+
   function buildUnifiedRecommendations(marketData) {
     var picks = getUnifiedPicks(marketData);
     var taggedEtfs = allTopETFs.map(function(e) {
@@ -883,21 +983,88 @@ function analyze() {
       seen[item.ticker] = true;
       return true;
     });
-    var primaryItems = allItems.slice(0, 8);
-    window._recExtraItems = allItems.slice(8);
-    window._recExtraMarketData = marketData;
-    _recShown = 0;
+
     _lastBuildItemHTML = buildItemHTML;
     _lastMarketData = marketData;
-    var html = primaryItems.map(function(item) { return buildItemHTML(item, 'rec', marketData); }).join('');
-    var extraCount = window._recExtraItems.length;
-    // Render-on-demand container + button
-    html += '<div id="show-more-rec" style="display:flex;flex-direction:column;gap:8px"></div>';
-    if (extraCount > 0) {
-      html += '<button class="btn-show-more" id="show-more-btn-rec" onclick="toggleShowMoreRec()">' +
-        '✦ Show more recommendations (' + extraCount + ' more)' +
-      '</button>';
+
+    // Separate ETFs and stocks
+    var etfItems = allItems.filter(function(item) { return !item.isStock; });
+    var stockItems = allItems.filter(function(item) { return item.isStock; });
+
+    // Group stocks by sector
+    var sectorGroups = {};
+    stockItems.forEach(function(item) {
+      var sector = item.sector || 'Other';
+      if (!sectorGroups[sector]) sectorGroups[sector] = [];
+      sectorGroups[sector].push(item);
+    });
+    // Sort sectors by best item score
+    var sortedSectors = Object.keys(sectorGroups).sort(function(a, b) {
+      return sectorGroups[b][0].score - sectorGroups[a][0].score;
+    });
+
+    var html = '<div class="rec-tree">';
+
+    // ── ETF branch ──
+    if (etfItems.length > 0) {
+      html += '<div class="rec-tree-branch" id="rec-branch-etfs">' +
+        '<div class="rec-tree-branch-header" onclick="toggleRecBranch(\'etfs\')">' +
+          '<span class="rec-branch-icon">&#9670;</span>' +
+          '<span class="rec-branch-label">ETFs</span>' +
+          '<span class="rec-branch-count">' + etfItems.length + '</span>' +
+          '<span class="rec-branch-chevron">&#9662;</span>' +
+        '</div>' +
+        '<div class="rec-tree-branch-body"><div class="rec-tree-items">';
+      etfItems.forEach(function(item) {
+        html += buildItemHTML(item, 'rec', marketData);
+      });
+      html += '</div></div></div>';
     }
+
+    // ── Stocks branch ──
+    if (sortedSectors.length > 0) {
+      html += '<div class="rec-tree-branch" id="rec-branch-stocks">' +
+        '<div class="rec-tree-branch-header" onclick="toggleRecBranch(\'stocks\')">' +
+          '<span class="rec-branch-icon">&#9650;</span>' +
+          '<span class="rec-branch-label">Stocks</span>' +
+          '<span class="rec-branch-count">' + stockItems.length + '</span>' +
+          '<span class="rec-branch-chevron">&#9662;</span>' +
+        '</div>' +
+        '<div class="rec-tree-branch-body"><div class="rec-tree-sectors">' +
+        '<div class="rec-sectors-toggle">' +
+          '<button onclick="toggleAllRecSectors(event)">expand all</button>' +
+        '</div>';
+
+      sortedSectors.forEach(function(sector, idx) {
+        var items = sectorGroups[sector];
+        var sectorIcon = (typeof SECTOR_ICONS !== 'undefined' && SECTOR_ICONS[sector]) || '&#9670;';
+        var sectorColor = (typeof SECTOR_COLORS !== 'undefined' && SECTOR_COLORS[sector]) || '#64748b';
+        var sectorId = 'rec-sector-' + sector.replace(/[^a-zA-Z0-9]/g, '-');
+        var isOpen = false;
+        // Preview: top tickers when collapsed
+        var preview = items.slice(0, 3).map(function(it) { return it.ticker; }).join(', ');
+        if (items.length > 3) preview += ' +' + (items.length - 3);
+
+        html += '<div class="rec-tree-sector' + (isOpen ? ' rec-sector-open' : '') + '" id="' + sectorId + '" style="--sector-accent:' + sectorColor + '">' +
+          '<div class="rec-tree-sector-header" onclick="toggleRecSector(\'' + sectorId + '\')">' +
+            '<span class="rec-sector-connector"></span>' +
+            '<span class="rec-sector-icon">' + sectorIcon + '</span>' +
+            '<span class="rec-sector-label">' + escapeHTML(sector) + '</span>' +
+            '<span class="rec-sector-count">' + items.length + '</span>' +
+            '<span class="rec-sector-preview">' + escapeHTML(preview) + '</span>' +
+            '<span class="rec-sector-chevron">&#9662;</span>' +
+          '</div>' +
+          '<div class="rec-tree-sector-body"><div class="rec-tree-items">';
+        items.forEach(function(item) {
+          html += buildItemHTML(item, 'rec', marketData);
+        });
+        html += '</div></div></div>';
+      });
+
+      html += '</div></div></div>';
+    }
+
+    html += '</div>';
     return html;
   }
 
@@ -1058,6 +1225,7 @@ function analyze() {
         '</div>' +
       '</div>' +
       rebalanceHTML +
+      buildMarketMovers(marketData) +
       '<div class="rebalance-panel recommended-panel">' +
         '<div class="panel-header panel-toggle" onclick="togglePanel(this)">' +
           '<h2 class="section-title">Recommended for You</h2>' + statusHTML +
@@ -2236,6 +2404,30 @@ function toggleShowMoreRec() {
   }
 }
 
+// ── RECOMMENDATION TREE TOGGLES ──────────────────────────
+function toggleRecBranch(id) {
+  var el = document.getElementById('rec-branch-' + id);
+  if (el) el.classList.toggle('rec-branch-open');
+}
+function toggleRecSector(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.toggle('rec-sector-open');
+}
+function toggleAllRecSectors(e) {
+  e.stopPropagation();
+  var btn = e.target;
+  var sectors = document.querySelectorAll('.rec-tree-sector');
+  if (!sectors.length) return;
+  // If any are closed, expand all; otherwise collapse all
+  var anyClosed = false;
+  sectors.forEach(function(s) { if (!s.classList.contains('rec-sector-open')) anyClosed = true; });
+  sectors.forEach(function(s) {
+    if (anyClosed) s.classList.add('rec-sector-open');
+    else s.classList.remove('rec-sector-open');
+  });
+  btn.textContent = anyClosed ? 'collapse all' : 'expand all';
+}
+
 // ── RENDER PRO PICKS INTO SHOW-MORE CONTAINER ────────────
 // Called after fetching /api/pro-picks to dynamically render extra items
 // Reuses the buildItemHTML function from the analyze() closure via a global reference
@@ -2610,7 +2802,7 @@ function fetchAndRenderSparklines() {
   var CHUNK = 5;
   for (var c = 0; c < tickers.length; c += CHUNK) {
     (function(chunk) {
-      fetchSparklineData(chunk, '1d').then(_renderSparkBatch);
+      fetchSparklineData(chunk, '1mo').then(_renderSparkBatch);
     })(tickers.slice(c, c + CHUNK));
   }
 }
@@ -3157,9 +3349,9 @@ function renderPortfolioOverview() {
       '</div>' +
       '<div class="portfolio-overview-ranges">' +
         '<button class="chart-range-btn chart-range-live" data-range="live" onclick="loadPortfolioChartRange(\'live\')"><span class="live-dot"></span>Live</button>' +
-        '<button class="chart-range-btn active" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
+        '<button class="chart-range-btn" data-range="1d" onclick="loadPortfolioChartRange(\'1d\')">1D</button>' +
         '<button class="chart-range-btn" data-range="5d" onclick="loadPortfolioChartRange(\'5d\')">1W</button>' +
-        '<button class="chart-range-btn" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
+        '<button class="chart-range-btn active" data-range="1mo" onclick="loadPortfolioChartRange(\'1mo\')">1M</button>' +
         '<button class="chart-range-btn" data-range="3mo" onclick="loadPortfolioChartRange(\'3mo\')">3M</button>' +
         '<button class="chart-range-btn" data-range="ytd" onclick="loadPortfolioChartRange(\'ytd\')">YTD</button>' +
         '<button class="chart-range-btn" data-range="1y" onclick="loadPortfolioChartRange(\'1y\')">1Y</button>' +
@@ -3200,8 +3392,8 @@ function renderPortfolioOverview() {
     fetchAndRenderSparklines();
   }
 
-  // Default to 1D view
-  loadPortfolioChartRange('1d');
+  // Default to 1M view
+  loadPortfolioChartRange('1mo');
 
   // Start always-on equity ticker (5s refresh)
   _startEquityTicker();
