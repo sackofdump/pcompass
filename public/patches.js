@@ -480,50 +480,148 @@ function _renderExploreSectors() {
   return html;
 }
 
+var _exploreSortMode = 'cap'; // 'cap' | 'name' | 'change'
+var _exploreMarketCache = {}; // { ticker: { price, changePct } }
+
 function _exploreDrillSector(sector) {
   _exploreSectorView = sector;
   _renderExploreContent();
+  _fetchExploreMarketData(sector);
 }
 
 function _exploreBackToSectors() {
   _exploreSectorView = null;
+  _exploreSortMode = 'cap';
   _renderExploreContent();
+}
+
+function _setExploreSort(mode) {
+  _exploreSortMode = mode;
+  _renderExploreContent();
+  // Re-fetch to keep data fresh
+  if (_exploreSectorView) _fetchExploreMarketData(_exploreSectorView);
+}
+
+function _getExploreStocks(sector) {
+  if (typeof STOCK_DB === 'undefined') return [];
+  var stocks = [];
+  for (var t in STOCK_DB) {
+    if (STOCK_DB[t].sector === sector) {
+      var md = _exploreMarketCache[t];
+      stocks.push({
+        ticker: t,
+        name: STOCK_DB[t].name || t,
+        cap: STOCK_DB[t].cap || '',
+        changePct: md ? md.changePct : null,
+        price: md ? md.price : null
+      });
+    }
+  }
+  return _sortExploreStocks(stocks);
+}
+
+function _sortExploreStocks(stocks) {
+  var capOrder = { mega: 0, large: 1, mid: 2, small: 3, unknown: 4, etf: 5 };
+  if (_exploreSortMode === 'name') {
+    stocks.sort(function(a,b) { return a.ticker.localeCompare(b.ticker); });
+  } else if (_exploreSortMode === 'change') {
+    stocks.sort(function(a,b) {
+      var ca = a.changePct != null ? a.changePct : -999;
+      var cb = b.changePct != null ? b.changePct : -999;
+      return cb - ca; // highest change first
+    });
+  } else if (_exploreSortMode === 'cap') {
+    stocks.sort(function(a,b) {
+      var ca = capOrder[a.cap] !== undefined ? capOrder[a.cap] : 4;
+      var cb = capOrder[b.cap] !== undefined ? capOrder[b.cap] : 4;
+      if (ca !== cb) return ca - cb;
+      return a.ticker.localeCompare(b.ticker);
+    });
+  }
+  return stocks;
+}
+
+function _renderExploreStockRow(s) {
+  var changeHTML = '';
+  if (s.changePct != null) {
+    var pct = Number(s.changePct);
+    var isUp = pct >= 0;
+    var sign = isUp ? '+' : '';
+    changeHTML = '<span class="explore-stock-change ' + (isUp ? 'up' : 'down') + '">' + sign + pct.toFixed(2) + '%</span>';
+  } else {
+    changeHTML = '<span class="explore-stock-change loading">\u2022\u2022\u2022</span>';
+  }
+  return '<div class="explore-stock-row" onclick="_exploreAddStock(\'' + escapeHTML(s.ticker) + '\')">'
+    + '<span class="explore-stock-ticker">' + escapeHTML(s.ticker) + '</span>'
+    + '<span class="explore-stock-name">' + escapeHTML(s.name) + '</span>'
+    + changeHTML
+    + (s.cap ? '<span class="explore-stock-sector">' + escapeHTML(s.cap) + '</span>' : '')
+    + '</div>';
 }
 
 function _renderExploreSectorDrill(sector) {
   if (typeof STOCK_DB === 'undefined') return '';
   var color = (typeof SECTOR_COLORS !== 'undefined' && SECTOR_COLORS[sector]) || '#475569';
   var html = '<button class="explore-back-btn" onclick="_exploreBackToSectors()">\u2190 All Sectors</button>';
-  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
     + '<div class="explore-sector-dot" style="background:' + color + ';width:10px;height:10px;"></div>'
     + '<span style="font-family:\'DM Sans\',sans-serif;font-size:15px;font-weight:700;color:var(--text);">' + escapeHTML(sector) + '</span>'
     + '</div>';
-  // List stocks in this sector
-  var stocks = [];
-  for (var t in STOCK_DB) {
-    if (STOCK_DB[t].sector === sector) {
-      stocks.push({ ticker: t, name: STOCK_DB[t].name || t, cap: STOCK_DB[t].cap || '' });
-    }
-  }
-  // Sort: mega > large > mid > small, then alphabetical
-  var capOrder = { mega: 0, large: 1, mid: 2, small: 3, unknown: 4 };
-  stocks.sort(function(a,b) {
-    var ca = capOrder[a.cap] !== undefined ? capOrder[a.cap] : 4;
-    var cb = capOrder[b.cap] !== undefined ? capOrder[b.cap] : 4;
-    if (ca !== cb) return ca - cb;
-    return a.ticker.localeCompare(b.ticker);
-  });
-  html += '<div class="explore-stock-list">';
+  // Sort/filter buttons
+  html += '<div class="explore-sort-bar">'
+    + '<span class="explore-sort-label">Sort:</span>'
+    + '<button class="explore-sort-btn' + (_exploreSortMode === 'cap' ? ' active' : '') + '" onclick="_setExploreSort(\'cap\')">Size</button>'
+    + '<button class="explore-sort-btn' + (_exploreSortMode === 'name' ? ' active' : '') + '" onclick="_setExploreSort(\'name\')">Name</button>'
+    + '<button class="explore-sort-btn' + (_exploreSortMode === 'change' ? ' active' : '') + '" onclick="_setExploreSort(\'change\')">% Change</button>'
+    + '</div>';
+  var stocks = _getExploreStocks(sector);
+  html += '<div class="explore-stock-list" id="exploreStockList">';
   for (var i = 0; i < stocks.length; i++) {
-    var s = stocks[i];
-    html += '<div class="explore-stock-row" onclick="_exploreAddStock(\'' + escapeHTML(s.ticker) + '\')">'
-      + '<span class="explore-stock-ticker">' + escapeHTML(s.ticker) + '</span>'
-      + '<span class="explore-stock-name">' + escapeHTML(s.name) + '</span>'
-      + (s.cap ? '<span class="explore-stock-sector">' + escapeHTML(s.cap) + '</span>' : '')
-      + '</div>';
+    html += _renderExploreStockRow(stocks[i]);
   }
   html += '</div>';
   return html;
+}
+
+function _fetchExploreMarketData(sector) {
+  if (typeof STOCK_DB === 'undefined') return;
+  var tickers = [];
+  for (var t in STOCK_DB) {
+    if (STOCK_DB[t].sector === sector) tickers.push(t);
+  }
+  if (tickers.length === 0) return;
+  // Fetch in chunks of 30
+  var CHUNK = 30;
+  for (var c = 0; c < tickers.length; c += CHUNK) {
+    (function(chunk) {
+      fetch('/api/market-data?tickers=' + chunk.join(',')).then(function(res) {
+        if (!res.ok) return null;
+        return res.json();
+      }).then(function(data) {
+        if (!data) return;
+        for (var t in data) {
+          if (data[t]) {
+            _exploreMarketCache[t] = {
+              price: data[t].price,
+              changePct: data[t].changePct != null ? Number(data[t].changePct) : null
+            };
+          }
+        }
+        // Re-render stock list in-place if still viewing this sector
+        if (_exploreSectorView === sector) {
+          var listEl = document.getElementById('exploreStockList');
+          if (listEl) {
+            var stocks = _getExploreStocks(sector);
+            var html = '';
+            for (var i = 0; i < stocks.length; i++) {
+              html += _renderExploreStockRow(stocks[i]);
+            }
+            listEl.innerHTML = html;
+          }
+        }
+      }).catch(function() {});
+    })(tickers.slice(c, c + CHUNK));
+  }
 }
 
 function _onExploreSearch(query) {
@@ -536,7 +634,8 @@ function _onExploreSearch(query) {
   for (var t in STOCK_DB) {
     var db = STOCK_DB[t];
     if (t.indexOf(query) === 0 || (db.name && db.name.toUpperCase().indexOf(query) !== -1)) {
-      results.push({ ticker: t, name: db.name || t, sector: db.sector || '' });
+      var md = _exploreMarketCache[t];
+      results.push({ ticker: t, name: db.name || t, sector: db.sector || '', cap: db.cap || '', changePct: md ? md.changePct : null });
     }
     if (results.length >= 15) break;
   }
@@ -544,14 +643,29 @@ function _onExploreSearch(query) {
     el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0;">No matches</div>';
     return;
   }
+  // Fetch market data for search results
+  var tickersToFetch = results.filter(function(r) { return !_exploreMarketCache[r.ticker]; }).map(function(r) { return r.ticker; });
+  if (tickersToFetch.length > 0) {
+    fetch('/api/market-data?tickers=' + tickersToFetch.join(',')).then(function(res) {
+      if (!res.ok) return null;
+      return res.json();
+    }).then(function(data) {
+      if (!data) return;
+      for (var t in data) {
+        if (data[t]) {
+          _exploreMarketCache[t] = { price: data[t].price, changePct: data[t].changePct != null ? Number(data[t].changePct) : null };
+        }
+      }
+      // Re-trigger search to update with market data
+      var inp = document.getElementById('exploreSearchInput');
+      if (inp && inp.value.trim().toUpperCase() === query) {
+        _onExploreSearch(inp.value);
+      }
+    }).catch(function() {});
+  }
   var html = '<div class="explore-stock-list">';
   for (var i = 0; i < results.length; i++) {
-    var s = results[i];
-    html += '<div class="explore-stock-row" onclick="_exploreAddStock(\'' + escapeHTML(s.ticker) + '\')">'
-      + '<span class="explore-stock-ticker">' + escapeHTML(s.ticker) + '</span>'
-      + '<span class="explore-stock-name">' + escapeHTML(s.name) + '</span>'
-      + '<span class="explore-stock-sector">' + escapeHTML(s.sector) + '</span>'
-      + '</div>';
+    html += _renderExploreStockRow(results[i]);
   }
   html += '</div>';
   el.innerHTML = html;

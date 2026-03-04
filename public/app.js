@@ -2254,19 +2254,13 @@ function loadPortfolio(idx, silent) {
   _activePortfolioIdx = idx;
   _activePortfolioSnapshot = JSON.stringify(holdings);
   localStorage.setItem('pc_last_portfolio', String(idx));
-  // Auto-switch to chart view when loading a portfolio with 3+ holdings
-  if (holdings.length >= 3) {
-    _holdingsView = 'chart';
-    document.querySelectorAll('.view-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.view === 'chart');
-    });
-  }
   recalcPortfolioPct();
-  renderHoldings();
-  if (_holdingsView === 'chart' && holdings.length >= 3) {
-    fetchAndRenderSparklines();
+  // renderPortfolioOverview handles renderHoldings + fetchAndRenderSparklines for 3+ holdings
+  if (holdings.length >= 3 && typeof renderPortfolioOverview === 'function') {
+    renderPortfolioOverview();
+  } else {
+    renderHoldings();
   }
-  if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
   // Collapse results panel when switching portfolios (reset analysis)
   var resultsPanel = document.getElementById('resultsPanel');
   if (resultsPanel) resultsPanel.innerHTML = '';
@@ -2339,7 +2333,11 @@ var _simNames = {
   tech: 'Aggressive Tech', growth: 'Growth', balanced: 'Balanced',
   conservative: 'Conservative', dividend: 'Dividend', etfonly: 'ETF Only',
   energy: 'Energy', finance: 'Finance', healthcare: 'Healthcare',
-  ai: 'AI & Chips', crypto: 'Crypto', smallcap: 'Small Cap'
+  realestate: 'Real Estate', defense: 'Defense', retail: 'Retail',
+  cyber: 'Cybersecurity', biotech: 'Biotech',
+  ai: 'AI & Chips', crypto: 'Crypto', smallcap: 'Small Cap',
+  cleanenergy: 'Clean Energy', international: 'International',
+  gold: 'Gold & Metals', ev: 'EV & Auto', space: 'Space'
 };
 
 function loadExample(key) {
@@ -2364,9 +2362,13 @@ function loadExample(key) {
   });
   if (typeof hidePortfolioOverview === 'function') hidePortfolioOverview();
   recalcPortfolioPct();
-  renderHoldings();
   collapseInputSections();
-  if (typeof renderPortfolioOverview === 'function') renderPortfolioOverview();
+  // renderPortfolioOverview handles renderHoldings + fetchAndRenderSparklines for 3+ holdings
+  if (holdings.length >= 3 && typeof renderPortfolioOverview === 'function') {
+    renderPortfolioOverview();
+  } else {
+    renderHoldings();
+  }
   // Deselect any highlighted portfolio in strip
   if (typeof renderPortfolioStrip === 'function') renderPortfolioStrip(null);
 }
@@ -3547,7 +3549,14 @@ function renderPortfolioOverview() {
       b.classList.toggle('active', b.dataset.view === 'chart');
     });
     renderHoldings();
-    fetchAndRenderSparklines();
+    // Delay sparkline fetch slightly to ensure DOM is painted
+    setTimeout(function() {
+      fetchAndRenderSparklines();
+      // Retry after 3s if any shimmers remain (cold start / slow API)
+      setTimeout(function() {
+        if (document.querySelector('.spark-shimmer')) fetchAndRenderSparklines();
+      }, 3000);
+    }, 50);
   }
 
   // Use last selected range (or default to 1M)
@@ -3676,34 +3685,31 @@ function _equityTick() {
       }
     }
 
-    // ── % BADGE — only update when chart shows 1D or live ──
-    // Other ranges (5d, 1mo, 3mo, etc.) have their own % from the sparkline data
-    if (_chartActiveRange === '1d' || _chartActiveRange === 'live') {
-      var pctEl = document.getElementById('pctBadge');
-      if (pctEl && totalWeight > 0) {
-        var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
-        var sign = portfolioPct > 0 ? '+' : '';
-        var pctText = sign + portfolioPct.toFixed(2) + '%';
-        var pctClass = 'portfolio-perf-badge ' + cls;
-        if (pctEl.textContent !== pctText || pctEl.className !== pctClass) {
-          pctEl.textContent = pctText;
-          pctEl.className = pctClass;
-          _lastPctValue = portfolioPct;
-        }
+    // ── % BADGE — always update with 1D change ──
+    var pctEl = document.getElementById('pctBadge');
+    if (pctEl && totalWeight > 0) {
+      var cls = portfolioPct > 0.01 ? 'up' : portfolioPct < -0.01 ? 'down' : 'flat';
+      var sign = portfolioPct > 0 ? '+' : '';
+      var pctText = sign + portfolioPct.toFixed(2) + '%';
+      var pctClass = 'portfolio-perf-badge ' + cls;
+      if (pctEl.textContent !== pctText || pctEl.className !== pctClass) {
+        pctEl.textContent = pctText;
+        pctEl.className = pctClass;
+        _lastPctValue = portfolioPct;
+      }
 
-        // Update dollar change for 1D
-        var dollarEl = document.getElementById('dollarBadge');
-        if (dollarEl && eq > 0 && portfolioPct !== 0) {
-          var dollarChange = eq * (portfolioPct / (100 + portfolioPct));
-          var dSign = dollarChange >= 0 ? '+' : '';
-          var dFormatted = Math.abs(dollarChange) >= 1000
-            ? dSign + '$' + dollarChange.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})
-            : dSign + '$' + dollarChange.toFixed(2);
-          var dClass = 'portfolio-dollar-change ' + cls;
-          if (dollarEl.textContent !== dFormatted) {
-            dollarEl.textContent = dFormatted;
-            dollarEl.className = dClass;
-          }
+      // Update dollar change
+      var dollarEl = document.getElementById('dollarBadge');
+      if (dollarEl && eq > 0 && portfolioPct !== 0) {
+        var dollarChange = eq * (portfolioPct / (100 + portfolioPct));
+        var dSign = dollarChange >= 0 ? '+' : '';
+        var dFormatted = Math.abs(dollarChange) >= 1000
+          ? dSign + '$' + dollarChange.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})
+          : dSign + '$' + dollarChange.toFixed(2);
+        var dClass = 'portfolio-dollar-change ' + cls;
+        if (dollarEl.textContent !== dFormatted) {
+          dollarEl.textContent = dFormatted;
+          dollarEl.className = dClass;
         }
       }
     }

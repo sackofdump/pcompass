@@ -2179,11 +2179,22 @@ const EXAMPLE_PORTFOLIOS = {
   energy:       [{ticker:'XOM',shares:1},{ticker:'CVX',shares:1},{ticker:'COP',shares:1},{ticker:'NEE',shares:1},{ticker:'ENPH',shares:1},{ticker:'XLE',shares:1}],
   finance:      [{ticker:'JPM',shares:1},{ticker:'GS',shares:1},{ticker:'V',shares:1},{ticker:'MA',shares:1},{ticker:'BAC',shares:1},{ticker:'XLF',shares:1}],
   healthcare:   [{ticker:'UNH',shares:1},{ticker:'JNJ',shares:1},{ticker:'PFE',shares:1},{ticker:'XLV',shares:1},{ticker:'LLY',shares:1}],
+  // Sector-focused (more)
+  realestate:   [{ticker:'O',shares:1},{ticker:'AMT',shares:1},{ticker:'SPG',shares:1},{ticker:'EQIX',shares:1},{ticker:'WELL',shares:1}],
+  defense:      [{ticker:'LMT',shares:1},{ticker:'RTX',shares:1},{ticker:'NOC',shares:1},{ticker:'GD',shares:1},{ticker:'LHX',shares:1},{ticker:'AXON',shares:1}],
+  retail:       [{ticker:'WMT',shares:1},{ticker:'COST',shares:1},{ticker:'TGT',shares:1},{ticker:'HD',shares:1},{ticker:'TJX',shares:1}],
+  cyber:        [{ticker:'CRWD',shares:1},{ticker:'PANW',shares:1},{ticker:'ZS',shares:1},{ticker:'FTNT',shares:1},{ticker:'NET',shares:1}],
+  biotech:      [{ticker:'MRNA',shares:1},{ticker:'CRSP',shares:1},{ticker:'REGN',shares:1},{ticker:'VRTX',shares:1},{ticker:'GILD',shares:1}],
   // Theme-based
   crypto:       [{ticker:'COIN',shares:1},{ticker:'MSTR',shares:1},{ticker:'HOOD',shares:1},{ticker:'NVDA',shares:1},{ticker:'MSFT',shares:1}],
   ai:           [{ticker:'NVDA',shares:1},{ticker:'MSFT',shares:1},{ticker:'AVGO',shares:1},{ticker:'PLTR',shares:1},{ticker:'ARM',shares:1},{ticker:'TSM',shares:1}],
   etfonly:      [{ticker:'VOO',shares:1},{ticker:'QQQ',shares:1},{ticker:'SCHD',shares:1},{ticker:'VEA',shares:1},{ticker:'BND',shares:1},{ticker:'GLD',shares:1}],
   smallcap:     [{ticker:'RKLB',shares:1},{ticker:'SOFI',shares:1},{ticker:'DKNG',shares:1},{ticker:'CHWY',shares:1},{ticker:'AFRM',shares:1},{ticker:'DUOL',shares:1}],
+  cleanenergy:  [{ticker:'ENPH',shares:1},{ticker:'NEE',shares:1},{ticker:'FSLR',shares:1},{ticker:'RUN',shares:1},{ticker:'SEDG',shares:1}],
+  international:[{ticker:'BABA',shares:1},{ticker:'TSM',shares:1},{ticker:'ASML',shares:1},{ticker:'MELI',shares:1},{ticker:'SE',shares:1}],
+  gold:         [{ticker:'GLD',shares:1},{ticker:'GDX',shares:1},{ticker:'SLV',shares:1},{ticker:'FCX',shares:1},{ticker:'NUE',shares:1}],
+  ev:           [{ticker:'TSLA',shares:1},{ticker:'RIVN',shares:1},{ticker:'LI',shares:1},{ticker:'F',shares:1},{ticker:'GM',shares:1}],
+  space:        [{ticker:'RKLB',shares:1},{ticker:'LMT',shares:1},{ticker:'BA',shares:1},{ticker:'LUNR',shares:1},{ticker:'RDW',shares:1}],
 };
 
 const APPROX_PRICES = {
@@ -2198,5 +2209,8 @@ const APPROX_PRICES = {
   SNOW:175,MDB:240,TTD:95,SE:115,MELI:1900,BIDU:95,JD:40,PDD:110,TSM:190,
   ASML:700,AVGO:190,QCOM:170,MU:98,INTC:22,ON:48,SMCI:40,ARM:160,DELL:115,
   IGV:95,RSP:175,TCEHY:60,AFRM:70,XLF:50,ITA:145,XLE:88,XLV:145,VNQ:88,XLU:78,
-  SEDG:18,BRK:480,LLY:800,UNH:520,PG:170,LMT:470
+  SEDG:18,BRK:480,LLY:800,UNH:520,PG:170,LMT:470,
+  O:58,AMT:195,SPG:165,EQIX:850,WELL:140,RTX:130,NOC:530,GD:280,LHX:230,AXON:670,
+  HD:380,TJX:125,FTNT:100,MRNA:35,CRSP:50,REGN:680,VRTX:440,GILD:115,FSLR:175,
+  RUN:15,FCX:42,NUE:140,LI:28,LUNR:12,RDW:15
 };
