@@ -53,7 +53,7 @@ export default async function handler(req, res) {
   setSecurityHeaders(res);
   const origin = req.headers.origin || '';
   const allowedOrigin = getAllowedOrigin(origin);
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin || 'https://pcompass.vercel.app');
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin || 'http://localhost:3000');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

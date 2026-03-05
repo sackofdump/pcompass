@@ -61,7 +61,7 @@ export default async function handler(req, res) {
           code,
           client_id: GOOGLE_CLIENT_ID,
           client_secret: clientSecret,
-          redirect_uri: 'https://pcompass.vercel.app',
+          redirect_uri: process.env.APP_URL || 'http://localhost:3000',
           grant_type: 'authorization_code',
         }),
       });

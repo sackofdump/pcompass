@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Portfolio Compass is a full-stack web application for AI-powered stock portfolio analysis. It's a PWA built with vanilla JavaScript (no build step, no bundler), Node.js serverless APIs on Vercel, and a Neon PostgreSQL backend.
 
-**Production URL:** https://pcompass.vercel.app
+**Production URL:** (removed)
 
 ## Development & Deployment
 

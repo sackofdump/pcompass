@@ -1,7 +1,5 @@
 export const ALLOWED_ORIGINS = [
-  'https://pcompass.vercel.app',
-  'https://portalyze.app',
-  'https://www.portalyze.app',
+  'http://localhost:3000',
 ];
 
 export function getAllowedOrigin(req) {
