@@ -46,9 +46,58 @@
   .splash-overlay.splash-zoom .splash-compass{animation:splashZoom 1.1s cubic-bezier(0.4,0,0.2,1) forwards !important;}
   .splash-overlay.splash-zoom .splash-needle{animation:splashSpin 0.6s linear infinite !important;}
 
+  .pw-gate{position:fixed;inset:0;background:#0a0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999999;font-family:'Inter',sans-serif;}
+  body.light .pw-gate{background:#f4f6f9;}
+  .pw-gate-box{text-align:center;}
+  .pw-gate-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:#e8ecf0;margin-bottom:24px;}
+  body.light .pw-gate-title{color:#1a1f2e;}
+  .pw-gate-title span{color:#00e5a0;}
+  .pw-gate-input{background:#151922;border:1.5px solid #2a3140;border-radius:10px;color:#e8ecf0;font-size:16px;padding:12px 18px;width:240px;outline:none;text-align:center;font-family:'Inter',sans-serif;}
+  body.light .pw-gate-input{background:#fff;border-color:#d0d5de;color:#1a1f2e;}
+  .pw-gate-input:focus{border-color:#00e5a0;}
+  .pw-gate-input.pw-err{border-color:#ff4d6a;animation:pwShake .4s ease;}
+  .pw-gate-btn{margin-top:14px;background:#00e5a0;color:#0a0c10;border:none;border-radius:10px;padding:11px 32px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
+  .pw-gate-btn:hover{background:#00cc8e;}
+  @keyframes pwShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 </style>
 </head>
 <body>
+
+<div class="pw-gate" id="pwGate">
+  <div class="pw-gate-box">
+    <div class="pw-gate-title">Portfolio <span>Compass</span></div>
+    <form onsubmit="return checkPw(event)">
+      <input type="password" class="pw-gate-input" id="pwInput" placeholder="Enter password" autocomplete="off" autofocus>
+      <br>
+      <button type="submit" class="pw-gate-btn">Enter</button>
+    </form>
+  </div>
+</div>
+<script>
+(function(){
+  var H='7afca062def2a48f09d6dd03d49eafa00f40b7389aaa9f74db87fe0c14b8e4e9';
+  if(document.cookie.split(';').some(function(c){return c.trim().startsWith('_pgate=1')})){
+    document.getElementById('pwGate').style.display='none';
+  }
+  window.checkPw=async function(e){
+    e.preventDefault();
+    var v=document.getElementById('pwInput').value;
+    var enc=new TextEncoder().encode(v);
+    var buf=await crypto.subtle.digest('SHA-256',enc);
+    var hex=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
+    if(hex===H){
+      document.cookie='_pgate=1;path=/;max-age=2592000;SameSite=Lax';
+      document.getElementById('pwGate').style.display='none';
+    } else {
+      var inp=document.getElementById('pwInput');
+      inp.classList.add('pw-err');
+      inp.value='';
+      setTimeout(function(){inp.classList.remove('pw-err')},500);
+    }
+    return false;
+  };
+})();
+</script>
 
 <div class="splash-loader" id="splashLoader">
   <div class="splash-compass"><div class="splash-needle"></div><div class="splash-compass-dot"></div></div>
