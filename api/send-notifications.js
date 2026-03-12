@@ -1,5 +1,5 @@
-import { timingSafeEqual } from './lib/auth.js';
-import { neonSQL } from './lib/neon.js';
+import { timingSafeEqual } from '../lib/auth.js';
+import { neonSQL } from '../lib/neon.js';
 
 export default async function handler(req, res) {
   // Auth via CRON_SECRET (Vercel sets this for cron jobs) — timing-safe

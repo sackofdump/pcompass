@@ -1,5 +1,5 @@
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
-import { checkRateLimit } from './lib/rate-limit.js';
+import { getAllowedOrigin, setSecurityHeaders } from '../lib/cors.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
 
 // ── SIMPLE IN-MEMORY CACHE ────────────────────────────────
 const cache = new Map();

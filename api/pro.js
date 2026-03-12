@@ -1,7 +1,7 @@
-import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
-import { extractAuth, getProFromCookie, verifyAuthToken, verifyProToken } from './lib/auth.js';
-import { neonSQL } from './lib/neon.js';
-import { checkRateLimit } from './lib/rate-limit.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from '../lib/cors.js';
+import { extractAuth, getProFromCookie, verifyAuthToken, verifyProToken } from '../lib/auth.js';
+import { neonSQL } from '../lib/neon.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
 
 // ── VALID FEATURES (for check-feature) ──────────────────
 const VALID_FEATURES = ['pdf', 'picks', 'slots', 'showmore'];

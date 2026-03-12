@@ -1,6 +1,6 @@
-import { getAllowedOrigin, setSecurityHeaders } from './lib/cors.js';
-import { neonSQL } from './lib/neon.js';
-import { checkRateLimit } from './lib/rate-limit.js';
+import { getAllowedOrigin, setSecurityHeaders } from '../lib/cors.js';
+import { neonSQL } from '../lib/neon.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
 
 // ── SHARED ──────────────────────────────────────────────
 const TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/;

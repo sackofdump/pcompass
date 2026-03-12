@@ -1,7 +1,7 @@
-import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
-import { extractAuth, verifyAuthToken } from './lib/auth.js';
-import { neonSQL } from './lib/neon.js';
-import { checkRateLimit } from './lib/rate-limit.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from '../lib/cors.js';
+import { extractAuth, verifyAuthToken } from '../lib/auth.js';
+import { neonSQL } from '../lib/neon.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
 
 export default async function handler(req, res) {
   // CORS

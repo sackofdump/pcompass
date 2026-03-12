@@ -1,5 +1,5 @@
-import { neonSQL } from './lib/neon.js';
-import { checkBodySize } from './lib/cors.js';
+import { neonSQL } from '../lib/neon.js';
+import { checkBodySize } from '../lib/cors.js';
 
 export const config = { api: { bodyParser: false } };
 

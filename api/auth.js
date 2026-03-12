@@ -1,8 +1,8 @@
 import * as jose from 'jose';
-import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from './lib/cors.js';
-import { extractAuth, verifyAuthToken } from './lib/auth.js';
-import { neonSQL } from './lib/neon.js';
-import { checkRateLimit } from './lib/rate-limit.js';
+import { getAllowedOrigin, setSecurityHeaders, checkBodySize } from '../lib/cors.js';
+import { extractAuth, verifyAuthToken } from '../lib/auth.js';
+import { neonSQL } from '../lib/neon.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
 
 // ── GOOGLE JWKS (cached) ────────────────────────────────
 const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));

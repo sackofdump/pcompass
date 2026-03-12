@@ -1,4 +1,4 @@
-import { neonSQL } from './lib/neon.js';
+import { neonSQL } from '../lib/neon.js';
 
 // ── ALL TICKERS FROM STOCK_DB (excluding ETFs — they don't have meaningful betas) ──
 const STOCK_TICKERS = [
