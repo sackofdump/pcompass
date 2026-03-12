@@ -1,24 +1,28 @@
 {
+  "rewrites": [
+    { "source": "/api/auth-apple", "destination": "/api/auth?_action=apple" },
+    { "source": "/api/signout", "destination": "/api/auth?_action=signout" },
+    { "source": "/api/delete-account", "destination": "/api/auth?_action=delete-account" },
+    { "source": "/api/stock-data", "destination": "/api/stock-info?_action=data" },
+    { "source": "/api/stock-news", "destination": "/api/stock-info?_action=news" },
+    { "source": "/api/stock-rating", "destination": "/api/stock-info?_action=rating" },
+    { "source": "/api/verify-pro", "destination": "/api/pro?_action=verify" },
+    { "source": "/api/check-feature", "destination": "/api/pro?_action=check-feature" },
+    { "source": "/api/start-trial", "destination": "/api/pro?_action=start-trial" },
+    { "source": "/api/pro-picks", "destination": "/api/pro?_action=picks" }
+  ],
   "functions": {
-    "api/market-data.js": { "maxDuration": 15 },
-    "api/claude.js": { "maxDuration": 30 },
     "api/auth.js": { "maxDuration": 10 },
-    "api/verify-pro.js": { "maxDuration": 10 },
+    "api/claude.js": { "maxDuration": 30 },
+    "api/market-data.js": { "maxDuration": 15 },
     "api/portfolios.js": { "maxDuration": 10 },
-    "api/stripe-webhook.js": { "maxDuration": 10 },
-"api/check-feature.js": { "maxDuration": 10 },
-    "api/pro-picks.js": { "maxDuration": 10 },
-    "api/delete-account.js": { "maxDuration": 10 },
-    "api/auth-apple.js": { "maxDuration": 10 },
-    "api/signout.js": { "maxDuration": 10 },
+    "api/pro.js": { "maxDuration": 10 },
+    "api/sparkline.js": { "maxDuration": 25 },
+    "api/stock-info.js": { "maxDuration": 15 },
     "api/register-push.js": { "maxDuration": 10 },
     "api/send-notifications.js": { "maxDuration": 30 },
     "api/refresh-stock-data.js": { "maxDuration": 60 },
-    "api/stock-data.js": { "maxDuration": 10 },
-    "api/stock-news.js": { "maxDuration": 15 },
-    "api/stock-rating.js": { "maxDuration": 10 },
-    "api/sparkline.js": { "maxDuration": 25 },
-    "api/top-movers.js": { "maxDuration": 30 }
+    "api/stripe-webhook.js": { "maxDuration": 10 }
   },
   "crons": [
     {
@@ -88,15 +92,6 @@
         {
           "key": "Cache-Control",
           "value": "s-maxage=3600, stale-while-revalidate=600"
-        }
-      ]
-    },
-    {
-      "source": "/api/top-movers",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "s-maxage=900, stale-while-revalidate=300"
         }
       ]
     },
